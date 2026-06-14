@@ -24,6 +24,7 @@ These are the rules every other decision answers to.
 
 - **Braces** for all blocks; **no whitespace semantics**.
 - **Semicolons** terminate every statement (simplest grammar; precise parser error recovery).
+- **Comments:** `#` runs to end of line (whole-line or trailing); `#[ … ]#` is a delimited block comment that may sit mid-line or span lines, and nests. `//` is *not* a comment — it is whole-number division (§5).
 - **Mandatory braces** on every `if` / `for` / `while`, even single-line (no dangling-else, no goto-fail class of bug).
 - Expression-oriented: blocks in expression position evaluate to their last value, while function bodies use explicit `return` (a duality flagged in §15).
 
@@ -34,9 +35,9 @@ These are the rules every other decision answers to.
 One binding concept, with mutability as an orthogonal modifier:
 
 ```ascent
-bind name = "Ada";       // immutable binding (the default)
-bind mut count = 0;      // mutable binding
-count = count + 1;       // legal only on `bind mut`
+bind name = "Ada";       # immutable binding (the default)
+bind mut count = 0;      # mutable binding
+count = count + 1;       # legal only on `bind mut`
 ```
 
 - `bind` names the **action** (binding a name to a value) — accurate for both forms; `mut` marks the one that varies.
@@ -89,6 +90,7 @@ Tuples (use a named type), `Set`, `Bytes`, sized/unsigned ints, `Char`.
 - **Operators are words**: `and` / `or` / `not` (operate on `Bool` only — consistent with the word-first keyword set and no-truthiness).
 - **`==`** is structural and same-type-only (cross-type comparison is a compile error). **`<` `>` `<=` `>=`** on `Int` / `Float` / `String`.
 - **No implicit conversions** (`Int + Float` is an error; use `toFloat`). **No operator overloading.**
+- **Division is split by intent.** `/` is real division on `Float` only (`Float / Float -> Float`); `//` is whole-number floor division on `Int` only (`Int // Int -> Int`). `Int / Int` is a compile error that points to `//` or `toFloat`, so the `1 / 2 == 0` surprise can never happen silently. Floor rounds toward −∞ (pairing with a future `mod`); division by zero is the loud crash of §9. Mirrors Python 3's `/` vs `//`.
 - **Function bodies** take two forms: a **block body** `fn(...) -> T { ...; return e; }` with explicit `return`, or an **expression body** `fn(...) -> T => e` where `e` is a single expression — never a bare block (`=> {` is an error; use the block form for multiple statements). `=>` reads as "the result is this expression."
 - **`return`** exits the enclosing function with a value. Blocks in expression position (`if`/`match` branches) yield their last value instead — the duality noted in §15.
 
@@ -99,9 +101,9 @@ Tuples (use a named type), `Set`, `Bytes`, sized/unsigned ints, `Char`.
 **One** user-defined construct: the tagged union, introduced with **`type`**. It subsumes records, enums, and unions.
 
 ```ascent
-type User  = { name: String, age: Int };               // record (single variant)
-type Color = Red | Green | Blue;                        // enum (zero-field variants)
-type Shape =                                            // union (multi-variant)
+type User  = { name: String, age: Int };               # record (single variant)
+type Color = Red | Green | Blue;                        # enum (zero-field variants)
+type Shape =                                            # union (multi-variant)
     | Circle{ radius: Float }
     | Rect{ width: Float, height: Float };
 ```
@@ -110,6 +112,8 @@ type Shape =                                            // union (multi-variant)
 - **Field access rule:** `e.field` is legal **iff `e`'s type has exactly one variant**. Multi-variant types must be inspected with `match`. (The error message itself teaches sum types.)
 - Variants are scoped to their type; unqualified names resolve when context is unambiguous, else `Shape.Circle{...}`.
 - **Construction requires a declared type.** Values are built as `TypeName{ field: value, ... }`; there are no anonymous record literals, and a `type` is never created implicitly from a construction site — so a misspelled type or field name is a caught error, not a silently-new type. External JSON is parsed *into* a declared type at the boundary (returning `T?`), keeping the language nominal while putting interop in the stdlib.
+- **A constructor is named-field syntax, not a first-class function** (a plain function is positional; named construction is not). To pass construction where a function is expected, write a lambda — `fn(t: String) -> Msg => EditDraft{ text: t }`. Turning a constructor into a function directly, via placeholder sections (`EditDraft{ text: _ }`), is a v2 candidate (§14), not a v1 feature.
+- **Record update with `...`.** `T{ ...base, field: value, ... }` builds a new `T` equal to `base` with the listed fields overridden. Exactly one spread is allowed and it comes first; `base` must already be a `T` (no structural merge of other types); the overriding fields cannot introduce a field absent from `T`, so typos are still caught. It applies to single-variant types — a union value is `match`ed into a known variant first. There is no shallow-copy trap: value semantics make the copy a value all the way down. (Three-dot `...` stays distinct from the two-dot `..` range.)
 - **Methods yes; classes, inheritance, and subtyping never.** A type may carry methods — behavior with an explicit `self` receiver — but there are no classes, no inheritance, and no subtype hierarchies, permanently (they'd require subtyping, which §7 forecloses). Methods resolve nominally on a value's concrete type; the model is the Rust/Go struct, not class-OOP. Data and behavior are still declared as distinct kinds of member (fields vs methods), never fused into an opaque object.
 
 ### Methods and free functions
@@ -143,7 +147,7 @@ methods {
     },
 };
 
-bind a = Circle{ radius: 2.0 }.area();   // a real method on Shape
+bind a = Circle{ radius: 2.0 }.area();   # a real method on Shape
 ```
 
 - **Free functions coexist** for operations not naturally "on" a type (`bind double = fn(x: Int) -> Int => x * 2`, called `double(5)`). Each operation is a method *or* a free function — decided once by whoever defines it — so there is exactly **one way to call it**. (This is precisely what UFCS gave up: it let every function be called two ways.)
@@ -225,7 +229,7 @@ A browser-based **canvas**. You open a code panel to write a program; a program 
 
 **No inheritance, no subtyping — Ascent is not class-based OOP, and never will be.** It *does* have methods (§6), but classes, inheritance, and subtype hierarchies are out for good, not just in v1. This is settled on principle: they would require subtyping, and the entire type system's simplicity (§7) rests on *not* having it — so adding them later wouldn't be a feature, it would be tearing out the foundation. Methods deliver the object-like *feel* — and real method chaining — without any of it, exactly as Rust's and Go's structs do. Shared behavior, if it ever comes, arrives as trait-style contracts that need no subtyping.
 
-**Deferred** — a "later module," introduced when a learner asks the question it answers: interfaces / typeclasses (traits) · user-definable generics · exceptions · operator overloading · default / named arguments · varargs · comprehensions · getters / setters · decorators · macros · tuples · `Set` · `Char`.
+**Deferred** — a "later module," introduced when a learner asks the question it answers: interfaces / typeclasses (traits) · user-definable generics · exceptions · operator overloading · default / named arguments · placeholder sections (`T{ field: _ }` as a function, with partial application) · varargs · comprehensions · getters / setters · decorators · macros · tuples · `Set` · `Char`.
 
 ---
 
@@ -246,7 +250,7 @@ type Shape =
     | Circle{ radius: Float }
     | Rect{ width: Float, height: Float }
 methods {
-    area: fn(self) -> Float => match self {     // a method, expression body
+    area: fn(self) -> Float => match self {     # a method, expression body
         Circle{ radius }      -> 3.14159 * radius * radius;
         Rect{ width, height } -> width * height;
     },
@@ -260,15 +264,15 @@ type Player = {
     describe: fn(self) -> String => "{self.name} is a {self.rank()}",
 };
 
-bind main = fn() -> Done {                       // a free function, block body
+bind main = fn() -> Done {                       # a free function, block body
     bind shapes = [ Circle{ radius: 2.0 }, Rect{ width: 3.0, height: 4.0 } ];
     bind mut total = 0.0;
     for s in shapes {
-        total = total + s.area();                // method call on a union
+        total = total + s.area();                # method call on a union
     }
     print("total area: {total}");
 
     bind ada = Player{ name: "Ada", score: 120 };
-    print(ada.describe());                       // describe calls self.rank()
+    print(ada.describe());                       # describe calls self.rank()
 };
 ```
