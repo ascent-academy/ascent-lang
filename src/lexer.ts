@@ -67,7 +67,7 @@ export class Lexer {
 
   private error(code: string, span: Span): Token {
     this.diagnostics.push({ code, span });
-    return { kind: 'ERROR', value: '', line: span.start.line, col: span.start.column };
+    return { kind: 'ERROR', value: '', span };
   }
 
   // ---- driver -------------------------------------------------------------
@@ -129,7 +129,7 @@ export class Lexer {
 
     const start = this.mark();
     const tok = (kind: TokenKind, value: string): Token =>
-      ({ kind, value, line: start.line, col: start.column });
+      ({ kind, value, span: this.spanFrom(start) });
 
     if (this.pos >= this.src.length) return tok('EOF', '');
 
@@ -193,7 +193,7 @@ export class Lexer {
     }
 
     const value = this.src.slice(start.offset, this.pos);
-    return { kind: isFloat ? 'FLOAT_LIT' : 'INT_LIT', value, line: start.line, col: start.column };
+    return { kind: isFloat ? 'FLOAT_LIT' : 'INT_LIT', value, span: this.spanFrom(start) };
   }
 
   // Reached after '.<digit>' — consume the whole bad run so the span covers it,
@@ -212,7 +212,7 @@ export class Lexer {
     while (isIdentChar(this.peek())) this.advance();
     const value = this.src.slice(start.offset, this.pos);
     const kind = KEYWORDS[value] ?? 'IDENT';
-    return { kind, value, line: start.line, col: start.column };
+    return { kind, value, span: this.spanFrom(start) };
   }
 
   private readString(start: Position): Token {
@@ -240,11 +240,6 @@ export class Lexer {
     }
 
     this.advance(); // closing '"'
-    return {
-      kind: 'STRING_LIT',
-      value: s,
-      line: start.line,
-      col: start.column
-    };
+    return { kind: 'STRING_LIT', value: s, span: this.spanFrom(start) };
   }
 }

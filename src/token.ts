@@ -1,3 +1,5 @@
+import type { Span } from './diagnostic.js';
+
 export type TokenKind =
   | 'INT_LIT' | 'FLOAT_LIT' | 'STRING_LIT' | 'BOOL_LIT'
   | 'IDENT'
@@ -16,7 +18,6 @@ export type TokenKind =
 export interface Token {
   kind: TokenKind;
   value: string;
-  line: number;
-  col: number;
+  span: Span;
 }
 

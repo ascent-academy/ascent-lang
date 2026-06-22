@@ -72,4 +72,47 @@ export const MESSAGES: Record<string, Builder> = {
     message: `This string is never closed.`,
     explanation: `It opens with a " but reaches the end of the file before a closing ". Add a " to end it.`,
   }),
+
+  // ── S · Syntax ────────────────────────────────────────────────────────────
+
+  S0001: (text, _span, data): Built => {
+    const expected = data?.['expected'] as string | undefined;
+    const found = text || 'end of file';
+    if (expected) {
+      return { message: `I expected '${expected}' here, but found ${q(found)}.` };
+    }
+    return { message: `I didn't expect to find ${q(found)} here.` };
+  },
+
+  S0002: (text): Built => {
+    const found = text || 'end of file';
+    return {
+      message: `I expected an expression here, but found ${q(found)}.`,
+      explanation: `This position needs a value — a number, a name, a string, or a sub-expression.`,
+    };
+  },
+
+  S0003: (text): Built => {
+    const found = text || 'end of file';
+    return {
+      message: `I expected ';' to end this statement, but found ${q(found)}.`,
+      explanation: `Every statement in Ascent ends with a semicolon.`,
+    };
+  },
+
+  S0004: (text): Built => {
+    const found = text || 'end of file';
+    return {
+      message: `I expected ')' to close this grouped expression, but found ${q(found)}.`,
+      explanation: `Every '(' must be closed with a matching ')'.`,
+    };
+  },
+
+  S0005: (text): Built => {
+    const found = text || 'end of file';
+    return {
+      message: `I expected a slot name here, but found ${q(found)}.`,
+      explanation: `'fix' and 'mut' must be followed by the slot's name, e.g. 'fix count = 0;'.`,
+    };
+  },
 };
