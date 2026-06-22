@@ -13,7 +13,7 @@ These are the rules every other decision answers to.
 1. **Honesty over magic.** No hidden coercions, no silent failure states, no two-kinds-of-nothing. If something happens, it's visible.
 2. **Cage the footguns at the source.** Every value is a "real" value with no weird states (no `NaN`, no silent overflow, no wild `null`). The dangerous thing is made impossible or made explicit, not documented.
 3. **Regular syntax, minimal sugar.** One way to do each thing. Three deliberate exceptions: string interpolation, `else if`, and the `=>` expression-body shorthand for functions.
-4. **Transfer over novelty.** Surface syntax (braces, semicolons, `return`, `await`) builds muscle memory for real languages; clean semantics build correct mental models. Where the two conflict, semantics win.
+4. **Transfer to many languages, not one.** Surface syntax builds muscle memory; clean semantics build correct mental models; where they conflict, semantics win. The divergences worth eliminating are *false friends* — the same surface meaning something different elsewhere, which fails *silently* (the `5 // 2` trap). What Ascent merely has and a target *lacks* is cheap: it's a compile error there, not a silent bug, so the learner is told and adapts. So Ascent keeps load-bearing semantics even when unique, aligns pure surface to the broad mainstream rather than to any single language, and refuses to import one language's quirks just to resemble it. Every divergence that remains is a deliberate graduation lesson.
 5. **Static types, low ceremony.** Types catch mistakes early; inference removes the paperwork.
 6. **Errors are the product.** Compiler and runtime messages are written as explanations naming the things the learner wrote.
 7. **Power is opt-in and late.** Advanced capability (references, user-defined generics) arrives as a later chapter, not a day-one tax.
@@ -24,87 +24,36 @@ These are the rules every other decision answers to.
 
 - **Braces** for all blocks; **no whitespace semantics**.
 - **Semicolons** terminate every statement (simplest grammar; precise parser error recovery).
-- **Comments:** `#` runs to end of line (whole-line or trailing); `#[ … ]#` is a delimited block comment that may sit mid-line or span lines, and nests. `//` is *not* a comment — it is whole-number division (§5).
-- **Mandatory braces** on every `if` / `for` / `while`, even single-line (no dangling-else, no goto-fail class of bug).
+- **Comments:** `#` runs to end of line (whole-line or trailing); `#[ … ]#` is a delimited block comment that may sit mid-line or span lines, and nests. **`//` is deliberately unused** — it means *comment* in the C family but *floor division* in Python, so either meaning would silently betray graduates to the other camp. Ascent uses neither (floor division is `div`, §5), so `//` builds no habit and is learned fresh per language.
+- **Identifiers**: `[A-Za-z_][A-Za-z0-9_]*`. Keywords (`fix`, `mut`, `and`, `or`, `not`, `div`, `true`, `false`, and the control-flow/type words) are reserved.
+- **Mandatory braces** on every `if` / `for` / `while`, even single-line (no dangling-else, no goto-fail class of bug). The *test* of `if` / `while` / `match` is parenthesized — `if (cond) { }` — easing the move to TypeScript and the C family; `for` takes no parens (it has no test).
 - Expression-oriented: blocks in expression position evaluate to their last value, while function bodies use explicit `return` (a duality flagged in §15).
 
 ---
 
-## 3 Slots (Variables)
+## 3. Slots
 
-A **slot** is a named location that holds one value. Assignment has value
-semantics: `b = a` copies the value into `b`, and the two slots are independent
-thereafter.
+A **slot** is a named, value-holding location — *variable* in the colloquial sense. The mental model is **name → slot → value**: the name labels the slot, the slot holds the value. A slot is a *container, not a reference* — assignment copies (value semantics, §4), so writing through one slot can never reach another.
 
-```
-fix a = 10;
-mut b = a;     # b holds its own 10
-b = 20;        # a is unchanged
-```
+Every slot is declared **fixed** or **mutable** on a single axis, with no default:
 
-### Mutability is explicit
-
-Every slot is declared with a mandatory mutability keyword: `fix` for a fixed
-slot, `mut` for a mutable one. There is no default — unlike the
-immutable-by-default of Rust or Swift, or the mutable-by-default of Java and C,
-neither kind is the unmarked case.
-
-```
-fix name = 'Martin';   # reassignment is an error
-mut age  = 5;          # age = 6 is legal
+```ascent
+fix name = "Ada";    # a fixed slot — the name cannot be reassigned
+mut count = 0;       # a mutable slot
+count = count + 1;   # fine; would be an error on a fixed slot
 ```
 
-`fix` constrains the slot, not the value: it forbids rebinding the name, not
-mutation of whatever the value internally permits. Value-level mutability is a
-separate axis with its own keywords, reusing the same two words — fixed and
-mutable — by design.
-
-### Terminology
-
-"Slot" is the precise term; "variable" is the colloquial synonym, and the two
-are used interchangeably. The wrinkle worth flagging is that common usage
-applies "variable" to every slot regardless of mutability, so "fixed variable"
-turns up and reads as an oxymoron. This is less an error than the older, broader
-sense of the word — *any named storage location*. Ascent keeps "slot" as the
-mutability-neutral umbrella and treats "variable" as the loose superset, rather
-than relitigating the wider world's usage.
-
-### Rationale
-
-**slot.** "Named storage location" is the precise definition of a variable, and
-*slot* is the term already used for it in compiler and VM contexts (stack slots,
-JVM local-variable slots). It carries none of the physical-object connotation of
-"box," and it preserves the name / slot / value separation the rest of the
-language relies on — a distinction that both the overloaded "variable" and the
-reference-flavored "binding" tend to collapse.
-
-**Explicit mutability.** Production languages pick a default and mark the
-exception; Ascent marks both. The cost is one keyword per declaration. The
-return — this being a teaching language — is that no slot's mutability depends on
-a default the reader must recall, and every declaration is legible in isolation.
-
-**`fix` / `mut`.** `mut` is the conventional clip of *mutable* (cf. Rust) and,
-not being a word in its own right, cannot be read as anything else. `fix` clips
-*fixed* — the "held in place" sense, as in the mathematician's "fix x = 5." It
-was chosen over the obvious alternatives: `const` skews toward compile-time
-constant, `val` names the value rather than the slot, and `final` is a full word
-that breaks the three-letter symmetry with `mut`. Both keywords are three
-letters with distinct initial characters, so mutability is legible at a glance
-and the operands align. `vary` was dropped once "variable" became the umbrella
-term — a keyword that is "variable" in miniature would blur the line it draws.
-
-The one real collision — `fix` against "fix a bug" — is contained by convention
-rather than avoided: `fix` only ever introduces a slot, and prose refers to
-*creating a fixed slot*, never to *fixing* one, so the repair sense never
-occupies the same role.
+- **`fix` / `mut` are stated on every slot — there is no default** (unlike Rust/Swift's immutable-default or C/Java's mutable-default). Nothing about a declaration depends on a rule you must recall; each line is legible alone, and every declaration forces the "does this change?" question. It costs less here than elsewhere: the usual reason to *default* to immutable is to prevent aliasing surprises, and value semantics has already removed those. (In prose we say "create a fixed slot," never "fix a slot," to keep `fix` clear of the "fix a bug" sense.)
+- **`fix` constrains the slot** (rebinding the name), not the deep mutability of the value — that is a separate axis the same `fix`/`mut` pair will extend to later, by design (one concept, not two).
+- Graduation: this is `let` / `let mut` in Rust, `val` / `var` in Swift and Kotlin, `const` / `let` in JavaScript — note `let` flips between *immutable* (Rust) and *mutable* (JS), a clash `fix`/`mut` sidesteps by belonging to no one.
 
 ---
 
 ## 4. Values & types (the value universe)
 
 ### Scalars
-- **`Int`** — 64-bit signed. **Traps on overflow** with a friendly message (no silent wraparound). No width/unsigned zoo in v1.
-- **`Float`** — 64-bit IEEE 754. **`NaN`/`Infinity` are runtime errors**, not values, so every `Float` is a real, ordered number.
+- **`Int`** — 64-bit signed, written `42`. **Traps on overflow** with a friendly message (no silent wraparound). No width/unsigned zoo in v1.
+- **`Float`** — 64-bit IEEE 754, written `3.14` (a digit is required on *both* sides of the point — no `3.` or `.5`; exponents and digit separators are deferred). **`NaN`/`Infinity` are runtime errors**, not values, so every `Float` is a real, ordered number.
 - **`Bool`** — `true` / `false`. **No truthiness**; conditions must be `Bool`.
 - **`String`** — immutable Unicode sequence, written with double quotes (`"..."`) and `{expr}` interpolation; single quotes are unused. **No integer indexing** (avoids the Unicode-index bug class); `length` counts code points. **No `Char` type** — characters are length-1 strings.
 
@@ -118,12 +67,12 @@ occupies the same role.
 - No `undefined`, no second kind of nothing. `none` stands alone — no `Some`/`None` pairing to teach — chosen for familiarity with Python, the dominant first language.
 
 ```ascent
-bind nick: String? = none;
-bind shown = nick ?? "anonymous";
+fix nick: String? = none;
+fix shown = nick ?? "anonymous";
 ```
 
 ### Compound
-- **`List<T>`** — literal `[1, 2, 3]`; growth gated by `bind mut`.
+- **`List<T>`** — literal `[1, 2, 3]`; growth gated by a `mut` slot.
 - **`Map<K, V>`** — literal form; lookup returns `V?`.
 - **`Range`** — `a..b`, **half-open** (`0..n` yields exactly `n` items), iterable (`for i in 0..n`); matches Python and Rust and pairs cleanly with lengths. Replaces the C-style `for`.
 - **Functions** — first-class values; comparing functions with `==` is a compile error.
@@ -139,13 +88,14 @@ Tuples (use a named type), `Set`, `Bytes`, sized/unsigned ints, `Char`.
 
 ## 5. Expressions & control flow
 
-- **`if` / `else` / `else if`** are **expressions** (no separate ternary). `else if` is the only control-flow sugar.
-- **`match`** — an expression, **exhaustiveness-checked**. v1 patterns are shallow: variant + field binding, literals, `_`. (No nested patterns, guards, or or-patterns in v1.) Chosen over `switch` to avoid fallthrough/`break` expectations.
-- **`for x in xs`** iterates values; **`while cond { }`** for condition loops. No C-style three-part `for`.
+- **`if (cond) { } / else if (cond) { } / else { }`** are **expressions** (no separate ternary). The test is parenthesized (C-family/TS surface) even though the mandatory body braces already delimit it. `else if` is the only control-flow sugar.
+- **`match (subject) { }`** — an expression, **exhaustiveness-checked**. v1 patterns are shallow: variant + field binding, literals, `_`. (No nested patterns, guards, or or-patterns in v1.) Chosen over `switch` to avoid fallthrough/`break` expectations.
+- **`while (cond) { }`** for condition loops. **`for x in xs`** iterates values and takes **no** parens — it has no test, and parenthesizing it would mimic TypeScript's *key*-iterating `for…in`, the very false friend the `in`-for-values choice avoids. No C-style three-part `for`.
 - **Operators are words**: `and` / `or` / `not` (operate on `Bool` only — consistent with the word-first keyword set and no-truthiness).
 - **`==`** is structural and same-type-only (cross-type comparison is a compile error). **`<` `>` `<=` `>=`** on `Int` / `Float` / `String`.
 - **No implicit conversions** (`Int + Float` is an error; use `toFloat`). **No operator overloading.**
-- **Division is split by intent.** `/` is real division on `Float` only (`Float / Float -> Float`); `//` is whole-number floor division on `Int` only (`Int // Int -> Int`). `Int / Int` is a compile error that points to `//` or `toFloat`, so the `1 / 2 == 0` surprise can never happen silently. Floor rounds toward −∞ (pairing with a future `mod`); division by zero is the loud crash of §9. Mirrors Python 3's `/` vs `//`.
+- **Division is split by intent.** `/` is real division on `Float` only (`Float / Float -> Float`); **`div`** is whole-number floor division on `Int` only (`Int div Int -> Int`). `Int / Int` is a compile error that points to `div` or `toFloat`, so the `1 / 2 == 0` surprise can never happen silently. Floor rounds toward −∞ (pairing with a future `mod`); division by zero is the loud crash of §9. Spelled `div` rather than `//` because `//` collides — comment in the C family, floor division in Python (§2); graduation note: `Math.floor(a/b)` in JS, `//` in Python.
+- **Operator precedence**, loosest to tightest: `or` · `and` · `not` · comparisons (`== != < <= > >=`, non-associative — no chaining) · `+ -` · `* / div` · unary `-` · atoms (literals, identifiers, parenthesized expressions). Binary arithmetic is left-associative. Follows Python in one respect: `not` binds looser than comparison, so `not a == b` parses as `not (a == b)`. The expression parser is Pratt-style (§12).
 - **Function bodies** take two forms: a **block body** `fn(...) -> T { ...; return e; }` with explicit `return`, or an **expression body** `fn(...) -> T => e` where `e` is a single expression — never a bare block (`=> {` is an error; use the block form for multiple statements). `=>` reads as "the result is this expression."
 - **`return`** exits the enclosing function with a value. Blocks in expression position (`if`/`match` branches) yield their last value instead — the duality noted in §15.
 
@@ -186,26 +136,26 @@ type Player = {
 };
 ```
 
-- **Fields and methods are both *members*,** declared with the same `name: …` syntax and separated by commas. (`bind` names a value inside a *scope* — top level or a function body — and never appears inside a type. The colon does subtly different work in each case: a field's right side is a *type*, a method's is an *implementation* — which mirrors the `name: value` of construction.) Method bodies use the same two forms as any function: `=> e`, or a `{ …; return e; }` block.
+- **Fields and methods are both *members*,** declared with the same `name: …` syntax and separated by commas. (`fix`/`mut` declare a *slot* inside a scope — top level or a function body — and never appear inside a type. The colon does subtly different work in each case: a field's right side is a *type*, a method's is an *implementation* — which mirrors the `name: value` of construction.) Method bodies use the same two forms as any function: `=> e`, or a `{ …; return e; }` block.
 - **The receiver is an explicit `self`** — the one parameter that needs no annotation, because its type is fixed by the enclosing type. This keeps the mechanic visible: a method is just a function whose first argument is the receiver, the same `self` a learner later meets in Python.
 - **The dot has exactly one meaning — a member of this value:** a field (`p.name`) or a method (`p.greeting()`). `x.f()` resolves to a method declared on `x`'s concrete type, or it is an error — no hidden free-function call, no dispatch, no inheritance chain.
-- **Methods on a union** dispatch internally with `match self`; the field-access rule still holds, so a multi-variant value exposes methods but no direct fields:
+- **Methods on a union** dispatch internally with `match (self)`; the field-access rule still holds, so a multi-variant value exposes methods but no direct fields:
 
 ```ascent
 type Shape =
     | Circle{ radius: Float }
     | Rect{ width: Float, height: Float }
 methods {
-    area: fn(self) -> Float => match self {
+    area: fn(self) -> Float => match (self) {
         Circle{ radius }      -> 3.14159 * radius * radius;
         Rect{ width, height } -> width * height;
     },
 };
 
-bind a = Circle{ radius: 2.0 }.area();   # a real method on Shape
+fix a = Circle{ radius: 2.0 }.area();   # a real method on Shape
 ```
 
-- **Free functions coexist** for operations not naturally "on" a type (`bind double = fn(x: Int) -> Int => x * 2`, called `double(5)`). Each operation is a method *or* a free function — decided once by whoever defines it — so there is exactly **one way to call it**. (This is precisely what UFCS gave up: it let every function be called two ways.)
+- **Free functions coexist** for operations not naturally "on" a type (`fix double = fn(x: Int) -> Int => x * 2`, called `double(5)`). Each operation is a method *or* a free function — decided once by whoever defines it — so there is exactly **one way to call it**. (This is precisely what UFCS gave up: it let every function be called two ways.)
 - **Real method chaining** — `xs.map(double).filter(isEven)` — is genuine, not sugar over nested calls, and it is the mainstream idiom, so it transfers directly. No pipe operator is needed or provided.
 - **You cannot add methods to a type you don't own** in v1; built-in types ship their own methods. Extending an existing type is a deliberate v2 feature, not an accident — and that contrast will later teach the difference between a type's own behavior and a bolted-on extension.
 
@@ -217,7 +167,7 @@ The governing move: the checker mainly answers one question — *"are these two 
 
 - **Nominal typing.** A `User` is a `User` because it was declared one (simple to implement, clear errors, predictable).
 - **No subtyping.** No inheritance, no implicit widening, no variance. The only crack: a non-null `T` is usable where `T?` is expected — a single hard-coded widening rule, not a system. Methods don't disturb this: `x.f()` is a nominal lookup of `f` on `x`'s concrete type — at most one match, with no overloading and no dispatch hierarchy to search.
-- **Inference lives only on `bind`.** Every function signature is fully explicit — **both parameter and return types are mandatory** — so nothing about a function's type is reconstructed from its body, errors stay local and name real types, and recursion needs no special case. A binding's type is inferred from its initializer; generic *type arguments* at call sites are still inferred automatically (you never write `map<Int, Int>`). Implemented via **bidirectional type checking** (bounded, no global unification). Wrinkle: a `bind` whose initializer carries no type information (a bare `[]` or lone `none`) needs an annotation.
+- **Inference lives only on slots.** Every function signature is fully explicit — **both parameter and return types are mandatory** — so nothing about a function's type is reconstructed from its body, errors stay local and name real types, and recursion needs no special case. A slot's type is inferred from its initializer; generic *type arguments* at call sites are still inferred automatically (you never write `map<Int, Int>`). Implemented via **bidirectional type checking** (bounded, no global unification). Wrinkle: a slot whose initializer carries no type information (a bare `[]` or lone `none`) needs an annotation.
 - **Generics are consumable, not definable** in v1 (`List<Int>`, `Map<K,V>`, stdlib `map`/`filter`). The only polymorphism is built-in operators + stdlib generics — no interfaces/typeclasses/overloading yet. The compatible future path for shared behavior is trait/typeclass-style contracts (polymorphism *without* subtyping, à la Rust traits) — a v2 candidate that rides alongside user-definable generics, never class inheritance.
 - **Types describe data; they do not compute** (no type-level computation).
 
@@ -228,8 +178,8 @@ The governing move: the checker mainly answers one question — *"are these two 
 `async` / `await` with the JS surface (familiar, transfers everywhere). `await` explicitly marks every suspension point. Scheduling is handled at the VM level (suspension points are natural fuel-yield points).
 
 ```ascent
-bind fetchUser = async fn(id: Int) -> User {
-    bind response = await http.get("/users/{id}");
+fix fetchUser = async fn(id: Int) -> User {
+    fix response = await http.get("/users/{id}");
     return parseUser(response);
 };
 ```
@@ -262,7 +212,25 @@ A browser-based **canvas**. You open a code panel to write a program; a program 
 
 ---
 
-## 12. Implementation
+## 12. Implementation & build path
+
+**Built by hand, prototyped in JavaScript, hardened in Rust.**
+
+- **Hand-written lexer and recursive-descent parser — no generators.** Error messages are the product (§6, §9), and generated parsers produce poor ones. A hand-written lexer is also the only thing that cleanly handles Ascent's *stateful* lexing: string interpolation (`"{expr}"` flips between string- and expression-mode) and nested `#[ … ]#` comments. Expression precedence (§5) uses **Pratt parsing** (precedence climbing). All of it ports to Rust unchanged.
+- **Prototype first in JavaScript** (the author's home language) as a **tree-walking interpreter**, then port to the Rust core below. In the JS prototype, `Int` is a `BigInt` and `Float` a `number`, so the Int/Float split — and the no-implicit-mixing rule — is real for free (JS even throws on `BigInt + number`); honest 64-bit overflow trapping is a later refinement.
+- **Dynamic first, types later.** The interpreter runs without static checking at first; the **type checker is a separate pass** added once the core works. This decouples "it runs" from "it typechecks" and keeps each stage small.
+
+**Build stages** — each adds one slice and is runnable end to end before the next:
+
+1. **Expressions + slots** — literals, operators, `fix`/`mut`, references; dynamic eval; a REPL that auto-prints each expression's value (no `print` yet). Assign-to-`fix`, assign-to-undeclared, and redeclaration are errors; single global scope.
+2. **Control flow** — `if`/`else if` expressions, `while`, blocks + lexical scope.
+3. **Functions** — `fn` values, calls, parameters, `return`, both body forms; `print` becomes a real builtin.
+4. **Types + data** — `type` records/unions, construction, field access, `match` + exhaustiveness.
+5. **Methods**, then collections + stdlib (`map`/`filter`), then strings + interpolation.
+6. **Static type checker** — a separate pass over the working AST.
+7. **Environment** — modules, async, the MVU/UI runtime.
+
+**Target architecture** (what the prototype graduates into):
 
 - **One Rust core** (lexer → parser → typechecker → bytecode → VM) compiled two ways: **WASM** for the browser environment, and a **native CLI** for Linux (same crate — single source of truth). Rust's enums/`match` mirror the language's own semantics.
 - **Bytecode VM (interpreter), not compile-to-WASM, in v1** — deliberately. It buys: **fuel-based execution** (infinite loops become friendly messages, not frozen tabs), stepping/pausing, time-travel/replay, full-context errors, real 64-bit `Int`, and VM-scheduled async.
@@ -305,7 +273,7 @@ type Shape =
     | Circle{ radius: Float }
     | Rect{ width: Float, height: Float }
 methods {
-    area: fn(self) -> Float => match self {     # a method, expression body
+    area: fn(self) -> Float => match (self) {     # a method, expression body
         Circle{ radius }      -> 3.14159 * radius * radius;
         Rect{ width, height } -> width * height;
     },
@@ -315,19 +283,19 @@ type Player = {
     name: String,
     score: Int,
 } methods {
-    rank:     fn(self) -> String => if self.score >= 100 { "pro" } else { "rookie" },
+    rank:     fn(self) -> String => if (self.score >= 100) { "pro" } else { "rookie" },
     describe: fn(self) -> String => "{self.name} is a {self.rank()}",
 };
 
-bind main = fn() -> Done {                       # a free function, block body
-    bind shapes = [ Circle{ radius: 2.0 }, Rect{ width: 3.0, height: 4.0 } ];
-    bind mut total = 0.0;
+fix main = fn() -> Done {                       # a free function, block body
+    fix shapes = [ Circle{ radius: 2.0 }, Rect{ width: 3.0, height: 4.0 } ];
+    mut total = 0.0;
     for s in shapes {
         total = total + s.area();                # method call on a union
     }
     print("total area: {total}");
 
-    bind ada = Player{ name: "Ada", score: 120 };
+    fix ada = Player{ name: "Ada", score: 120 };
     print(ada.describe());                       # describe calls self.rank()
 };
 ```
