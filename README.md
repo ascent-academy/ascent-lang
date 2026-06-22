@@ -30,18 +30,73 @@ These are the rules every other decision answers to.
 
 ---
 
-## 3. Bindings
+## 3 Slots (Variables)
 
-One binding concept, with mutability as an orthogonal modifier:
+A **slot** is a named location that holds one value. Assignment has value
+semantics: `b = a` copies the value into `b`, and the two slots are independent
+thereafter.
 
-```ascent
-bind name = "Ada";       # immutable binding (the default)
-bind mut count = 0;      # mutable binding
-count = count + 1;       # legal only on `bind mut`
+```
+fix a = 10;
+mut b = a;     # b holds its own 10
+b = 20;        # a is unchanged
 ```
 
-- `bind` names the **action** (binding a name to a value) — accurate for both forms; `mut` marks the one that varies.
-- Rationale: avoids JS's inverted `let`, avoids the "constant variable" oxymoron of `const`, and recovers single-form regularity.
+### Mutability is explicit
+
+Every slot is declared with a mandatory mutability keyword: `fix` for a fixed
+slot, `mut` for a mutable one. There is no default — unlike the
+immutable-by-default of Rust or Swift, or the mutable-by-default of Java and C,
+neither kind is the unmarked case.
+
+```
+fix name = 'Martin';   # reassignment is an error
+mut age  = 5;          # age = 6 is legal
+```
+
+`fix` constrains the slot, not the value: it forbids rebinding the name, not
+mutation of whatever the value internally permits. Value-level mutability is a
+separate axis with its own keywords, reusing the same two words — fixed and
+mutable — by design.
+
+### Terminology
+
+"Slot" is the precise term; "variable" is the colloquial synonym, and the two
+are used interchangeably. The wrinkle worth flagging is that common usage
+applies "variable" to every slot regardless of mutability, so "fixed variable"
+turns up and reads as an oxymoron. This is less an error than the older, broader
+sense of the word — *any named storage location*. Ascent keeps "slot" as the
+mutability-neutral umbrella and treats "variable" as the loose superset, rather
+than relitigating the wider world's usage.
+
+### Rationale
+
+**slot.** "Named storage location" is the precise definition of a variable, and
+*slot* is the term already used for it in compiler and VM contexts (stack slots,
+JVM local-variable slots). It carries none of the physical-object connotation of
+"box," and it preserves the name / slot / value separation the rest of the
+language relies on — a distinction that both the overloaded "variable" and the
+reference-flavored "binding" tend to collapse.
+
+**Explicit mutability.** Production languages pick a default and mark the
+exception; Ascent marks both. The cost is one keyword per declaration. The
+return — this being a teaching language — is that no slot's mutability depends on
+a default the reader must recall, and every declaration is legible in isolation.
+
+**`fix` / `mut`.** `mut` is the conventional clip of *mutable* (cf. Rust) and,
+not being a word in its own right, cannot be read as anything else. `fix` clips
+*fixed* — the "held in place" sense, as in the mathematician's "fix x = 5." It
+was chosen over the obvious alternatives: `const` skews toward compile-time
+constant, `val` names the value rather than the slot, and `final` is a full word
+that breaks the three-letter symmetry with `mut`. Both keywords are three
+letters with distinct initial characters, so mutability is legible at a glance
+and the operands align. `vary` was dropped once "variable" became the umbrella
+term — a keyword that is "variable" in miniature would blur the line it draws.
+
+The one real collision — `fix` against "fix a bug" — is contained by convention
+rather than avoided: `fix` only ever introduces a slot, and prose refers to
+*creating a fixed slot*, never to *fixing* one, so the repair sense never
+occupies the same role.
 
 ---
 
