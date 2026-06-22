@@ -186,11 +186,32 @@ fix fetchUser = async fn(id: Int) -> User {
 
 ---
 
-## 9. Error handling
+## 9. Error handling & diagnostics
 
 - **Unexpected failure crashes loudly** with a precise, friendly message + location + locals (index out of bounds, division by zero, overflow). The correct first model of failure for a beginner.
 - **Expected failure is data** — parsing returns `Int?`, lookups return `V?`.
 - **No `try`/`catch` in v1**; exceptions-as-control-flow are a later module.
+
+### Diagnostics: errors are the product
+
+Because Ascent is a teaching language, a diagnostic is a *lesson*, not a scolding. Every diagnostic, from any stage, is a structured value (`Diagnostic`) — pure data with no embedded formatting — rendered by the editor (inline squiggles, hovers, one-click fixes) or by a terminal. Each carries a plain-language headline, the source span(s) it points at (a primary plus supporting spans, each optionally labeled), an optional teaching paragraph on *why* the rule exists, zero or more machine-applicable fixes, a severity, and a stable code.
+
+**Style contract** — every message obeys four rules:
+1. **The compiler takes the blame, never the student** ("I found…", not "you wrote illegal…").
+2. **Describe, don't accuse.**
+3. **Always propose a concrete fix**, shown in the student's own code.
+4. **The message is a micro-lesson** — it teaches the rule, because for a learner the error is the first encounter with it.
+
+**Stable codes.** Each distinct error has a permanent, doc-referenceable code (e.g. `T0001`), allocated once and never reused or renumbered; the docs URL is derived (`…/errors/T0001`). Codes live in an **append-only registry** mapping each code to a symbolic name; compiler code references the name, never the integer, so the number lives in exactly one place.
+
+**Five categories**, by the leading letter of the code (each letter has its own counter):
+- **L — Lexical:** the characters don't form a valid token.
+- **S — Syntax:** the tokens don't form valid grammar.
+- **N — Name & binding:** a name/slot rule is broken (undefined name, duplicate declaration, assign-to-fixed-slot).
+- **T — Type & semantic:** well-formed code breaks a static rule (Int/Float mixing, non-exhaustive `match`, wrong arity).
+- **R — Runtime:** only running reveals it (division by zero, overflow, index out of bounds).
+
+**Classify by *nature*, not by where it's caught.** The category is the *kind* of mistake, not the stage that detects it. Ascent is dynamic-first, so in early stages a type error (mixing Int and Float) fires at *runtime* — but it is a **T** code by nature, and when the static checker arrives (§12, stage 6) the *same* code fires earlier. Conversely, a constant-folded `1 div 0` stays **R**. Detection-site moves; the code never does.
 
 ---
 
