@@ -25,9 +25,9 @@ These are the rules every other decision answers to.
 - **Braces** for all blocks; **no whitespace semantics**.
 - **Semicolons** terminate every statement (simplest grammar; precise parser error recovery).
 - **Comments:** `#` runs to end of line (whole-line or trailing); `#[ … ]#` is a delimited block comment that may sit mid-line or span lines, and nests. **`//` is deliberately unused** — it means *comment* in the C family but *floor division* in Python, so either meaning would silently betray graduates to the other camp. Ascent uses neither (floor division is `div`, §5), so `//` builds no habit and is learned fresh per language.
-- **Identifiers**: `[A-Za-z_][A-Za-z0-9_]*`. Keywords (`fix`, `mut`, `and`, `or`, `not`, `div`, `true`, `false`, and the control-flow/type words) are reserved.
+- **Identifiers**: `[A-Za-z_][A-Za-z0-9_]*`. Keywords (`fix`, `mut`, `and`, `or`, `not`, `div`, `true`, `false`, `args`, and the control-flow/type words) are reserved.
 - **Mandatory braces** on every `if` / `for` / `while`, even single-line (no dangling-else, no goto-fail class of bug). The *test* of `if` / `while` / `match` is parenthesized — `if (cond) { }` — easing the move to TypeScript and the C family; `for` takes no parens (it has no test).
-- Expression-oriented: blocks in expression position evaluate to their last value, while function bodies use explicit `return` (a duality flagged in §15).
+- **Expression-oriented: every block yields the value of its last statement** — a branch, a loop body, a function body, and the whole program alike (one rule, no special cases). The trailing semicolon is optional exactly as a list's trailing comma is — `{ a; b; c }` ≡ `{ a; b; c; }` — never load-bearing for the value. A last statement that isn't a value (a declaration, an assignment) yields `Done`.
 
 ---
 
@@ -55,7 +55,7 @@ count = count + 1;   # fine; would be an error on a fixed slot
 - **`Int`** — 64-bit signed, written `42`. **Traps on overflow** with a friendly message (no silent wraparound). No width/unsigned zoo in v1.
 - **`Float`** — 64-bit IEEE 754, written `3.14` (a digit is required on *both* sides of the point — no `3.` or `.5`; exponents and digit separators are deferred). **`NaN`/`Infinity` are runtime errors**, not values, so every `Float` is a real, ordered number.
 - **`Bool`** — `true` / `false`. **No truthiness**; conditions must be `Bool`.
-- **`String`** — immutable Unicode sequence, written with double quotes (`"..."`) and `{expr}` interpolation; single quotes are unused. **No integer indexing** (avoids the Unicode-index bug class); `length` counts code points. **No `Char` type** — characters are length-1 strings.
+- **`String`** — immutable Unicode sequence, written with double quotes (`"..."`) and `${expr}` interpolation (`"Hi ${name}"`); single quotes are unused. Interpolation is always on but triggers only on `${`, so literal braces need no escaping (`"{}"` is two characters) and a lone `$` is literal; escape a literal `${` as `\${`. **No integer indexing** (avoids the Unicode-index bug class); `length` counts code points. **No `Char` type** — characters are length-1 strings.
 
 ### The "no information" value
 - **`Done`** — the unit type, the value of statements/side-effecting calls (`print : fn(String) -> Done`).
@@ -96,8 +96,8 @@ Tuples (use a named type), `Set`, `Bytes`, sized/unsigned ints, `Char`.
 - **No implicit conversions** (`Int + Float` is an error; use `toFloat`). **No operator overloading.**
 - **Division is split by intent.** `/` is real division on `Float` only (`Float / Float -> Float`); **`div`** is whole-number floor division on `Int` only (`Int div Int -> Int`). `Int / Int` is a compile error that points to `div` or `toFloat`, so the `1 / 2 == 0` surprise can never happen silently. Floor rounds toward −∞ (pairing with a future `mod`); division by zero is the loud crash of §9. Spelled `div` rather than `//` because `//` collides — comment in the C family, floor division in Python (§2); graduation note: `Math.floor(a/b)` in JS, `//` in Python.
 - **Operator precedence**, loosest to tightest: `or` · `and` · `not` · comparisons (`== != < <= > >=`, non-associative — no chaining) · `+ -` · `* / div` · unary `-` · atoms (literals, identifiers, parenthesized expressions). Binary arithmetic is left-associative. Follows Python in one respect: `not` binds looser than comparison, so `not a == b` parses as `not (a == b)`. The expression parser is Pratt-style (§12).
-- **Function bodies** take two forms: a **block body** `fn(...) -> T { ...; return e; }` with explicit `return`, or an **expression body** `fn(...) -> T => e` where `e` is a single expression — never a bare block (`=> {` is an error; use the block form for multiple statements). `=>` reads as "the result is this expression."
-- **`return`** exits the enclosing function with a value. Blocks in expression position (`if`/`match` branches) yield their last value instead — the duality noted in §15.
+- **Function bodies are just blocks.** `fn(...) -> T { … }` yields the value of its last statement (§2) — no `return` needed. The single-expression form `fn(...) -> T => e` is sugar for `{ e }`; `=>` reads as "the result is this expression." Use whichever fits — they mean the same thing (so `=> {` is merely redundant, a style nit, not an error).
+- **`return`** is an **early exit** from the enclosing function, used only to leave *before* the last statement. Reaching the end is the normal path, and the body's value is that last statement (§2).
 
 ---
 
@@ -130,13 +130,13 @@ type Player = {
     name: String,
     score: Int,
 } methods {
-    greeting:  fn(self) -> String => "Hi, {self.name}",
+    greeting:  fn(self) -> String => "Hi, ${self.name}",
     withScore: fn(self, points: Int) -> Player =>
         Player{ name: self.name, score: self.score + points },
 };
 ```
 
-- **Fields and methods are both *members*,** declared with the same `name: …` syntax and separated by commas. (`fix`/`mut` declare a *slot* inside a scope — top level or a function body — and never appear inside a type. The colon does subtly different work in each case: a field's right side is a *type*, a method's is an *implementation* — which mirrors the `name: value` of construction.) Method bodies use the same two forms as any function: `=> e`, or a `{ …; return e; }` block.
+- **Fields and methods are both *members*,** declared with the same `name: …` syntax and separated by commas. (`fix`/`mut` declare a *slot* inside a scope — top level or a function body — and never appear inside a type. The colon does subtly different work in each case: a field's right side is a *type*, a method's is an *implementation* — which mirrors the `name: value` of construction.) Method bodies use the same two forms as any function: `=> e`, or a `{ … }` block whose value is its last statement (§2).
 - **The receiver is an explicit `self`** — the one parameter that needs no annotation, because its type is fixed by the enclosing type. This keeps the mechanic visible: a method is just a function whose first argument is the receiver, the same `self` a learner later meets in Python.
 - **The dot has exactly one meaning — a member of this value:** a field (`p.name`) or a method (`p.greeting()`). `x.f()` resolves to a method declared on `x`'s concrete type, or it is an error — no hidden free-function call, no dispatch, no inheritance chain.
 - **Methods on a union** dispatch internally with `match (self)`; the field-access rule still holds, so a multi-variant value exposes methods but no direct fields:
@@ -179,7 +179,7 @@ The governing move: the checker mainly answers one question — *"are these two 
 
 ```ascent
 fix fetchUser = async fn(id: Int) -> User {
-    fix response = await http.get("/users/{id}");
+    fix response = await http.get("/users/${id}");
     return parseUser(response);
 };
 ```
@@ -225,6 +225,20 @@ Because Ascent is a teaching language, a diagnostic is a *lesson*, not a scoldin
 
 A browser-based **canvas**. You open a code panel to write a program; a program can spawn new interactive panels onto the same canvas.
 
+**Program input — `args`.** Before any UI (or even functions), a program asks for typed values with an `args` preamble — a parenthesized, typed list at the very top:
+
+```ascent
+args (age: Int, name: String)
+
+"Hi ${name} — next year you'll be ${age + 1}"
+```
+
+- **Gathered and validated before the body runs.** The environment reads the `args` list, builds a fitting input dialog (one field per arg), collects the values, and **validates each to its declared type at the boundary** — type "abc" into an `Int` field and it re-asks, so the body never runs with a bad value (§6: external data is parsed into a declared type at the boundary). By the time the first body line executes, every `args` slot already holds a value, so the body stays fully synchronous and pure — no `await`, no effects.
+- **Type drives the widget:** `String` → text field, `Int` / `Float` → number field, `Bool` → checkbox. (The CLI supplies the same values as flags / stdin instead of a modal.)
+- **Not a new slot kind.** Each arg is an ordinary fixed slot whose initializer happens to be the user rather than a literal; the required annotation is honest, since there is nothing to infer from.
+- **Staged path to functions.** The `args (...)` list is written in the exact `name: Type` form of a parameter list — because that is what it is. A script is the body of an implicit `main`, and `args` is its parameter list, supplied by the environment as caller. When functions arrive (§12, stage 3) this is revealed — "that `args` line was `main`'s parameters; here is `fn`" — so the chapter-one affordance *is* the function mechanism, met in stages, with nothing unlearned.
+- **Graduation note.** Real-world program arguments (`argv`, `sys.argv`, `String[] args`) arrive as a raw, positional list of *strings* the program indexes and parses itself; Ascent names them and checks their types for you — the same idea with training wheels. `prompt()` (later, once functions exist) removes the wheels by handing back a raw `String` you parse yourself.
+
 - **UI as values.** `Element<Msg>` is a stdlib tagged union (a tree of elements). No new language features are needed — `match` + unions + first-class functions are exactly the MVU basis.
 - **MVU architecture.** A panel is three values: a `State`, `view : State -> Element`, and `update : State × Msg -> State`. Buttons carry **message values**, not callbacks (no `this`, no listener lifecycle). **Exhaustiveness checking becomes a UI feature** — add a button, the compiler demands you handle its message.
 - **Learning ramp:** (1) `print` → console panel; (2) static UI via `show(element)`; (3) add `State` + `update` for interactivity — only two new ideas.
@@ -237,7 +251,7 @@ A browser-based **canvas**. You open a code panel to write a program; a program 
 
 **Built by hand, prototyped in JavaScript, hardened in Rust.**
 
-- **Hand-written lexer and recursive-descent parser — no generators.** Error messages are the product (§6, §9), and generated parsers produce poor ones. A hand-written lexer is also the only thing that cleanly handles Ascent's *stateful* lexing: string interpolation (`"{expr}"` flips between string- and expression-mode) and nested `#[ … ]#` comments. Expression precedence (§5) uses **Pratt parsing** (precedence climbing). All of it ports to Rust unchanged.
+- **Hand-written lexer and recursive-descent parser — no generators.** Error messages are the product (§6, §9), and generated parsers produce poor ones. A hand-written lexer is also the only thing that cleanly handles Ascent's *stateful* lexing: string interpolation (`${expr}` flips between string- and expression-mode) and nested `#[ … ]#` comments. Expression precedence (§5) uses **Pratt parsing** (precedence climbing). All of it ports to Rust unchanged.
 - **Prototype first in JavaScript** (the author's home language) as a **tree-walking interpreter**, then port to the Rust core below. In the JS prototype, `Int` is a `BigInt` and `Float` a `number`, so the Int/Float split — and the no-implicit-mixing rule — is real for free (JS even throws on `BigInt + number`); honest 64-bit overflow trapping is a later refinement.
 - **Dynamic first, types later.** The interpreter runs without static checking at first; the **type checker is a separate pass** added once the core works. This decouples "it runs" from "it typechecks" and keeps each stage small.
 
@@ -283,7 +297,6 @@ A browser-based **canvas**. You open a code panel to write a program; a program 
 2. **Widget vocabulary** — the minimal `Element` set.
 3. **`Ref` surface** — `get`/`set` vs a `.value` field; identity vs structural equality once `Ref` exists.
 4. **v2 generics slot** — design v1's generic-consumption and `type` syntax so user-definable generics *and* trait-style shared-behavior contracts drop in *without* breaking changes. (The single most important forward-compat decision.)
-5. **Block value-production duality (parked).** Braces yield their last value inside `if`/`match` branches but require `return` in a function body — one syntax, two behaviors. Two candidate fixes: make the `{ }`-statement / `=>`-value split uniform (forces `if c => a else => b` and single-expression branches), or go Rust-style tail-expression everywhere (keeps brace-`if`s but makes a function's result its silent last line). Neither is foreclosed by current decisions.
 
 ---
 
@@ -305,7 +318,7 @@ type Player = {
     score: Int,
 } methods {
     rank:     fn(self) -> String => if (self.score >= 100) { "pro" } else { "rookie" },
-    describe: fn(self) -> String => "{self.name} is a {self.rank()}",
+    describe: fn(self) -> String => "${self.name} is a ${self.rank()}",
 };
 
 fix main = fn() -> Done {                       # a free function, block body
@@ -314,7 +327,7 @@ fix main = fn() -> Done {                       # a free function, block body
     for s in shapes {
         total = total + s.area();                # method call on a union
     }
-    print("total area: {total}");
+    print("total area: ${total}");
 
     fix ada = Player{ name: "Ada", score: 120 };
     print(ada.describe());                       # describe calls self.rank()
