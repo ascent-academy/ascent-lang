@@ -190,6 +190,21 @@ section{padding:80px 0;}
   padding:18px 20px;font-family:var(--font-mono);font-size:15px;
   line-height:1.7;color:#bfe6d4;white-space:pre-wrap;
 }
+.arg-field{margin-bottom:16px;}
+.arg-label{display:block;font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--ink-soft);margin-bottom:6px;}
+.arg-type{color:var(--pine);margin-left:6px;}
+.arg-input{
+  display:block;width:100%;
+  font-family:var(--font-body);font-size:16px;
+  color:var(--ink);background:var(--paper-2);
+  border:1px solid var(--line);border-radius:10px;
+  padding:10px 14px;outline:none;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+.arg-input:focus{border-color:var(--pine);box-shadow:0 0 0 3px rgba(43,108,87,0.12);}
+#argsForm .btn{width:100%;justify-content:center;margin-top:8px;}
+#modalOutputView:not([hidden]){display:flex;flex-direction:column;gap:16px;}
+.btn:disabled{opacity:.6;cursor:default;transform:none !important;}
 .taste .ceremony{margin-top:22px;font-size:16px;color:var(--ink-soft);}
 .taste .ceremony b{color:var(--ink);font-weight:600;}
 

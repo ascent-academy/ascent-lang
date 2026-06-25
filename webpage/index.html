@@ -178,13 +178,31 @@
   </div>
 </footer>
 
-<dialog id="outputModal" aria-label="Program output">
+<dialog id="outputModal" aria-label="Run program">
   <div class="modal-inner">
     <div class="modal-head">
-      <span class="modal-label">Output</span>
+      <span class="modal-label" id="modalLabel">Inputs</span>
       <button id="modalClose" class="modal-close" aria-label="Close">&times;</button>
     </div>
-    <pre id="outputText">Hi Alice, you scored 87. Nicely done!</pre>
+
+    <div id="modalInputView">
+      <form id="argsForm" autocomplete="off">
+        <div class="arg-field">
+          <label class="arg-label" for="argName">name <span class="arg-type">String</span></label>
+          <input class="arg-input" type="text" id="argName" required>
+        </div>
+        <div class="arg-field">
+          <label class="arg-label" for="argScore">score <span class="arg-type">Int</span></label>
+          <input class="arg-input" type="number" id="argScore" required>
+        </div>
+        <button type="submit" id="runSubmitBtn" class="btn btn-primary">Run</button>
+      </form>
+    </div>
+
+    <div id="modalOutputView" hidden>
+      <pre id="outputText"></pre>
+      <button id="runAgainBtn" class="btn btn-ghost btn-sm">Run again</button>
+    </div>
   </div>
 </dialog>
 
