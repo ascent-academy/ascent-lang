@@ -63,8 +63,8 @@ export const REGISTRY: RegistryEntry[] = [
   // ── T · Type & semantic — well-formed code breaks a static rule ───────────
   //    (Stage 1 catches these at runtime; T by nature, they migrate to the
   //     static checker in Stage 6 under the SAME codes.)
-  { code: "T0001", name: "int-float-mix", category: "type", summary: "Mixing Int and Float in arithmetic or comparison; Ascent never converts automatically." },
-  { code: "T0002", name: "division-needs-float", category: "type", summary: "`/` used on Ints — use `div` for whole-number division, or `toFloat`." },
+  { code: "T0001", name: "int-float-mix", category: "type", summary: "Retired — Int and Float now promote one way (Int → Float) rather than erroring (§5).", retired: true },
+  { code: "T0002", name: "division-needs-float", category: "type", summary: "Retired — `/` now always yields a Float, so it is never an error on Ints (§5).", retired: true },
   { code: "T0003", name: "div-needs-int", category: "type", summary: "`div` used on Floats — `div` is whole-number division only." },
   { code: "T0004", name: "non-bool-operand", category: "type", summary: "`and` / `or` / `not` applied to a non-Bool." },
   { code: "T0005", name: "operand-type-mismatch", category: "type", summary: "An operator received a type it doesn't accept (e.g. `true + 1`, `1 < true`)." },
