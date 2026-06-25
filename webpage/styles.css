@@ -57,6 +57,7 @@ header.site{
 .brand{display:flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-0.01em;color:var(--ink);}
 .brand svg{display:block;}
 nav.top{display:flex;align-items:center;gap:30px;}
+.tagline{font-size:13.5px;color:var(--ink-soft);flex:1;text-align:center;}
 nav.top a{color:var(--ink-soft);font-weight:500;font-size:15.5px;}
 nav.top a:hover{color:var(--ink);}
 .btn{
@@ -235,6 +236,8 @@ footer.site{border-top:1px solid var(--line-soft);padding:34px 0;}
 @media (max-width:860px){
   .pillars{grid-template-columns:1fr;}
   .princ{grid-template-columns:1fr 1fr;}
+  .bar{flex-wrap:wrap;height:auto;padding:12px 0;}
+  .tagline{order:3;flex-basis:100%;padding-bottom:8px;font-size:13px;}
 }
 @media (max-width:680px){
   nav.top a{display:none;}

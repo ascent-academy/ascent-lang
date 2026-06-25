@@ -19,6 +19,7 @@
       <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 L22 21 L2 21 Z" fill="none" stroke="#2B6C57" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 3 L17 12 L12 11 L9 15 Z" fill="#DD8949"/></svg>
       Ascent
     </a>
+    <span class="tagline">The teaching language. Built to be learned, then left behind.</span>
     <nav class="top" aria-label="Primary">
       <a href="#why">Why</a>
       <a href="#taste">See it</a>
@@ -100,28 +101,7 @@
         <!--  (strings), tok-num (numbers), tok-com (comments).             -->
         <!--  e.g. <span class="row"><span class="tok-kw">fix</span> ...     -->
         <!-- ============================================================= -->
-        <div class="code" id="codeBlock">
-<span class="row"><span class="tok-com"># No HTML, no input library. Ascent gathers the inputs, then runs your code.</span></span>
-<span class="row"></span>
-<span class="row"><span class="tok-kw">args</span> (name: <span class="tok-kw">String</span>, score: <span class="tok-kw">Int</span>);</span>
-<span class="row"></span>
-<span class="row"><span class="tok-kw">type</span> <span class="tok-kw">Grade</span> = <span class="tok-kw">Honors</span> | <span class="tok-kw">Pass</span> | <span class="tok-kw">Fail</span>;</span>
-<span class="row"></span>
-<span class="row"><span class="tok-kw">fix</span> grade =</span>
-<span class="row">    <span class="tok-kw">if</span> (score &gt;= <span class="tok-num">90</span>) { <span class="tok-kw">Honors</span> }</span>
-<span class="row">    <span class="tok-kw">else</span> <span class="tok-kw">if</span> (score &gt;= <span class="tok-num">50</span>) { <span class="tok-kw">Pass</span> }</span>
-<span class="row">    <span class="tok-kw">else</span> { <span class="tok-kw">Fail</span> };</span>
-<span class="row"></span>
-<span class="row"><span class="tok-kw">fix</span> note = <span class="tok-kw">match</span> (grade) {</span>
-<span class="row">    <span class="tok-kw">Honors</span> -&gt; <span class="tok-str">"Outstanding work!"</span>;</span>
-<span class="row">    <span class="tok-kw">Pass</span>   -&gt; <span class="tok-str">"Nicely done!"</span>;</span>
-<span class="row">    <span class="tok-kw">Fail</span>   -&gt; <span class="tok-str">"Keep going, you'll get there!"</span>;</span>
-<span class="row">};</span>
-<span class="row"></span>
-<span class="row"><span class="tok-str">"Hi ${name}, you scored ${score}. ${note}"</span></span>
-<span class="row"></span>
-<span class="row"><span class="tok-com"># The program returns the result of the last expression</span></span>
-        </div>
+        <pre class="code" id="codeBlock"><span class="row"><span class="tok-com"># No HTML, no input library. Ascent gathers the inputs, then runs your code.</span></span><span class="row"></span><span class="row"><span class="tok-kw">args</span> (name: <span class="tok-kw">String</span>, score: <span class="tok-kw">Int</span>);</span><span class="row"></span><span class="row"><span class="tok-kw">type</span> <span class="tok-kw">Grade</span> = <span class="tok-kw">Honors</span> | <span class="tok-kw">Pass</span> | <span class="tok-kw">Fail</span>;</span><span class="row"></span><span class="row"><span class="tok-kw">fix</span> grade =</span><span class="row">    <span class="tok-kw">if</span> (score &gt;= <span class="tok-num">90</span>) { <span class="tok-kw">Honors</span> }</span><span class="row">    <span class="tok-kw">else</span> <span class="tok-kw">if</span> (score &gt;= <span class="tok-num">50</span>) { <span class="tok-kw">Pass</span> }</span><span class="row">    <span class="tok-kw">else</span> { <span class="tok-kw">Fail</span> };</span><span class="row"></span><span class="row"><span class="tok-kw">fix</span> note = <span class="tok-kw">match</span> (grade) {</span><span class="row">    <span class="tok-kw">Honors</span> -&gt; <span class="tok-str">"Outstanding work!"</span>;</span><span class="row">    <span class="tok-kw">Pass</span>   -&gt; <span class="tok-str">"Nicely done!"</span>;</span><span class="row">    <span class="tok-kw">Fail</span>   -&gt; <span class="tok-str">"Keep going, you'll get there!"</span>;</span><span class="row">};</span><span class="row"></span><span class="row"><span class="tok-str">"Hi ${name}, you scored ${score}. ${note}"</span></span><span class="row"></span><span class="row"><span class="tok-com"># The program returns the result of the last expression</span></span></pre>
 
       </div>
 
