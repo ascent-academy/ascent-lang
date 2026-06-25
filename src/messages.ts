@@ -115,4 +115,73 @@ export const MESSAGES: Record<string, Builder> = {
       explanation: `'fix' and 'mut' must be followed by the slot's name, e.g. 'fix count = 0;'.`,
     };
   },
+
+  // ── N · Name & binding ───────────────────────────────────────────────────
+
+  N0001: (text): Built => ({
+    message: `I can't find anything named ${q(text)} here.`,
+    explanation: `This name hasn't been declared in the current scope. Use 'fix' or 'mut' to create a slot before using it.`,
+  }),
+
+  N0002: (text): Built => ({
+    message: `I found a second declaration of ${q(text)} in this scope.`,
+    explanation: `Each slot name can only be declared once. If you want to update its value, declare it with 'mut' and then assign to it.`,
+  }),
+
+  N0003: (text): Built => ({
+    message: `I can't assign to ${q(text)} because it was declared with 'fix'.`,
+    explanation: `'fix' creates a permanent binding — its value never changes. If you need a slot you can update, use 'mut' instead.`,
+  }),
+
+  N0004: (text): Built => ({
+    message: `I can't assign to ${q(text)} because it hasn't been declared.`,
+    explanation: `To create a slot and set its initial value in one step, write 'mut ${text} = …'. A bare assignment only works on an existing 'mut' slot.`,
+  }),
+
+  // ── T · Type ─────────────────────────────────────────────────────────────
+
+  T0003: (_text, _span, data): Built => {
+    const type = data['type'] as string | undefined ?? 'Float';
+    return {
+      message: `I can't use 'div' on a ${type} — 'div' is whole-number division only.`,
+      explanation: `'div' divides two Int values and drops the remainder. For Float division, use '/' instead.`,
+    };
+  },
+
+  T0004: (_text, _span, data): Built => {
+    const type = data['type'] as string;
+    return {
+      message: `I found a ${type} where I expected a Bool.`,
+      explanation: `'and', 'or', and 'not' only work with Bool (true / false) values.`,
+    };
+  },
+
+  T0005: (_text, _span, data): Built => {
+    const op       = data['op']       as string;
+    const type     = data['type']     as string | undefined;
+    const leftType = data['leftType'] as string | undefined;
+    const rightType= data['rightType']as string | undefined;
+    if (leftType && rightType) {
+      return {
+        message: `I can't use '${op}' with a ${leftType} and a ${rightType}.`,
+        explanation: `The '${op}' operator doesn't support mixing these types.`,
+      };
+    }
+    return {
+      message: `I can't apply '${op}' to a ${type ?? 'value'}.`,
+      explanation: `The '${op}' operator doesn't work with this type.`,
+    };
+  },
+
+  // ── R · Runtime ──────────────────────────────────────────────────────────
+
+  R0001: (): Built => ({
+    message: `I tried to divide by zero.`,
+    explanation: `Division by zero is undefined. Make sure the divisor can never be zero before dividing.`,
+  }),
+
+  R0002: (): Built => ({
+    message: `This integer operation overflowed 64 bits.`,
+    explanation: `Ascent's Int holds whole numbers from −2⁶³ to 2⁶³−1. This result falls outside that range. Consider restructuring the calculation or using Float.`,
+  }),
 };
