@@ -72,7 +72,7 @@ fix shown = nick ?? "anonymous";
 ```
 
 ### Compound
-- **`List<T>`** — literal `[1, 2, 3]`; growth gated by a `mut` slot.
+- **`List<T>`** — homogeneous: one element type `T`, every element a `T` (this is what makes `for x in xs` give each `x` the same type and `.map`/`.filter` honest). A literal `[1, 2, 3]` infers `T` as the **least common type of its elements**: all `Int` → `List<Int>`; all the same type `T` → `List<T>`; an `Int`/`Float` mix → `List<Float>` (the `Int`s promote — the same one-way rule as §5, so `[30, 30.5, 31]` is `List<Float>`, but `[30, 31]` stays `List<Int>`). Elements with no common type (`[1, "x", true]`) are a compile error — to mix shapes, name them as a union and use `List<ThatUnion>`. The "least common type" relation is exactly as wide as value promotion and no wider (just `Int`→`Float`); it is *not* subtyping (§7). The empty `[]` has no elements to infer from, so it takes its type from context (`fix xs: List<Int> = []`); a bare `fix xs = []` is the annotation-required error (§7). Growth is gated by a `mut` slot.
 - **`Map<K, V>`** — literal form; lookup returns `V?`.
 - **`Range`** — `a..b`, **half-open** (`0..n` yields exactly `n` items), iterable (`for i in 0..n`); matches Python and Rust and pairs cleanly with lengths. Replaces the C-style `for`.
 - **Functions** — first-class values; comparing functions with `==` is a compile error.
