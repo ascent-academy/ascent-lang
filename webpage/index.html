@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ascent — The Teaching Language</title>
+<meta name="description" content="Ascent is a programming language and a built-in environment designed for complete beginners. No terminal, no setup, no legacy baggage. Just a box, a Run button, and your first real program.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- =================== HEADER =================== -->
+<header class="site">
+  <div class="wrap bar">
+    <a class="brand" href="#top" aria-label="Ascent home">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 L22 21 L2 21 Z" fill="none" stroke="#2B6C57" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 3 L17 12 L12 11 L9 15 Z" fill="#DD8949"/></svg>
+      Ascent
+    </a>
+    <nav class="top" aria-label="Primary">
+      <a href="#why">Why</a>
+      <a href="#taste">See it</a>
+      <a href="#principles">Principles</a>
+      <a class="btn btn-primary btn-sm" href="#taste">Try it</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- =================== HERO =================== -->
+  <section class="hero">
+    <svg class="contours" viewBox="0 0 600 600" fill="none" aria-hidden="true">
+      <g stroke="var(--line)" stroke-width="1.5">
+        <path d="M300 90 C420 90 510 180 510 300 C510 420 420 510 300 510 C180 510 90 420 90 300 C90 180 180 90 300 90Z"/>
+        <path d="M300 140 C392 140 460 210 460 300 C460 392 392 460 300 460 C208 460 140 392 140 300 C140 208 208 140 300 140Z"/>
+        <path d="M300 195 C360 188 410 235 412 300 C414 362 362 408 300 408 C236 408 188 360 190 298 C192 236 240 202 300 195Z"/>
+        <path d="M300 250 C336 248 362 272 362 300 C362 332 334 358 300 356 C266 354 242 330 244 298 C246 270 268 252 300 250Z"/>
+      </g>
+    </svg>
+    <div class="wrap hero-inner reveal">
+      <span class="alt">Base camp · 0 m</span>
+      <h1>Most languages were never built to be learned. <span class="turn">This one was.</span></h1>
+      <p class="lede">Ascent is a programming language <em>and</em> a built-in environment, designed for people who have never written a line of code. No terminal. No setup. No decade of legacy baggage to memorize first.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#taste">Try it in your browser</a>
+        <a class="btn btn-ghost" href="#why">Read the reasoning</a>
+      </div>
+      <p class="micro">Runs in the browser. <b>Nothing to install.</b></p>
+    </div>
+  </section>
+
+  <!-- =================== WHY / PILLARS =================== -->
+  <section id="why">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="alt">The climb begins · 400 m</span>
+        <h2>Do we really need a hundredth programming language?</h2>
+        <p>Fair question. The honest answer: beginners get tripped up by two very different things, and most setups only ever fix one of them, if any.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar reveal">
+          <span class="tag">Problem one</span>
+          <h3>The environment</h3>
+          <p>Before you write anything interesting, you're wrestling with a terminal, a file system, and an IDE full of buttons. <span class="hl">None of that is programming.</span> Ascent gives you a text box and a Run button. That's the whole ceremony.</p>
+        </div>
+        <div class="pillar reveal">
+          <span class="tag">Problem two</span>
+          <h3>The language</h3>
+          <p>Most languages were built to be fast and practical for professionals, with decades of quirks bolted on. Ascent is shaped by one question instead: <span class="hl">can a complete beginner understand this?</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== TASTE / CODE =================== -->
+  <section id="taste" class="taste">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="alt">Halfway up · 1200 m</span>
+        <h2>Here's what Ascent looks like.</h2>
+        <p>Have a taste. Hit Run and watch it work, the same loop you'll live in while you learn.</p>
+      </div>
+
+      <div class="editor reveal">
+        <div class="chrome">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="file"><b>first-program</b>.asc</span>
+          <span class="runwrap">
+            <button class="btn-run" id="runBtn" aria-controls="output"><span class="play" aria-hidden="true"></span>Run</button>
+          </span>
+        </div>
+
+        <!-- ============================================================= -->
+        <!--  PASTE YOUR ASCENT CODE HERE.                                  -->
+        <!--  Wrap each line in <span class="row">...</span> for the line   -->
+        <!--  numbers. Highlight tokens with: tok-kw (keywords), tok-str    -->
+        <!--  (strings), tok-num (numbers), tok-com (comments).             -->
+        <!--  e.g. <span class="row"><span class="tok-kw">fix</span> ...     -->
+        <!-- ============================================================= -->
+        <div class="code" id="codeBlock">
+<span class="row"><span class="tok-com"># No HTML, no input library. Ascent gathers the inputs, then runs your code.</span></span>
+<span class="row"></span>
+<span class="row"><span class="tok-kw">args</span> (name: <span class="tok-kw">String</span>, score: <span class="tok-kw">Int</span>);</span>
+<span class="row"></span>
+<span class="row"><span class="tok-kw">type</span> <span class="tok-kw">Grade</span> = <span class="tok-kw">Honors</span> | <span class="tok-kw">Pass</span> | <span class="tok-kw">Fail</span>;</span>
+<span class="row"></span>
+<span class="row"><span class="tok-kw">fix</span> grade =</span>
+<span class="row">    <span class="tok-kw">if</span> (score &gt;= <span class="tok-num">90</span>) { <span class="tok-kw">Honors</span> }</span>
+<span class="row">    <span class="tok-kw">else</span> <span class="tok-kw">if</span> (score &gt;= <span class="tok-num">50</span>) { <span class="tok-kw">Pass</span> }</span>
+<span class="row">    <span class="tok-kw">else</span> { <span class="tok-kw">Fail</span> };</span>
+<span class="row"></span>
+<span class="row"><span class="tok-kw">fix</span> note = <span class="tok-kw">match</span> (grade) {</span>
+<span class="row">    <span class="tok-kw">Honors</span> -&gt; <span class="tok-str">"Outstanding work!"</span>;</span>
+<span class="row">    <span class="tok-kw">Pass</span>   -&gt; <span class="tok-str">"Nicely done!"</span>;</span>
+<span class="row">    <span class="tok-kw">Fail</span>   -&gt; <span class="tok-str">"Keep going, you'll get there!"</span>;</span>
+<span class="row">};</span>
+<span class="row"></span>
+<span class="row"><span class="tok-str">"Hi ${name}, you scored ${score}. ${note}"</span></span>
+<span class="row"></span>
+<span class="row"><span class="tok-com"># The program returns the result of the last expression</span></span>
+        </div>
+
+        <!-- Output strip — revealed on Run. Replace the text below with the
+             real output your sample produces. -->
+        <div class="output" id="output" role="status" aria-live="polite">
+          <div class="out-inner">
+            <p class="out-label">Output</p>
+            <pre id="outputText">Hi Alice, you scored 87. Nicely done!</pre>
+          </div>
+        </div>
+      </div>
+
+      <p class="ceremony reveal">Write a few lines, click Run, see the result. <b>That's the whole ceremony.</b></p>
+    </div>
+  </section>
+
+  <!-- =================== PRINCIPLES =================== -->
+  <section id="principles">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="alt">Above the tree line · 2400 m</span>
+        <h2>The rules everything else answers to.</h2>
+        <p>Every decision in the language traces back to these six.</p>
+      </div>
+      <div class="princ">
+        <div class="pc reveal"><span class="n">01</span><h4>Clear, honest semantics</h4><p>Every construct means one thing, and it means it out loud. Nothing happens behind your back.</p></div>
+        <div class="pc reveal"><span class="n">02</span><h4>Remove the trap, don't label it</h4><p>A dangerous thing is made impossible or impossible to ignore. A footnote nobody reads isn't a safety feature.</p></div>
+        <div class="pc reveal"><span class="n">03</span><h4>One obvious way</h4><p>Generally one way to do each thing, so nobody memorizes five spellings of the same idea before writing a line.</p></div>
+        <div class="pc reveal"><span class="n">04</span><h4>A stepping stone, not a destination</h4><p>Built to transfer to many languages, not to imitate one. The skills you build here carry over.</p></div>
+        <div class="pc reveal"><span class="n">05</span><h4>Errors are part of the lesson</h4><p>When something breaks, the message is written for a beginner, in plain language, pointing at what they wrote.</p></div>
+        <div class="pc reveal"><span class="n">06</span><h4>Power is opt-in, and late</h4><p>The advanced features arrive later, as their own chapter, once there's a reason to care about them.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== FINAL CTA =================== -->
+  <section class="final">
+    <svg class="contours" viewBox="0 0 800 540" fill="none" aria-hidden="true">
+      <g stroke="var(--line)" stroke-width="1.5">
+        <path d="M400 40 C560 40 660 150 660 280 C660 430 540 520 400 520 C260 520 140 430 140 280 C140 150 240 40 400 40Z"/>
+        <path d="M400 100 C520 100 600 185 600 285 C600 400 510 470 400 470 C290 470 200 400 200 285 C200 185 280 100 400 100Z"/>
+        <path d="M400 165 C485 165 545 225 545 290 C545 372 478 425 400 425 C322 425 255 372 255 290 C255 225 315 165 400 165Z"/>
+        <path d="M400 230 C452 230 492 262 492 300 C492 348 450 382 400 382 C350 382 308 348 308 300 C308 262 348 230 400 230Z"/>
+      </g>
+    </svg>
+    <div class="wrap final-inner reveal">
+      <span class="alt">Summit</span>
+      <h2>Ready to write your first program?</h2>
+      <p>Open the editor and run a line of Ascent. No account, no install, no terminal in sight.</p>
+      <div class="cta"><a class="btn btn-primary" href="#taste">Open the editor</a></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap foot">
+    <span class="brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 L22 21 L2 21 Z" fill="none" stroke="#2B6C57" stroke-width="2.4" stroke-linejoin="round"/></svg>
+      Ascent
+    </span>
+    <span>The teaching language. Built to be learned, then left behind.</span>
+  </div>
+</footer>
+
+<script src="index.js"></script>
+</body>
+</html>
