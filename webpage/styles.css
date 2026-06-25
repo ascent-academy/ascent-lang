@@ -164,14 +164,32 @@ section{padding:80px 0;}
 .tok-num{color:var(--tok-num);} .tok-com{color:var(--tok-com);font-style:italic;}
 .ghost{color:var(--code-dim);}
 
-.output{
-  background:#0a1814;border-top:1px solid rgba(255,255,255,0.07);
-  max-height:0;overflow:hidden;transition:max-height .42s cubic-bezier(.2,.7,.2,1);
+/* ---------- output modal ---------- */
+#outputModal{
+  border:none;border-radius:18px;padding:0;
+  background:var(--paper);color:var(--ink);
+  width:min(560px, calc(100vw - 48px));
+  box-shadow:0 32px 80px -20px rgba(14,32,27,0.6), 0 0 0 1px rgba(14,32,27,0.1);
 }
-.output.open{max-height:260px;}
-.output .out-inner{padding:18px 26px 22px;}
-.output .out-label{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--code-dim);margin:0 0 8px;}
-.output pre{margin:0;font-family:var(--font-mono);font-size:14.5px;line-height:1.7;color:#bfe6d4;white-space:pre-wrap;}
+#outputModal::backdrop{
+  background:rgba(14,32,27,0.5);
+  backdrop-filter:blur(6px);
+}
+.modal-inner{padding:24px 28px 30px;}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.modal-label{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--pine);}
+.modal-close{
+  background:none;border:none;color:var(--ink-soft);
+  font-size:20px;line-height:1;cursor:pointer;
+  padding:2px 8px;border-radius:6px;
+  transition:color .15s ease, background .15s ease;
+}
+.modal-close:hover{color:var(--ink);background:var(--paper-2);}
+#outputModal pre{
+  margin:0;background:var(--code-bg);border-radius:10px;
+  padding:18px 20px;font-family:var(--font-mono);font-size:15px;
+  line-height:1.7;color:#bfe6d4;white-space:pre-wrap;
+}
 .taste .ceremony{margin-top:22px;font-size:16px;color:var(--ink-soft);}
 .taste .ceremony b{color:var(--ink);font-weight:600;}
 

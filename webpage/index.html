@@ -89,7 +89,7 @@
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="file"><b>first-program</b>.asc</span>
           <span class="runwrap">
-            <button class="btn-run" id="runBtn" aria-controls="output"><span class="play" aria-hidden="true"></span>Run</button>
+            <button class="btn-run" id="runBtn" aria-controls="outputModal"><span class="play" aria-hidden="true"></span>Run</button>
           </span>
         </div>
 
@@ -123,14 +123,6 @@
 <span class="row"><span class="tok-com"># The program returns the result of the last expression</span></span>
         </div>
 
-        <!-- Output strip — revealed on Run. Replace the text below with the
-             real output your sample produces. -->
-        <div class="output" id="output" role="status" aria-live="polite">
-          <div class="out-inner">
-            <p class="out-label">Output</p>
-            <pre id="outputText">Hi Alice, you scored 87. Nicely done!</pre>
-          </div>
-        </div>
       </div>
 
       <p class="ceremony reveal">Write a few lines, click Run, see the result. <b>That's the whole ceremony.</b></p>
@@ -185,6 +177,16 @@
     <span>The teaching language. Built to be learned, then left behind.</span>
   </div>
 </footer>
+
+<dialog id="outputModal" aria-label="Program output">
+  <div class="modal-inner">
+    <div class="modal-head">
+      <span class="modal-label">Output</span>
+      <button id="modalClose" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <pre id="outputText">Hi Alice, you scored 87. Nicely done!</pre>
+  </div>
+</dialog>
 
 <script src="index.js"></script>
 </body>
