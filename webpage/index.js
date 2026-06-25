@@ -9,31 +9,29 @@ function runProgram(name, score) {
   return `Hi ${name}, you scored ${score}. ${note}`;
 }
 
-// ---- Modal: two-screen flow (inputs -> output) ----
-const btn           = document.getElementById('runBtn');
-const modal         = document.getElementById('outputModal');
-const modalLabel    = document.getElementById('modalLabel');
-const inputView     = document.getElementById('modalInputView');
-const outputView    = document.getElementById('modalOutputView');
-const argsForm      = document.getElementById('argsForm');
-const runSubmitBtn  = document.getElementById('runSubmitBtn');
-const outputText    = document.getElementById('outputText');
+// ---- Modal ----
+const modal           = document.getElementById('outputModal');
+const modalLabel      = document.getElementById('modalLabel');
+const inputView       = document.getElementById('modalInputView');
+const outputView      = document.getElementById('modalOutputView');
+const comingSoonView  = document.getElementById('modalComingSoonView');
+const argsForm        = document.getElementById('argsForm');
+const runSubmitBtn    = document.getElementById('runSubmitBtn');
+const outputText      = document.getElementById('outputText');
 
-function showInputs() {
-  modalLabel.textContent = 'Inputs';
-  outputView.hidden = true;
-  inputView.hidden  = false;
+function showView(view, label) {
+  for (const v of [inputView, outputView, comingSoonView]) v.hidden = v !== view;
+  modalLabel.textContent = label;
 }
 
-function showOutput(text) {
-  outputText.textContent = text;
-  modalLabel.textContent = 'Output';
-  inputView.hidden  = true;
-  outputView.hidden = false;
-}
+document.getElementById('runBtn').addEventListener('click', () => {
+  showView(inputView, 'Inputs');
+  modal.showModal();
+});
 
-btn.addEventListener('click', () => {
-  showInputs();
+document.getElementById('openEditorBtn').addEventListener('click', e => {
+  e.preventDefault();
+  showView(comingSoonView, 'Coming soon');
   modal.showModal();
 });
 
@@ -48,11 +46,12 @@ argsForm.addEventListener('submit', e => {
   setTimeout(() => {
     runSubmitBtn.disabled    = false;
     runSubmitBtn.textContent = 'Run';
-    showOutput(runProgram(name, score));
+    outputText.textContent = runProgram(name, score);
+    showView(outputView, 'Output');
   }, 420);
 });
 
-document.getElementById('runAgainBtn').addEventListener('click', showInputs);
+document.getElementById('runAgainBtn').addEventListener('click', () => showView(inputView, 'Inputs'));
 document.getElementById('modalClose').addEventListener('click', () => modal.close());
 modal.addEventListener('click', e => { if (e.target === modal) modal.close(); });
 
