@@ -61,7 +61,10 @@ export class Lexer {
   }
 
   private readWord(start: Position): Token {
-    while (isAlpha(this.peek()) || isDigit(this.peek())) this.advance();
+    while (isAlpha(this.peek()) || isDigit(this.peek())) {
+      this.advance();
+    }
+
     return this.error('L0001', this.spanFrom(start));
   }
 

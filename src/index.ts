@@ -1,4 +1,4 @@
-import * as readline from 'node:readline';
+import { createInterface } from 'node:readline/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer.js';
 
@@ -6,33 +6,34 @@ import { Lexer } from './lexer.js';
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
 
-process.stdout.write(chalk.bold.green('Ascent') + ' token REPL\n');
+async function main(): Promise<void> {
+  process.stdout.write(chalk.bold.green('Ascent') + ' token REPL\n');
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-  prompt: PROMPT,
-});
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-rl.prompt();
+  try {
+    while (true) {
+      const line = await rl.question(PROMPT);
 
-rl.on('line', (line: string) => {
-  const { tokens, errorMarkers } = new Lexer(line).tokenize();
+      const { tokens, errorMarkers } = new Lexer(line).tokenize();
+      let markerIndex = 0;
+      const parts = tokens
+        .filter(tok => tok.kind !== 'EOF')
+        .map(tok => {
+          if (tok.kind === 'ERROR') {
+            const code = errorMarkers[markerIndex++]?.code ?? '?';
+            return chalk.red(`[${code}]`);
+          }
+          return `[${chalk.cyan(tok.kind)} ${chalk.yellow(`"${tok.value}"`)}]`;
+        });
 
-  let markerIndex = 0;
-  const parts = tokens
-    .filter(tok => tok.kind !== 'EOF')
-    .map(tok => {
-      if (tok.kind === 'ERROR') {
-        const code = errorMarkers[markerIndex++]?.code ?? '?';
-        return chalk.red(`[${code}]`);
-      }
-      return `${chalk.cyan(tok.kind)} ${chalk.yellow(`"${tok.value}"`)}`;
-    });
+      process.stdout.write(parts.join(`  ${chalk.dim('·')}  `) + '\n');
+    }
+  } catch {
+    // stdin closed (Ctrl+D)
+  } finally {
+    rl.close();
+  }
+}
 
-  process.stdout.write(parts.join(`  ${chalk.dim('·')}  `) + '\n');
-
-  rl.prompt();
-});
-
-rl.on('close', () => process.exit(0));
+main();
