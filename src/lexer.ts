@@ -60,6 +60,11 @@ export class Lexer {
     }
   }
 
+  private readWord(start: Position): Token {
+    while (isAlpha(this.peek()) || isDigit(this.peek())) this.advance();
+    return this.error('L0001', this.spanFrom(start));
+  }
+
   private readNumber(start: Position): Token {
     while (isDigit(this.peek())) {
       this.advance();
@@ -93,6 +98,10 @@ export class Lexer {
 
     if (isDigit(ch)) {
       return this.readNumber(start);
+    }
+
+    if (isAlpha(ch)) {
+      return this.readWord(start);
     }
 
     // A leading-dot float like .5 looks like a number attempt, so L0002 is
