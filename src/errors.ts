@@ -26,6 +26,14 @@ export const ERRORS: ErrorEntry[] = [
     category: 'lexical',
     summary: 'A number literal that runs into letters (`123abc`) or uses a leading dot (`.5`).'
   },
+
+  // S — syntax: the tokens don't form valid grammar
+  {
+    code: 'S0002',
+    name: 'expected-expression',
+    category: 'syntax',
+    summary: 'An expression was required here but the input contained none.'
+  },
 ];
 
 export const byCode = new Map(ERRORS.map(e => [e.code, e]));
