@@ -23,6 +23,7 @@
     <nav class="top" aria-label="Primary">
       <a href="#why">Why</a>
       <a href="#taste">See it</a>
+      <a href="#features">Features</a>
       <a href="#principles">Principles</a>
       <a class="btn btn-primary btn-sm" href="#taste">Try it</a>
     </nav>
@@ -97,6 +98,69 @@
       </div>
 
       <p class="ceremony reveal">Write a few lines, click Run, see the result. <b>That's the whole ceremony.</b></p>
+    </div>
+  </section>
+
+  <!-- =================== FEATURES =================== -->
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="alt">Ridge camp · 1800 m</span>
+        <h2>Three features worth a closer look.</h2>
+        <p>Each one reflects a deliberate choice about how programs should behave — and how a learner should be able to read them.</p>
+      </div>
+
+      <div class="feat-cards">
+
+        <!-- try -->
+        <article class="feat-card reveal">
+          <div class="feat-info">
+            <span class="tag">Error handling</span>
+            <h3>Failures are values — <code>try</code> propagates them</h3>
+            <p>Expected failures live in the return type, not as exceptions that can tunnel invisibly up the stack. <code>try</code> unwraps the good case and continues; on failure it early-returns from the enclosing function — every propagation point visible in source, every signature honest. Adapting a foreign error is an explicit <code>else</code> clause, never silent.</p>
+          </div>
+          <div class="feat-code">
+            <div class="feat-chrome">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="file"><b>load-number</b>.asc</span>
+            </div>
+            <pre class="code"><span class="row"><span class="tok-kw">type</span> <span class="tok-kw">AppError</span> = <span class="tok-kw">Read</span>{ cause: <span class="tok-kw">IOError</span> } | <span class="tok-kw">Parse</span>{ cause: <span class="tok-kw">ParseError</span> };</span><span class="row"></span><span class="row"><span class="tok-kw">fn</span> loadNumber(path: <span class="tok-kw">String</span>) -&gt; <span class="tok-kw">Int</span> <span class="tok-kw">orelse</span> <span class="tok-kw">AppError</span> {</span><span class="row">    <span class="tok-kw">fix</span> text = <span class="tok-kw">try</span> readFile(path) <span class="tok-kw">else</span> e -&gt; <span class="tok-kw">AppError</span>.<span class="tok-kw">Read</span>{ cause: e };</span><span class="row">    <span class="tok-kw">fix</span> n    = <span class="tok-kw">try</span> parseInt(text) <span class="tok-kw">else</span> e -&gt; <span class="tok-kw">AppError</span>.<span class="tok-kw">Parse</span>{ cause: e };</span><span class="row">    <span class="tok-kw">Ok</span>{ value: n }</span><span class="row">}</span></pre>
+          </div>
+        </article>
+
+        <!-- structured concurrency -->
+        <article class="feat-card reveal">
+          <div class="feat-info">
+            <span class="tag">Concurrency</span>
+            <h3>Structured concurrency</h3>
+            <p>Spawned tasks can only live inside a <code>concurrent&nbsp;{}</code> scope, which waits for all of them before exiting — and cancels the rest if any one fails. Orphaned tasks, lost errors, and fire-and-forget are structurally impossible: concurrency becomes as nested and composable as a block of code.</p>
+          </div>
+          <div class="feat-code">
+            <div class="feat-chrome">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="file"><b>load-profile</b>.asc</span>
+            </div>
+            <pre class="code"><span class="row"><span class="tok-kw">fn</span> loadProfile(id: <span class="tok-kw">Int</span>) -&gt; <span class="tok-kw">Profile</span> <span class="tok-kw">orelse</span> <span class="tok-kw">FetchError</span> {</span><span class="row">    <span class="tok-kw">try</span> <span class="tok-kw">concurrent</span> {</span><span class="row">        <span class="tok-kw">fix</span> user  = <span class="tok-kw">spawn</span> fetchUser(id);</span><span class="row">        <span class="tok-kw">fix</span> posts = <span class="tok-kw">spawn</span> fetchPosts(id);</span><span class="row">    }  <span class="tok-com"># both finish, or the scope cancels the rest</span></span><span class="row">    <span class="tok-kw">Profile</span>{ user: user, posts: posts }</span><span class="row">}</span></pre>
+          </div>
+        </article>
+
+        <!-- methods on types -->
+        <article class="feat-card reveal">
+          <div class="feat-info">
+            <span class="tag">Data model</span>
+            <h3>Methods on types</h3>
+            <p>Behavior lives in a <code>methods</code> block, declared once alongside the type's own fields. The receiver <code>self</code> is explicit — a method is transparently a function whose first argument is the value it belongs to. No inheritance, no hidden dispatch chain.</p>
+          </div>
+          <div class="feat-code">
+            <div class="feat-chrome">
+              <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="file"><b>player</b>.asc</span>
+            </div>
+            <pre class="code"><span class="row"><span class="tok-kw">type</span> <span class="tok-kw">Player</span> = {</span><span class="row">    name:  <span class="tok-kw">String</span>,</span><span class="row">    score: <span class="tok-kw">Int</span>,</span><span class="row">} <span class="tok-kw">methods</span> {</span><span class="row">    rank:     <span class="tok-kw">fn</span>(<span class="tok-kw">self</span>) -&gt; <span class="tok-kw">String</span> =&gt;</span><span class="row">        <span class="tok-kw">if</span> (self.score &gt;= <span class="tok-num">100</span>) { <span class="tok-str">"pro"</span> } <span class="tok-kw">else</span> { <span class="tok-str">"rookie"</span> },</span><span class="row">    describe: <span class="tok-kw">fn</span>(<span class="tok-kw">self</span>) -&gt; <span class="tok-kw">String</span> =&gt;</span><span class="row">        <span class="tok-str">"${self.name} is a ${self.rank()}"</span>,</span><span class="row">};</span><span class="row"></span><span class="row"><span class="tok-kw">fix</span> ada = <span class="tok-kw">Player</span>{ name: <span class="tok-str">"Ada"</span>, score: <span class="tok-num">120</span> };</span><span class="row">print(ada.describe());   <span class="tok-com"># "Ada is a pro"</span></span></pre>
+          </div>
+        </article>
+
+      </div>
     </div>
   </section>
 

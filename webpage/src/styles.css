@@ -628,6 +628,89 @@ nav.top a:hover {
 
 
 /* ------------------------------------------------------------
+   Features section
+   ------------------------------------------------------------ */
+
+.feat-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-top: 46px;
+}
+
+.feat-card {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.feat-info {
+  padding: 36px 36px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid var(--line-soft);
+}
+
+.feat-info .tag {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pine);
+}
+
+.feat-info h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  margin: 10px 0 12px;
+  line-height: 1.25;
+}
+
+.feat-info p {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.feat-info code {
+  font-family: var(--font-mono);
+  font-size: 0.87em;
+  background: var(--paper-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--pine);
+}
+
+.feat-code {
+  background: var(--code-bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.feat-chrome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  background: var(--code-2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex: 0 0 auto;
+}
+
+.feat-code .code {
+  flex: 1;
+  font-size: 13.5px;
+  padding: 20px 22px 22px;
+}
+
+
+/* ------------------------------------------------------------
    Principles
    ------------------------------------------------------------ */
 
@@ -767,6 +850,15 @@ footer.site {
 @media (max-width: 860px) {
   .pillars {
     grid-template-columns: 1fr;
+  }
+
+  .feat-card {
+    grid-template-columns: 1fr;
+  }
+
+  .feat-info {
+    border-right: none;
+    border-bottom: 1px solid var(--line-soft);
   }
 
   .princ {
