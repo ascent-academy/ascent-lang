@@ -1,9 +1,6 @@
 import type { Span } from './error-marker.js';
 
-export interface Literal {
-  kind: 'Literal';
-  value: bigint;
-  span: Span;
-}
-
-export type Expr = Literal;
+export type Expr = (
+  | { kind: 'int'; value: bigint; span: Span }
+  | { kind: 'float'; value: number; span: Span }
+);

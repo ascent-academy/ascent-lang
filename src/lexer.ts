@@ -60,43 +60,32 @@ export class Lexer {
     }
   }
 
-  private readWord(start: Position): Token {
-    while (isAlpha(this.peek()) || isDigit(this.peek())) {
-      this.advance();
-    }
-
+  private readWord(): Token {
+    const start = this.mark();
+    while (isAlpha(this.peek()) || isDigit(this.peek())) this.advance();
     return this.error('L0001', this.spanFrom(start));
   }
 
-  private readNumber(start: Position): Token {
-    while (isDigit(this.peek())) {
-      this.advance();
-    }
+  private readNumber(): Token {
+    const start = this.mark();
+    while (isDigit(this.peek())) this.advance();
 
     // Float: peek() is '.', peek(1) confirms a digit follows.
     // We only consume the dot when we are certain — this keeps '3.method()'
     // valid in later sections where '.' is the member-access operator.
     if (this.peek() === '.' && isDigit(this.peek(1))) {
-      this.advance();
-      while (isDigit(this.peek())) {
-        this.advance();
-      }
-
+      this.advance(); // '.'
+      while (isDigit(this.peek())) this.advance();
       if (isAlpha(this.peek())) {
-        while (isAlpha(this.peek()) || isDigit(this.peek())) {
-          this.advance();
-        }
+        while (isAlpha(this.peek()) || isDigit(this.peek())) this.advance();
         return this.error('L0002', this.spanFrom(start));
       }
-
       const value = this.src.slice(start.offset, this.pos);
       return { kind: 'FLOAT_LIT', value, span: this.spanFrom(start) };
     }
 
     if (isAlpha(this.peek())) {
-      while (isAlpha(this.peek()) || isDigit(this.peek())) {
-        this.advance();
-      }
+      while (isAlpha(this.peek()) || isDigit(this.peek())) this.advance();
       return this.error('L0002', this.spanFrom(start));
     }
 
@@ -107,31 +96,27 @@ export class Lexer {
   private nextToken(): Token {
     this.skipWhitespace();
 
-    const start = this.mark();
     if (this.pos >= this.src.length) {
+      const start = this.mark();
       return { kind: 'EOF', value: '', span: this.spanFrom(start) };
     }
 
-    const ch = this.advance();
+    const ch = this.peek();
 
-    if (isDigit(ch)) {
-      return this.readNumber(start);
-    }
-
-    if (isAlpha(ch)) {
-      return this.readWord(start);
-    }
+    if (isDigit(ch)) return this.readNumber();
+    if (isAlpha(ch)) return this.readWord();
 
     // A leading-dot float like .5 looks like a number attempt, so L0002 is
     // more helpful than L0001 ("unexpected character").
-    if (ch === '.' && isDigit(this.peek())) {
-      while (isDigit(this.peek())) {
-        this.advance();
-      }
-
+    if (ch === '.' && isDigit(this.peek(1))) {
+      const start = this.mark();
+      this.advance(); // '.'
+      while (isDigit(this.peek())) this.advance();
       return this.error('L0002', this.spanFrom(start));
     }
 
+    const start = this.mark();
+    this.advance();
     return this.error('L0001', this.spanFrom(start));
   }
 

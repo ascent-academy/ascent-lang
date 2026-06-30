@@ -32,8 +32,17 @@ export class Parser {
     if (tok.kind === 'INT_LIT') {
       this.advance();
       return {
-        kind: 'Literal',
+        kind: 'int',
         value: BigInt(tok.value),
+        span: tok.span
+      };
+    }
+
+    if (tok.kind === 'FLOAT_LIT') {
+      this.advance();
+      return {
+        kind: 'float',
+        value: parseFloat(tok.value),
         span: tok.span
       };
     }

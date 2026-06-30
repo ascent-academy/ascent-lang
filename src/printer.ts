@@ -6,8 +6,10 @@ import type { RuntimeValue } from './interpreter.js';
 // branch characters (├─, └─) when embedding inside a parent node.
 function exprLines(expr: Expr): string[] {
   switch (expr.kind) {
-    case 'Literal':
-      return [`${chalk.cyan('Literal')} ${chalk.yellow(String(expr.value))}`];
+    case 'int':
+      return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}`];
+    case 'float':
+      return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
   }
 }
 
@@ -26,6 +28,8 @@ export function formatExpr(expr: Expr): string {
 export function formatValue(value: RuntimeValue): string {
   switch (value.type) {
     case 'int':
+      return chalk.yellow(String(value.value));
+    case 'float':
       return chalk.yellow(String(value.value));
   }
 }
