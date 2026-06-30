@@ -2,7 +2,8 @@ import { createInterface } from 'node:readline/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer.js';
 import { Parser } from './parser.js';
-import { formatExpr } from './printer.js';
+import { formatExpr, formatValue } from './printer.js';
+import { evaluate } from './interpreter.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
@@ -35,6 +36,8 @@ async function main(): Promise<void> {
 
       if (parseResult.expr !== null) {
         process.stdout.write(formatExpr(parseResult.expr) + '\n');
+        const value = evaluate(parseResult.expr);
+        process.stdout.write(chalk.dim('=> ') + formatValue(value) + '\n');
       } else if (lexResult.errorMarkers.length === 0) {
         // Only show parser errors when the lexer succeeded — if the lexer
         // already flagged something, the parser error is a downstream echo.

@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import type { Expr } from './ast.js';
+import type { RuntimeValue } from './interpreter.js';
 
 // Returns the node as a list of lines so callers can prefix them with
 // branch characters (├─, └─) when embedding inside a parent node.
@@ -20,4 +21,11 @@ export function branch(lines: string[], isLast: boolean): string[] {
 
 export function formatExpr(expr: Expr): string {
   return exprLines(expr).join('\n');
+}
+
+export function formatValue(value: RuntimeValue): string {
+  switch (value.type) {
+    case 'int':
+      return chalk.yellow(String(value.value));
+  }
 }
