@@ -1,5 +1,5 @@
 import type { Position, Span, ErrorMarker } from './error-marker.js';
-import type { Token, TokenKind } from './token.js';
+import type { Token } from './token.js';
 
 export interface LexResult {
   tokens: Token[];
@@ -21,8 +21,8 @@ export class Lexer {
     this.src = src;
   }
 
-  private peek(): string {
-    return this.src[this.pos] ?? '\0';
+  private peek(offset = 0): string {
+    return this.src[this.pos + offset] ?? '\0';
   }
 
   private advance(): string {
@@ -73,12 +73,30 @@ export class Lexer {
       this.advance();
     }
 
-    if (isAlpha(this.peek())) {
-      // Consume the whole bad run so the span covers it entirely.
-      while (isAlpha(this.peek()) || isDigit(this.peek())) {
+    // Float: peek() is '.', peek(1) confirms a digit follows.
+    // We only consume the dot when we are certain — this keeps '3.method()'
+    // valid in later sections where '.' is the member-access operator.
+    if (this.peek() === '.' && isDigit(this.peek(1))) {
+      this.advance();
+      while (isDigit(this.peek())) {
         this.advance();
       }
 
+      if (isAlpha(this.peek())) {
+        while (isAlpha(this.peek()) || isDigit(this.peek())) {
+          this.advance();
+        }
+        return this.error('L0002', this.spanFrom(start));
+      }
+
+      const value = this.src.slice(start.offset, this.pos);
+      return { kind: 'FLOAT_LIT', value, span: this.spanFrom(start) };
+    }
+
+    if (isAlpha(this.peek())) {
+      while (isAlpha(this.peek()) || isDigit(this.peek())) {
+        this.advance();
+      }
       return this.error('L0002', this.spanFrom(start));
     }
 
@@ -90,11 +108,8 @@ export class Lexer {
     this.skipWhitespace();
 
     const start = this.mark();
-    const tok = (kind: TokenKind, value: string): Token =>
-      ({ kind, value, span: this.spanFrom(start) });
-
     if (this.pos >= this.src.length) {
-      return tok('EOF', '');
+      return { kind: 'EOF', value: '', span: this.spanFrom(start) };
     }
 
     const ch = this.advance();
