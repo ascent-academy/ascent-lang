@@ -1,5 +1,5 @@
 import type { Position, Span, ErrorMarker } from './error-marker.js';
-import type { Token } from './token.js';
+import type { Token, TokenKind } from './token.js';
 
 export interface LexResult {
   tokens: Token[];
@@ -9,6 +9,12 @@ export interface LexResult {
 const isDigit = (ch: string): boolean => ch >= '0' && ch <= '9';
 const isAlpha = (ch: string): boolean =>
   (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_';
+
+const KEYWORDS: Record<string, TokenKind> = {
+  true: 'BOOL_LIT',
+  false: 'BOOL_LIT',
+  none: 'NONE_LIT',
+};
 
 export class Lexer {
   private src: string;
@@ -63,7 +69,12 @@ export class Lexer {
   private readWord(): Token {
     const start = this.mark();
     while (isAlpha(this.peek()) || isDigit(this.peek())) this.advance();
-    return this.error('L0001', this.spanFrom(start));
+    const value = this.src.slice(start.offset, this.pos);
+    const kind = KEYWORDS[value];
+    if (kind === undefined) {
+      return this.error('L0001', this.spanFrom(start));
+    }
+    return { kind, value, span: this.spanFrom(start) };
   }
 
   private readNumber(): Token {

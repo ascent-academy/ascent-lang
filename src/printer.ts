@@ -10,6 +10,10 @@ function exprLines(expr: Expr): string[] {
       return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}`];
     case 'float':
       return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
+    case 'bool':
+      return [`${chalk.cyan('Bool')} ${chalk.yellow(String(expr.value))}`];
+    case 'none':
+      return [`${chalk.cyan('None')}`];
   }
 }
 
@@ -28,8 +32,10 @@ export function formatExpr(expr: Expr): string {
 export function formatValue(value: RuntimeValue): string {
   switch (value.type) {
     case 'int':
-      return chalk.yellow(String(value.value));
     case 'float':
+    case 'bool':
       return chalk.yellow(String(value.value));
+    case 'none':
+      return chalk.yellow('none');
   }
 }

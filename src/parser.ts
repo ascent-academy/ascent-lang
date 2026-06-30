@@ -47,6 +47,23 @@ export class Parser {
       };
     }
 
+    if (tok.kind === 'BOOL_LIT') {
+      this.advance();
+      return {
+        kind: 'bool',
+        value: tok.value === 'true',
+        span: tok.span
+      };
+    }
+
+    if (tok.kind === 'NONE_LIT') {
+      this.advance();
+      return {
+        kind: 'none',
+        span: tok.span
+      };
+    }
+
     this.errorMarkers.push({ code: 'S0002', span: tok.span });
     return null;
   }
