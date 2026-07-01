@@ -14,6 +14,11 @@ function exprLines(expr: Expr): string[] {
       return [`${chalk.cyan('Bool')} ${chalk.yellow(String(expr.value))}`];
     case 'none':
       return [`${chalk.cyan('None')}`];
+    case 'binary': {
+      const left = branch(exprLines(expr.left), false);
+      const right = branch(exprLines(expr.right), true);
+      return [`${chalk.cyan('Binary')} ${chalk.magenta(expr.op)}`, ...left, ...right];
+    }
   }
 }
 
@@ -32,7 +37,10 @@ export function formatExpr(expr: Expr): string {
 export function formatValue(value: RuntimeValue): string {
   switch (value.type) {
     case 'int':
+      return chalk.yellow(String(value.value));
     case 'float':
+      const floatStr = String(value.value);
+      return floatStr.includes('.') ? chalk.yellow(floatStr) : chalk.yellow(floatStr + '.0');
     case 'bool':
       return chalk.yellow(String(value.value));
     case 'none':
