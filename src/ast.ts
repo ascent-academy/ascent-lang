@@ -8,5 +8,5 @@ export type Expr = (
   // `op` carries which operator this is — every future binary operator
   // (-, ==, and, ...) joins this same shape rather than getting its own
   // Expr kind.
-  | { kind: 'binary'; op: '+' | '*' | '/'; left: Expr; right: Expr; span: Span }
+  | { kind: 'binary'; op: '+' | '*' | '/' | 'div' | 'mod'; left: Expr; right: Expr; span: Span }
 );

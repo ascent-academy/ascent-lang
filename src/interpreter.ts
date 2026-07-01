@@ -26,6 +26,20 @@ type Numeric = { type: 'int'; value: bigint } | { type: 'float'; value: number }
 const isNumeric = (v: RuntimeValue): v is Numeric => v.type === 'int' || v.type === 'float';
 const asFloat = (v: Numeric): number => (v.type === 'int' ? Number(v.value) : v.value);
 
+// BigInt's own '%' truncates toward zero (remainder takes the sign of
+// the dividend, like C/Java/JS). 'mod' instead floors — the result
+// takes the sign of the divisor — so a single correction pass covers
+// the case where the truncating remainder landed on the wrong side of
+// zero. 'div' is then defined from 'mod' so the identity
+// `(a div b) * b + (a mod b) == a` holds by construction.
+const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
+  let mod = a % b;
+  if (mod !== 0n && (mod < 0n) !== (b < 0n)) {
+    mod += b;
+  }
+  return { div: (a - mod) / b, mod };
+};
+
 // Int op Int stays an Int (exact BigInt arithmetic); an Int meeting a
 // Float promotes to Float first (the one-way, value-preserving
 // Int -> Float rule) so the result is a Float the moment either operand
@@ -33,9 +47,22 @@ const asFloat = (v: Numeric): number => (v.type === 'int' ? Number(v.value) : v.
 // diagnostic lands with the type checker (agenda §5/§6) — for now this
 // throws rather than silently returning a nonsense value, honouring the
 // "no silent failure states" rule even before the proper machinery exists.
-const evaluateBinary = (op: '+' | '*' | '/', left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
+const evaluateBinary = (op: '+' | '*' | '/' | 'div' | 'mod', left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
   if (!isNumeric(left) || !isNumeric(right)) {
     throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
+  }
+
+  // 'div'/'mod' are Int-only — floor division/modulo answers "how many
+  // whole times" and "what's left over", concepts a Float doesn't have.
+  if (op === 'div' || op === 'mod') {
+    if (left.type !== 'int' || right.type !== 'int') {
+      throw new Error(`'${op}' requires Int operands, got ${left.type} and ${right.type}`);
+    }
+    if (right.value === 0n) {
+      throw new Error(`${op} by zero`);
+    }
+    const { div, mod } = floorDivMod(left.value, right.value);
+    return { type: 'int', value: op === 'div' ? div : mod };
   }
 
   // '/' always yields a Float, whatever the operand types — this is what
