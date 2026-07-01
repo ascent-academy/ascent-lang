@@ -1,0 +1,11 @@
+# L — lexical: the characters don't form a valid token
+
+- code: 'L0001',
+  name: 'unexpected-character',
+  category: 'lexical',
+  summary: "A character that can't begin any token."
+
+- code: 'L0002',
+  name: 'unterminated-string',
+  category: 'lexical',
+  summary: "A string literal that doesn't end before the end of the line."

@@ -14,6 +14,10 @@ const exprLines = (expr: Expr): string[] => {
       return [`${chalk.cyan('Bool')} ${chalk.yellow(String(expr.value))}`];
     case 'none':
       return [`${chalk.cyan('None')}`];
+    case 'unary': {
+      const operand = branch(exprLines(expr.operand), true);
+      return [`${chalk.cyan('Unary')} ${chalk.magenta(expr.op)}`, ...operand];
+    }
     case 'binary': {
       const left = branch(exprLines(expr.left), false);
       const right = branch(exprLines(expr.right), true);

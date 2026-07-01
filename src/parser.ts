@@ -46,8 +46,9 @@ export class Parser {
   // Adding the next one (say '-') means adding a row, never touching
   // the loop below. '*', '/', 'div' and 'mod' all share a binding power
   // — they're the same precedence tier — so all four outbind '+'.
-  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '*' | '/' | 'div' | 'mod'; bp: number }>> = {
-    PLUS: { op: '+', bp: 1 },
+  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '-' | '*' | '/' | 'div' | 'mod'; bp: number }>> = {
+    PLUS:  { op: '+', bp: 1 },
+    MINUS: { op: '-', bp: 1 },
     STAR: { op: '*', bp: 2 },
     SLASH: { op: '/', bp: 2 },
     KW_DIV: { op: 'div', bp: 2 },
@@ -129,6 +130,16 @@ export class Parser {
         kind: 'none',
         span: tok.span
       };
+    }
+
+    if (tok.kind === 'MINUS') {
+      const start = tok.span.start;
+      this.advance();
+      const operand = this.parseExpr(3); // bp 3 > any binary op, so unary binds tightest
+      if (operand === null) {
+        return null;
+      }
+      return { kind: 'unary', op: '-', operand, span: { start, end: operand.span.end } };
     }
 
     this.errorMarkers.push({ code: 'S0002', span: tok.span });

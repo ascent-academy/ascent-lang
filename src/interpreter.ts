@@ -17,6 +17,12 @@ export const evaluate = (expr: Expr): RuntimeValue => {
       return { type: 'bool', value: expr.value };
     case 'none':
       return { type: 'none' };
+    case 'unary': {
+      const operand = evaluate(expr.operand);
+      if (operand.type === 'int') return { type: 'int', value: -operand.value };
+      if (operand.type === 'float') return { type: 'float', value: -operand.value };
+      throw new Error(`unary '-' is not defined for ${operand.type}`);
+    }
     case 'binary':
       return evaluateBinary(expr.op, evaluate(expr.left), evaluate(expr.right));
   }
@@ -47,7 +53,7 @@ const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
 // diagnostic lands with the type checker (agenda §5/§6) — for now this
 // throws rather than silently returning a nonsense value, honouring the
 // "no silent failure states" rule even before the proper machinery exists.
-const evaluateBinary = (op: '+' | '*' | '/' | 'div' | 'mod', left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
+const evaluateBinary = (op: '+' | '-' | '*' | '/' | 'div' | 'mod', left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
   if (!isNumeric(left) || !isNumeric(right)) {
     throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
   }
@@ -78,10 +84,14 @@ const evaluateBinary = (op: '+' | '*' | '/' | 'div' | 'mod', left: RuntimeValue,
   }
 
   if (left.type === 'int' && right.type === 'int') {
-    return { type: 'int', value: op === '+' ? left.value + right.value : left.value * right.value };
+    const v = op === '+' ? left.value + right.value
+            : op === '-' ? left.value - right.value
+            : left.value * right.value;
+    return { type: 'int', value: v };
   }
 
   const l = asFloat(left);
   const r = asFloat(right);
-  return { type: 'float', value: op === '+' ? l + r : l * r };
+  const v = op === '+' ? l + r : op === '-' ? l - r : l * r;
+  return { type: 'float', value: v };
 };
