@@ -1,4 +1,4 @@
-import type { Token } from './token.js';
+import type { Token, TokenKind } from './token.js';
 import type { ErrorMarker } from './error-marker.js';
 import type { Expr } from './ast.js';
 
@@ -35,20 +35,20 @@ export class Parser {
   // whatever comes after it).
   //
   // Every infix operator has a binding power: a number saying how
-  // tightly it grabs its operands. The parsing loop below only accepts
-  // an operator when its binding power is at least `minBp` — the
-  // "how tight does the *caller* need things bound" threshold that gets
-  // passed down on each recursive call. With a single operator this
-  // machinery looks like overkill, but it's the exact shape that scales:
-  // adding `-`, `*`, `/` later means adding rows to a table, not
-  // rewriting the loop.
-
-  // '+' is left-associative: `1 + 2 + 3` must parse as `(1 + 2) + 3`,
-  // not `1 + (2 + 3)`. Parsing the right-hand side with `PLUS_BP + 1`
-  // (instead of `PLUS_BP`) is what enforces that — it stops the second
-  // '+' from being absorbed into the *right* operand, forcing it to
-  // instead be picked up by the loop one level up.
-  private static readonly PLUS_BP = 1;
+  // tightly it grabs its operands. Higher binds tighter — that's what
+  // encodes precedence: '*' outbinds '+', so `1 + 2 * 3` parses as
+  // `1 + (2 * 3)`, not `(1 + 2) * 3`. The parsing loop only accepts an
+  // operator when its binding power is at least `minBp` — the "how
+  // tight does the *caller* need things bound" threshold passed down on
+  // each recursive call.
+  //
+  // Every operator this parser knows about has one row in this table.
+  // Adding the next one (say '-') means adding a row, never touching
+  // the loop below.
+  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '*'; bp: number }>> = {
+    PLUS: { op: '+', bp: 1 },
+    STAR: { op: '*', bp: 2 },
+  };
 
   private parseExpr(minBp = 0): Expr | null {
     let left = this.parseAtom();
@@ -56,17 +56,26 @@ export class Parser {
       return null;
     }
 
-    while (this.peek().kind === 'PLUS' && Parser.PLUS_BP >= minBp) {
-      this.advance(); // consume '+'
+    while (true) {
+      const infix = Parser.INFIX_OPS[this.peek().kind];
+      if (infix === undefined || infix.bp < minBp) {
+        break;
+      }
+      this.advance(); // consume the operator
 
-      const right = this.parseExpr(Parser.PLUS_BP + 1);
+      // Left-associativity — `1 + 2 + 3` must parse as `(1 + 2) + 3`,
+      // not `1 + (2 + 3)`. Parsing the right-hand side with `bp + 1`
+      // (instead of `bp`) is what enforces that: it stops a second '+'
+      // from being absorbed into the *right* operand, forcing it to
+      // instead be picked up by the loop one level up.
+      const right = this.parseExpr(infix.bp + 1);
       if (right === null) {
         return null;
       }
 
       left = {
         kind: 'binary',
-        op: '+',
+        op: infix.op,
         left,
         right,
         span: { start: left.span.start, end: right.span.end }

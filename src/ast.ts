@@ -5,8 +5,8 @@ export type Expr = (
   | { kind: 'float'; value: number; span: Span }
   | { kind: 'bool'; value: boolean; span: Span }
   | { kind: 'none'; span: Span }
-  // '+' is the only infix operator so far, so `op` has one possible value —
-  // it stays a field (not a separate 'plus' Expr kind) because every future
-  // binary operator (-, *, ==, and, ...) will join this same shape.
-  | { kind: 'binary'; op: '+'; left: Expr; right: Expr; span: Span }
+  // `op` carries which operator this is — every future binary operator
+  // (-, ==, and, ...) joins this same shape rather than getting its own
+  // Expr kind.
+  | { kind: 'binary'; op: '+' | '*'; left: Expr; right: Expr; span: Span }
 );
