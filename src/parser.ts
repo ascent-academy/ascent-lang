@@ -52,13 +52,17 @@ export class Parser {
 
   private parseExpr(minBp = 0): Expr | null {
     let left = this.parseAtom();
-    if (left === null) return null;
+    if (left === null) {
+      return null;
+    }
 
     while (this.peek().kind === 'PLUS' && Parser.PLUS_BP >= minBp) {
       this.advance(); // consume '+'
 
       const right = this.parseExpr(Parser.PLUS_BP + 1);
-      if (right === null) return null;
+      if (right === null) {
+        return null;
+      }
 
       left = {
         kind: 'binary',
