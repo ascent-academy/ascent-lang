@@ -14,6 +14,8 @@ const KEYWORDS: Record<string, TokenKind> = {
   true: 'BOOL_LIT',
   false: 'BOOL_LIT',
   none: 'NONE_LIT',
+  div: 'KW_DIV',
+  mod: 'KW_MOD',
 };
 
 export class Lexer {
@@ -128,7 +130,14 @@ export class Lexer {
 
     const start = this.mark();
     this.advance();
-    return this.error('L0001', this.spanFrom(start));
+
+    switch (ch) {
+      case '+': return { kind: 'PLUS', value: '+', span: this.spanFrom(start) };
+      case '-': return { kind: 'MINUS', value: '-', span: this.spanFrom(start) };
+      case '*': return { kind: 'STAR', value: '*', span: this.spanFrom(start) };
+      case '/': return { kind: 'SLASH', value: '/', span: this.spanFrom(start) };
+      default: return this.error('L0001', this.spanFrom(start));
+    }
   }
 
   public tokenize(): LexResult {
