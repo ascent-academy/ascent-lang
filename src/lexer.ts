@@ -148,10 +148,12 @@ export class Lexer {
     this.advance();
 
     switch (ch) {
-      case '+': return { kind: 'PLUS', value: '+', span: this.spanFrom(start) };
-      case '-': return { kind: 'MINUS', value: '-', span: this.spanFrom(start) };
-      case '*': return { kind: 'STAR', value: '*', span: this.spanFrom(start) };
-      case '/': return { kind: 'SLASH', value: '/', span: this.spanFrom(start) };
+      case '+': return { kind: 'PLUS',   value: '+', span: this.spanFrom(start) };
+      case '-': return { kind: 'MINUS',  value: '-', span: this.spanFrom(start) };
+      case '*': return { kind: 'STAR',   value: '*', span: this.spanFrom(start) };
+      case '/': return { kind: 'SLASH',  value: '/', span: this.spanFrom(start) };
+      case '(': return { kind: 'LPAREN', value: '(', span: this.spanFrom(start) };
+      case ')': return { kind: 'RPAREN', value: ')', span: this.spanFrom(start) };
       default: return this.error('L0001', this.spanFrom(start));
     }
   }

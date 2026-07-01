@@ -11,6 +11,8 @@ export type TokenKind =
   | 'SLASH'      // '/', always real division — yields a Float
   | 'KW_DIV'     // the keyword div — Int-only floor division
   | 'KW_MOD'     // the keyword mod — Int-only floored modulo
+  | 'LPAREN'     // '('
+  | 'RPAREN'     // ')'
   | 'ERROR'      // a character or run the lexer couldn't recognise
   | 'EOF';       // the sentinel that marks the end of source
 

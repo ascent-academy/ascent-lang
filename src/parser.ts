@@ -132,6 +132,21 @@ export class Parser {
       };
     }
 
+    if (tok.kind === 'LPAREN') {
+      this.advance();
+      const inner = this.parseExpr();
+      if (inner === null) {
+        return null;
+      }
+      const closing = this.peek();
+      if (closing.kind !== 'RPAREN') {
+        this.errorMarkers.push({ code: 'S0001', span: closing.span });
+        return null;
+      }
+      this.advance(); // consume ')'
+      return inner;
+    }
+
     if (tok.kind === 'MINUS') {
       const start = tok.span.start;
       this.advance();
