@@ -44,10 +44,12 @@ export class Parser {
   //
   // Every operator this parser knows about has one row in this table.
   // Adding the next one (say '-') means adding a row, never touching
-  // the loop below.
-  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '*'; bp: number }>> = {
+  // the loop below. '*' and '/' share a binding power — they're the
+  // same precedence tier — so both outbind '+'.
+  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '*' | '/'; bp: number }>> = {
     PLUS: { op: '+', bp: 1 },
     STAR: { op: '*', bp: 2 },
+    SLASH: { op: '/', bp: 2 },
   };
 
   private parseExpr(minBp = 0): Expr | null {
