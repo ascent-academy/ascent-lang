@@ -4,7 +4,7 @@ import type { RuntimeValue } from './interpreter.js';
 
 // Returns the node as a list of lines so callers can prefix them with
 // branch characters (├─, └─) when embedding inside a parent node.
-function exprLines(expr: Expr): string[] {
+const exprLines = (expr: Expr): string[] => {
   switch (expr.kind) {
     case 'int':
       return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}`];
@@ -20,21 +20,21 @@ function exprLines(expr: Expr): string[] {
       return [`${chalk.cyan('Binary')} ${chalk.magenta(expr.op)}`, ...left, ...right];
     }
   }
-}
+};
 
 // Prefixes a child's lines with tree-drawing characters.
 // Used by parent nodes (Binary, Unary, …) when they are added.
-export function branch(lines: string[], isLast: boolean): string[] {
+export const branch = (lines: string[], isLast: boolean): string[] => {
   const head = chalk.dim(isLast ? '└─ ' : '├─ ');
   const body = chalk.dim(isLast ? '   ' : '│  ');
   return lines.map((line, i) => (i === 0 ? head : body) + line);
-}
+};
 
-export function formatExpr(expr: Expr): string {
+export const formatExpr = (expr: Expr): string => {
   return exprLines(expr).join('\n');
-}
+};
 
-export function formatValue(value: RuntimeValue): string {
+export const formatValue = (value: RuntimeValue): string => {
   switch (value.type) {
     case 'int':
       return chalk.yellow(String(value.value));
@@ -46,4 +46,4 @@ export function formatValue(value: RuntimeValue): string {
     case 'none':
       return chalk.yellow('none');
   }
-}
+};

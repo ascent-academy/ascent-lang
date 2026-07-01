@@ -7,7 +7,7 @@ export type RuntimeValue = (
   | { type: 'none' }
 );
 
-export function evaluate(expr: Expr): RuntimeValue {
+export const evaluate = (expr: Expr): RuntimeValue => {
   switch (expr.kind) {
     case 'int':
       return { type: 'int', value: expr.value };
@@ -20,7 +20,7 @@ export function evaluate(expr: Expr): RuntimeValue {
     case 'binary':
       return evaluateBinary(evaluate(expr.left), evaluate(expr.right));
   }
-}
+};
 
 // Int + Int stays an Int (exact BigInt addition); an Int meeting a Float
 // promotes to Float first (the one-way, value-preserving Int -> Float
@@ -29,7 +29,7 @@ export function evaluate(expr: Expr): RuntimeValue {
 // diagnostic lands with the type checker (agenda §5/§6) — for now this
 // throws rather than silently returning a nonsense value, honouring the
 // "no silent failure states" rule even before the proper machinery exists.
-function evaluateBinary(left: RuntimeValue, right: RuntimeValue): RuntimeValue {
+const evaluateBinary = (left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
   if (left.type === 'int' && right.type === 'int') {
     return { type: 'int', value: left.value + right.value };
   }
@@ -42,4 +42,4 @@ function evaluateBinary(left: RuntimeValue, right: RuntimeValue): RuntimeValue {
   }
 
   throw new Error(`'+' is not defined for ${left.type} and ${right.type}`);
-}
+};

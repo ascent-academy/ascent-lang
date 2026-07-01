@@ -9,7 +9,7 @@ import { evaluate } from './interpreter.js';
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
 
-async function main(): Promise<void> {
+const main = async (): Promise<void> => {
   process.stdout.write(chalk.bold.green('Ascent') + ' token REPL\n');
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -51,6 +51,6 @@ async function main(): Promise<void> {
   } finally {
     rl.close();
   }
-}
+};
 
 main();
