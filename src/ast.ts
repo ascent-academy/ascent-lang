@@ -9,7 +9,9 @@ export type Literal = (
 );
 
 export type UnaryOp = '-';
-export type BinaryOp = '+' | '-' | '*' | '/' | 'div' | 'mod';
+export type ArithmeticOp = '+' | '-' | '*' | '/' | 'div' | 'mod';
+export type ComparisonOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
+export type BinaryOp = ArithmeticOp | ComparisonOp;
 
 // A block is itself an expression — it yields the value of its last
 // statement, or Done when empty (the '{}' unit value).

@@ -1,6 +1,6 @@
 import type { Token, TokenKind } from './token.js';
 import type { ErrorMarker } from './errors/marker.js';
-import type { Expr, Statement, Program, Block, If } from './ast.js';
+import type { Expr, Statement, Program, Block, If, BinaryOp } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;
@@ -45,14 +45,24 @@ export class Parser {
   // Every operator this parser knows about has one row in this table.
   // Adding the next one (say '-') means adding a row, never touching
   // the loop below. '*', '/', 'div' and 'mod' all share a binding power
-  // — they're the same precedence tier — so all four outbind '+'.
-  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '-' | '*' | '/' | 'div' | 'mod'; bp: number }>> = {
-    PLUS: { op: '+', bp: 1 },
-    MINUS: { op: '-', bp: 1 },
-    STAR: { op: '*', bp: 2 },
-    SLASH: { op: '/', bp: 2 },
-    KW_DIV: { op: 'div', bp: 2 },
-    KW_MOD: { op: 'mod', bp: 2 },
+  // — they're the same precedence tier — so all four outbind '+', which
+  // in turn outbinds the comparisons — `1 + 2 < 3 * 4` groups as
+  // `(1 + 2) < (3 * 4)`. Comparisons are also marked `assoc: 'none'`:
+  // unlike '+' or '*', two of them can never sit side by side
+  // (`a < b < c` is rejected, not silently grouped one way or the other).
+  private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'none' }>> = {
+    EQ_EQ: { op: '==', bp: 1, assoc: 'none' },
+    BANG_EQ: { op: '!=', bp: 1, assoc: 'none' },
+    LT: { op: '<', bp: 1, assoc: 'none' },
+    LT_EQ: { op: '<=', bp: 1, assoc: 'none' },
+    GT: { op: '>', bp: 1, assoc: 'none' },
+    GT_EQ: { op: '>=', bp: 1, assoc: 'none' },
+    PLUS: { op: '+', bp: 2, assoc: 'left' },
+    MINUS: { op: '-', bp: 2, assoc: 'left' },
+    STAR: { op: '*', bp: 3, assoc: 'left' },
+    SLASH: { op: '/', bp: 3, assoc: 'left' },
+    KW_DIV: { op: 'div', bp: 3, assoc: 'left' },
+    KW_MOD: { op: 'mod', bp: 3, assoc: 'left' },
   };
 
   private parseExpr(minBp = 0): Expr | null {
@@ -61,18 +71,36 @@ export class Parser {
       return null;
     }
 
+    // Tracks whether a non-associative (comparison-tier) operator has
+    // already been consumed at this call's level — a second one directly
+    // beside it (`a < b < c`) is a chain, not a grouping choice, so it's
+    // rejected here rather than silently parsed left- or right-first.
+    let chained = false;
+
     while (true) {
       const infix = Parser.INFIX_OPS[this.peek().kind];
       if (infix === undefined || infix.bp < minBp) {
         break;
       }
+
+      if (infix.assoc === 'none') {
+        if (chained) {
+          this.errorMarkers.push({ code: 'S0008', span: this.peek().span });
+          return null;
+        }
+        chained = true;
+      }
+
       this.advance(); // consume the operator
 
       // Left-associativity — `1 + 2 + 3` must parse as `(1 + 2) + 3`,
       // not `1 + (2 + 3)`. Parsing the right-hand side with `bp + 1`
       // (instead of `bp`) is what enforces that: it stops a second '+'
       // from being absorbed into the *right* operand, forcing it to
-      // instead be picked up by the loop one level up.
+      // instead be picked up by the loop one level up. Non-associative
+      // operators reuse the same `bp + 1` call — it still keeps looser
+      // operators out of the right operand, and the `chained` check
+      // above is what stops them from reappearing at this level.
       const right = this.parseExpr(infix.bp + 1);
       if (right === null) {
         return null;
@@ -164,7 +192,7 @@ export class Parser {
     if (tok.kind === 'MINUS') {
       const start = tok.span.start;
       this.advance();
-      const operand = this.parseExpr(3); // bp 3 > any binary op, so unary binds tightest
+      const operand = this.parseExpr(4); // bp 4 > any binary op, so unary binds tightest
       if (operand === null) {
         return null;
       }

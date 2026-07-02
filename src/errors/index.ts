@@ -13,6 +13,7 @@ export const ERRORS: ErrorEntry[] = [
   { code: 'S0005', name: 'unclosed-brace', category: 'syntactic', summary: "An opening '{' has no matching '}'." },
   { code: 'S0006', name: 'expected-if-paren', category: 'syntactic', summary: "An '(' was expected after 'if'." },
   { code: 'S0007', name: 'expected-block', category: 'syntactic', summary: "A block ('{ … }') was expected here." },
+  { code: 'S0008', name: 'chained-comparison', category: 'syntactic', summary: "Comparisons don't chain — 'a < b < c' isn't valid. Group with parentheses instead." },
 ];
 
 export const byCode = new Map(ERRORS.map(e => [e.code, e]));

@@ -17,6 +17,12 @@ export type TokenKind =
   | 'KW_IF'      // the keyword if — starts a conditional expression
   | 'KW_ELSE'    // the keyword else — the alternative branch of an if
   | 'EQUALS'     // '=' — used in slot declarations and updates
+  | 'EQ_EQ'      // '==' — structural equality
+  | 'BANG_EQ'    // '!=' — structural inequality
+  | 'LT'         // '<'
+  | 'LT_EQ'      // '<='
+  | 'GT'         // '>'
+  | 'GT_EQ'      // '>='
   | 'SEMICOLON'  // ';' — statement terminator
   | 'LPAREN'     // '('
   | 'RPAREN'     // ')'

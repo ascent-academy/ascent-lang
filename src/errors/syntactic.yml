@@ -34,3 +34,8 @@
   name: 'expected-block'
   category: 'syntactic'
   summary: "A block ('{ … }') was expected here."
+
+- code: 'S0008'
+  name: 'chained-comparison'
+  category: 'syntactic'
+  summary: "Comparisons don't chain — 'a < b < c' isn't valid. Group with parentheses instead."

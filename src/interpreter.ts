@@ -1,4 +1,4 @@
-import type { Expr, Literal, Statement } from './ast.js';
+import type { BinaryOp, Expr, Literal, Statement } from './ast.js';
 
 export type RuntimeValue = (
   | { type: 'Int'; value: bigint }
@@ -122,6 +122,54 @@ const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
   return { div: (a - mod) / b, mod };
 };
 
+// '==' / '!=' are structural — same-type values compare by their
+// contents — except Int meeting Float, which compares as numbers (the
+// same one-way promotion arithmetic uses). Two Ints compare exactly, as
+// BigInts, rather than going through asFloat and risking the precision
+// loss a huge Int would suffer converting to a JS number.
+const valuesEqual = (op: '==' | '!=', left: RuntimeValue, right: RuntimeValue): boolean => {
+  if (isNumeric(left) && isNumeric(right)) {
+    return left.type === 'Int' && right.type === 'Int'
+      ? left.value === right.value
+      : asFloat(left) === asFloat(right);
+  }
+  if (left.type !== right.type) {
+    throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
+  }
+  if (left.type === 'Bool' && right.type === 'Bool') {
+    return left.value === right.value;
+  }
+  // None and Done are singleton types — matching type already means equal.
+  return true;
+};
+
+// '<' '<=' '>' '>=' are Int/Float only for now (String ordering is a
+// later section, once String exists as a RuntimeValue) — same one-way
+// promotion and exact-Int-comparison rule as '==' above.
+const evaluateOrdering = (op: '<' | '<=' | '>' | '>=', left: RuntimeValue, right: RuntimeValue): boolean => {
+  if (!isNumeric(left) || !isNumeric(right)) {
+    throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
+  }
+
+  if (left.type === 'Int' && right.type === 'Int') {
+    switch (op) {
+      case '<': return left.value < right.value;
+      case '<=': return left.value <= right.value;
+      case '>': return left.value > right.value;
+      case '>=': return left.value >= right.value;
+    }
+  }
+
+  const l = asFloat(left);
+  const r = asFloat(right);
+  switch (op) {
+    case '<': return l < r;
+    case '<=': return l <= r;
+    case '>': return l > r;
+    case '>=': return l >= r;
+  }
+};
+
 // Int op Int stays an Int (exact BigInt arithmetic); an Int meeting a
 // Float promotes to Float first (the one-way, value-preserving
 // Int -> Float rule) so the result is a Float the moment either operand
@@ -129,7 +177,14 @@ const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
 // diagnostic lands with the type checker (agenda §5/§6) — for now this
 // throws rather than silently returning a nonsense value, honouring the
 // "no silent failure states" rule even before the proper machinery exists.
-const evaluateBinary = (op: '+' | '-' | '*' | '/' | 'div' | 'mod', left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
+const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
+  if (op === '==' || op === '!=') {
+    return { type: 'Bool', value: valuesEqual(op, left, right) };
+  }
+  if (op === '<' || op === '<=' || op === '>' || op === '>=') {
+    return { type: 'Bool', value: evaluateOrdering(op, left, right) };
+  }
+
   if (!isNumeric(left) || !isNumeric(right)) {
     throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
   }

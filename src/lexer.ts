@@ -170,7 +170,32 @@ export class Lexer {
       case '-': return { kind: 'MINUS', value: '-', span: this.spanFrom(start) };
       case '*': return { kind: 'STAR', value: '*', span: this.spanFrom(start) };
       case '/': return { kind: 'SLASH', value: '/', span: this.spanFrom(start) };
-      case '=': return { kind: 'EQUALS', value: '=', span: this.spanFrom(start) };
+      case '=':
+        if (this.peek() === '=') {
+          this.advance();
+          return { kind: 'EQ_EQ', value: '==', span: this.spanFrom(start) };
+        }
+        return { kind: 'EQUALS', value: '=', span: this.spanFrom(start) };
+      case '!':
+        // Bare '!' has no meaning — negation is the word 'not' (§5), so
+        // only '!=' is a valid token starting with '!'.
+        if (this.peek() === '=') {
+          this.advance();
+          return { kind: 'BANG_EQ', value: '!=', span: this.spanFrom(start) };
+        }
+        return this.error('L0001', this.spanFrom(start));
+      case '<':
+        if (this.peek() === '=') {
+          this.advance();
+          return { kind: 'LT_EQ', value: '<=', span: this.spanFrom(start) };
+        }
+        return { kind: 'LT', value: '<', span: this.spanFrom(start) };
+      case '>':
+        if (this.peek() === '=') {
+          this.advance();
+          return { kind: 'GT_EQ', value: '>=', span: this.spanFrom(start) };
+        }
+        return { kind: 'GT', value: '>', span: this.spanFrom(start) };
       case ';': return { kind: 'SEMICOLON', value: ';', span: this.spanFrom(start) };
       case '(': return { kind: 'LPAREN', value: '(', span: this.spanFrom(start) };
       case ')': return { kind: 'RPAREN', value: ')', span: this.spanFrom(start) };
