@@ -10,6 +10,9 @@ export const ERRORS: ErrorEntry[] = [
   { code: 'S0002', name: 'expected-expression', category: 'syntactic', summary: "An expression was required here but the input contained none." },
   { code: 'S0003', name: 'expected-slot-name', category: 'syntactic', summary: "A slot name (lowercase identifier) was expected after 'fix'." },
   { code: 'S0004', name: 'expected-equals', category: 'syntactic', summary: "An '=' was expected after the slot name in a 'fix' declaration." },
+  { code: 'S0005', name: 'unclosed-brace', category: 'syntactic', summary: "An opening '{' has no matching '}'." },
+  { code: 'S0006', name: 'expected-if-paren', category: 'syntactic', summary: "An '(' was expected after 'if'." },
+  { code: 'S0007', name: 'expected-block', category: 'syntactic', summary: "A block ('{ … }') was expected here." },
 ];
 
 export const byCode = new Map(ERRORS.map(e => [e.code, e]));

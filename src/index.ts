@@ -3,8 +3,7 @@ import chalk from 'chalk';
 import { Lexer } from './lexer.js';
 import { Parser } from './parser.js';
 import { formatStmt, formatValue } from './printer.js';
-import { executeStmt } from './interpreter.js';
-import type { Environment } from './interpreter.js';
+import { executeStmt, Environment } from './interpreter.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
@@ -14,7 +13,7 @@ const main = async (): Promise<void> => {
   process.stdout.write(chalk.bold.green('Ascent') + ' REPL\n');
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const env: Environment = new Map();
+  const env = new Environment();
 
   try {
     while (true) {

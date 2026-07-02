@@ -30,6 +30,21 @@ const exprLines = (expr: Expr): string[] => {
       const right = branch(exprLines(expr.right), true);
       return [`${chalk.cyan('Binary')} ${chalk.magenta(expr.op)}`, ...left, ...right];
     }
+    case 'block': {
+      if (expr.stmts.length === 0) {
+        return [`${chalk.cyan('Block')} ${chalk.dim('(empty)')}`];
+      }
+      const lines = expr.stmts.flatMap((stmt, i) =>
+        branch(stmtLines(stmt), i === expr.stmts.length - 1)
+      );
+      return [`${chalk.cyan('Block')}`, ...lines];
+    }
+    case 'if': {
+      const condLines = branch(exprLines(expr.cond), false);
+      const thenLines = branch(exprLines(expr.then), expr.else === null);
+      const elseLines = expr.else !== null ? branch(exprLines(expr.else), true) : [];
+      return [`${chalk.cyan('If')}`, ...condLines, ...thenLines, ...elseLines];
+    }
   }
 };
 
@@ -45,16 +60,20 @@ export const formatExpr = (expr: Expr): string => {
   return exprLines(expr).join('\n');
 };
 
-export const formatStmt = (stmt: Statement): string => {
+// Same line-list shape as exprLines, for the same reason: a block needs
+// to embed a statement's lines and prefix them with tree-drawing chars.
+const stmtLines = (stmt: Statement): string[] => {
   switch (stmt.kind) {
     case 'fix': {
       const init = branch(exprLines(stmt.init), true);
-      return [`${chalk.cyan('Fix')} ${chalk.green(stmt.name)}`, ...init].join('\n');
+      return [`${chalk.cyan('Fix')} ${chalk.green(stmt.name)}`, ...init];
     }
     case 'expr':
-      return formatExpr(stmt.expr);
+      return exprLines(stmt.expr);
   }
 };
+
+export const formatStmt = (stmt: Statement): string => stmtLines(stmt).join('\n');
 
 export const formatValue = (value: RuntimeValue): string => {
   switch (value.type) {

@@ -14,6 +14,8 @@ const KEYWORDS: Record<string, TokenKind> = {
   div: 'KW_DIV',
   mod: 'KW_MOD',
   fix: 'KW_FIX',
+  if: 'KW_IF',
+  else: 'KW_ELSE',
 };
 
 // Built-in constructors: uppercase names that are part of the language
@@ -172,6 +174,8 @@ export class Lexer {
       case ';': return { kind: 'SEMICOLON', value: ';', span: this.spanFrom(start) };
       case '(': return { kind: 'LPAREN', value: '(', span: this.spanFrom(start) };
       case ')': return { kind: 'RPAREN', value: ')', span: this.spanFrom(start) };
+      case '{': return { kind: 'LBRACE', value: '{', span: this.spanFrom(start) };
+      case '}': return { kind: 'RBRACE', value: '}', span: this.spanFrom(start) };
       default: return this.error('L0001', this.spanFrom(start));
     }
   }

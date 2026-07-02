@@ -1,6 +1,6 @@
 import type { Token, TokenKind } from './token.js';
 import type { ErrorMarker } from './errors/marker.js';
-import type { Expr, Statement, Program } from './ast.js';
+import type { Expr, Statement, Program, Block, If } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;
@@ -171,8 +171,110 @@ export class Parser {
       return { kind: 'unary', op: '-', operand, span: { start, end: operand.span.end } };
     }
 
+    if (tok.kind === 'LBRACE') {
+      return this.parseBlock();
+    }
+
+    if (tok.kind === 'KW_IF') {
+      return this.parseIf();
+    }
+
     this.errorMarkers.push({ code: 'S0002', span: tok.span });
     return null;
+  }
+
+  // A block is '{' stmt* '}' — every statement inside follows the same
+  // rules as top-level statements (parseStmt), just bounded by '}'
+  // instead of EOF.
+  private parseBlock(): Block | null {
+    const openTok = this.advance(); // consume '{'
+    const stmts: Statement[] = [];
+
+    while (this.peek().kind !== 'RBRACE') {
+      if (this.peek().kind === 'EOF') {
+        this.errorMarkers.push({ code: 'S0005', span: this.peek().span });
+        return null;
+      }
+      // Skip any stray semicolons between statements.
+      if (this.peek().kind === 'SEMICOLON') {
+        this.advance();
+        continue;
+      }
+
+      const stmt = this.parseStmt();
+      if (stmt === null) {
+        return null;
+      }
+      stmts.push(stmt);
+
+      // Consume the optional trailing semicolon.
+      if (this.peek().kind === 'SEMICOLON') {
+        this.advance();
+      }
+    }
+
+    const closeTok = this.advance(); // consume '}'
+    return { kind: 'block', stmts, span: { start: openTok.span.start, end: closeTok.span.end } };
+  }
+
+  // 'if (cond) { } else if (cond) { } else { }' — 'else if' is not its
+  // own grammar rule, it's an If recursively parsed as the else branch.
+  private parseIf(): If | null {
+    const ifTok = this.advance(); // consume 'if'
+
+    const lparen = this.peek();
+    if (lparen.kind !== 'LPAREN') {
+      this.errorMarkers.push({ code: 'S0006', span: lparen.span });
+      return null;
+    }
+    this.advance(); // consume '('
+
+    const cond = this.parseExpr();
+    if (cond === null) {
+      return null;
+    }
+
+    const rparen = this.peek();
+    if (rparen.kind !== 'RPAREN') {
+      this.errorMarkers.push({ code: 'S0001', span: rparen.span });
+      return null;
+    }
+    this.advance(); // consume ')'
+
+    if (this.peek().kind !== 'LBRACE') {
+      this.errorMarkers.push({ code: 'S0007', span: this.peek().span });
+      return null;
+    }
+    const thenBlock = this.parseBlock();
+    if (thenBlock === null) {
+      return null;
+    }
+
+    let elseBranch: Block | If | null = null;
+    if (this.peek().kind === 'KW_ELSE') {
+      this.advance(); // consume 'else'
+
+      if (this.peek().kind === 'KW_IF') {
+        elseBranch = this.parseIf();
+      } else if (this.peek().kind === 'LBRACE') {
+        elseBranch = this.parseBlock();
+      } else {
+        this.errorMarkers.push({ code: 'S0007', span: this.peek().span });
+        return null;
+      }
+
+      if (elseBranch === null) {
+        return null;
+      }
+    }
+
+    return {
+      kind: 'if',
+      cond,
+      then: thenBlock,
+      else: elseBranch,
+      span: { start: ifTok.span.start, end: (elseBranch ?? thenBlock).span.end },
+    };
   }
 
   // ---- Statement parsing ----------------------------------------------

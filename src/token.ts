@@ -14,10 +14,14 @@ export type TokenKind =
   | 'KW_DIV'     // the keyword div — Int-only floor division
   | 'KW_MOD'     // the keyword mod — Int-only floored modulo
   | 'KW_FIX'     // the keyword fix — declares a fixed slot
+  | 'KW_IF'      // the keyword if — starts a conditional expression
+  | 'KW_ELSE'    // the keyword else — the alternative branch of an if
   | 'EQUALS'     // '=' — used in slot declarations and updates
   | 'SEMICOLON'  // ';' — statement terminator
   | 'LPAREN'     // '('
   | 'RPAREN'     // ')'
+  | 'LBRACE'     // '{'
+  | 'RBRACE'     // '}'
   | 'ERROR'      // a character or run the lexer couldn't recognise
   | 'EOF';       // the sentinel that marks the end of source
 

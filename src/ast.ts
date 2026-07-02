@@ -11,11 +11,27 @@ export type Literal = (
 export type UnaryOp = '-';
 export type BinaryOp = '+' | '-' | '*' | '/' | 'div' | 'mod';
 
+// A block is itself an expression — it yields the value of its last
+// statement, or Done when empty (the '{}' unit value).
+export type Block = { kind: 'block'; stmts: Statement[]; span: Span };
+
+// 'else if' is sugar: the else branch is either a block or another
+// If, never a separate grammar rule.
+export type If = {
+  kind: 'if';
+  cond: Expr;
+  then: Block;
+  else: Block | If | null;
+  span: Span;
+};
+
 export type Expr = (
   | Literal
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
+  | Block
+  | If
 );
 
 export type Statement = (

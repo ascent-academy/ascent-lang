@@ -8,7 +8,27 @@ export type RuntimeValue = (
   | { type: 'Done' }
 );
 
-export type Environment = Map<string, RuntimeValue>;
+// A chain of scopes, one per block. A lookup walks outward through
+// parents; a set always writes to the current (innermost) scope, so a
+// 'fix' inside a block shadows an outer slot of the same name without
+// touching it, and the shadow disappears once the block ends.
+export class Environment {
+  private readonly vars = new Map<string, RuntimeValue>();
+
+  public constructor(private readonly parent: Environment | null = null) {}
+
+  public get(name: string): RuntimeValue | undefined {
+    return this.vars.get(name) ?? this.parent?.get(name);
+  }
+
+  public set(name: string, value: RuntimeValue): void {
+    this.vars.set(name, value);
+  }
+
+  public child(): Environment {
+    return new Environment(this);
+  }
+}
 
 export const evaluateLiteral = (literal: Literal): RuntimeValue => {
   switch (literal.type) {
@@ -44,6 +64,30 @@ export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
     }
     case 'binary':
       return evaluateBinary(expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
+    case 'block': {
+      // Each block gets its own scope, so slots it declares don't leak
+      // into the enclosing one. An empty block has no last statement,
+      // so it falls through to Done — the '{}' unit value.
+      const blockEnv = env.child();
+      let result: RuntimeValue = { type: 'Done' };
+      for (const stmt of expr.stmts) {
+        result = executeStmt(stmt, blockEnv);
+      }
+      return result;
+    }
+    case 'if': {
+      const cond = evaluateExpr(expr.cond, env);
+      if (cond.type !== 'Bool') {
+        throw new Error(`if condition must be Bool, got ${cond.type}`);
+      }
+      if (cond.value) {
+        return evaluateExpr(expr.then, env);
+      }
+      if (expr.else !== null) {
+        return evaluateExpr(expr.else, env);
+      }
+      return { type: 'Done' };
+    }
   }
 };
 
