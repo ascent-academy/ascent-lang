@@ -61,6 +61,14 @@ count = count + 1;   # fine; would be an error on a fixed slot
 - **`Float`** — 64-bit IEEE 754, written `3.14` (a digit is required on *both* sides of the point — no `3.` or `.5`; exponents and digit separators are deferred). **`NaN`/`Infinity` are runtime errors**, not values, so every `Float` is a real, ordered number.
 - **`Bool`** — `True` / `False`. **No truthiness**; conditions must be `Bool`.
 - **`String`** — immutable Unicode sequence, written with double quotes (`"..."`) and `${expr}` interpolation (`"Hi ${name}"`); single quotes are unused. Interpolation is always on but triggers only on `${`, so literal braces need no escaping (`"{}"` is two characters) and a lone `$` is literal; escape a literal `${` as `\${`. **No integer indexing** (avoids the Unicode-index bug class); `length` counts code points. **No `Char` type** — characters are length-1 strings.
+- **Multiline strings use `"""..."""`.** A plain `"..."` is **strictly single-line** — a newline may not appear inside it — so the commonest string typo, a missing closing quote, is caught *at the end of its line* ("you opened a quote here and never closed it") rather than the lexer swallowing the rest of the file into one string. Multiline content uses a distinct triple-quote delimiter (Python / Swift / Kotlin — transferable), and the design cages the notorious indentation footgun: **the closing `"""`'s column sets the margin, and that much leading whitespace is stripped from every line** (Swift's rule), so the string sits at natural source indentation without that indentation leaking into the value; and a newline immediately after the opening `"""` is dropped, so content starts on the next line. `${}` interpolation is **always-on here too** — one uniform string model, single- and multi-line alike.
+
+  ```ascent
+  fix poem = """
+      Roses are ${color},
+      Ascent is small.
+      """      # closing """ column sets the margin → "Roses are red,\nAscent is small."
+  ```
 
 ### The "no information" value
 - **`Done`** — the unit type, the value of statements/side-effecting calls (`print : fn(String) -> Done`).
