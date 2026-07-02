@@ -16,6 +16,7 @@ export type TokenKind =
   | 'KW_FIX'     // the keyword fix — declares a fixed slot
   | 'KW_IF'      // the keyword if — starts a conditional expression
   | 'KW_ELSE'    // the keyword else — the alternative branch of an if
+  | 'KW_WHILE'   // the keyword while — starts a condition loop
   | 'EQUALS'     // '=' — used in slot declarations and updates
   | 'EQ_EQ'      // '==' — structural equality
   | 'BANG_EQ'    // '!=' — structural inequality

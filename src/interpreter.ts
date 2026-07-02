@@ -101,6 +101,24 @@ export const executeStmt = (stmt: Statement, env: Environment): RuntimeValue => 
     case 'expr': {
       return evaluateExpr(stmt.expr, env);
     }
+    case 'while': {
+      // Evaluating the body as a Block (rather than looping over its
+      // statements here) reuses the block case's own env.child() call,
+      // so every iteration gets its own fresh scope — a 'fix' from one
+      // iteration doesn't leak into the next, exactly as if it were a
+      // fresh block each time round.
+      while (true) {
+        const cond = evaluateExpr(stmt.cond, env);
+        if (cond.type !== 'Bool') {
+          throw new Error(`while condition must be Bool, got ${cond.type}`);
+        }
+        if (!cond.value) {
+          break;
+        }
+        evaluateExpr(stmt.body, env);
+      }
+      return { type: 'Done' };
+    }
   }
 };
 

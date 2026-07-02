@@ -245,11 +245,10 @@ export class Parser {
     return { kind: 'block', stmts, span: { start: openTok.span.start, end: closeTok.span.end } };
   }
 
-  // 'if (cond) { } else if (cond) { } else { }' — 'else if' is not its
-  // own grammar rule, it's an If recursively parsed as the else branch.
-  private parseIf(): If | null {
-    const ifTok = this.advance(); // consume 'if'
-
+  // The parenthesized test shared by 'if' and 'while' — '(' expr ')'.
+  // The body braces already delimit the construct, but the test stays
+  // parenthesized to match the C-family/TS surface (§5).
+  private parseCond(): Expr | null {
     const lparen = this.peek();
     if (lparen.kind !== 'LPAREN') {
       this.errorMarkers.push({ code: 'S0006', span: lparen.span });
@@ -269,11 +268,30 @@ export class Parser {
     }
     this.advance(); // consume ')'
 
+    return cond;
+  }
+
+  // A mandatory body block — every 'if'/'while' branch needs one, even
+  // single-statement (§2: no dangling-else, no goto-fail class of bug).
+  private parseRequiredBlock(): Block | null {
     if (this.peek().kind !== 'LBRACE') {
       this.errorMarkers.push({ code: 'S0007', span: this.peek().span });
       return null;
     }
-    const thenBlock = this.parseBlock();
+    return this.parseBlock();
+  }
+
+  // 'if (cond) { } else if (cond) { } else { }' — 'else if' is not its
+  // own grammar rule, it's an If recursively parsed as the else branch.
+  private parseIf(): If | null {
+    const ifTok = this.advance(); // consume 'if'
+
+    const cond = this.parseCond();
+    if (cond === null) {
+      return null;
+    }
+
+    const thenBlock = this.parseRequiredBlock();
     if (thenBlock === null) {
       return null;
     }
@@ -281,16 +299,7 @@ export class Parser {
     let elseBranch: Block | If | null = null;
     if (this.peek().kind === 'KW_ELSE') {
       this.advance(); // consume 'else'
-
-      if (this.peek().kind === 'KW_IF') {
-        elseBranch = this.parseIf();
-      } else if (this.peek().kind === 'LBRACE') {
-        elseBranch = this.parseBlock();
-      } else {
-        this.errorMarkers.push({ code: 'S0007', span: this.peek().span });
-        return null;
-      }
-
+      elseBranch = this.peek().kind === 'KW_IF' ? this.parseIf() : this.parseRequiredBlock();
       if (elseBranch === null) {
         return null;
       }
@@ -303,6 +312,25 @@ export class Parser {
       else: elseBranch,
       span: { start: ifTok.span.start, end: (elseBranch ?? thenBlock).span.end },
     };
+  }
+
+  // 'while (cond) { }' — a statement, not an expression (§5): a loop has
+  // no single meaningful result, so it isn't usable where a value is
+  // expected the way 'if' is.
+  private parseWhile(): Statement | null {
+    const whileTok = this.advance(); // consume 'while'
+
+    const cond = this.parseCond();
+    if (cond === null) {
+      return null;
+    }
+
+    const body = this.parseRequiredBlock();
+    if (body === null) {
+      return null;
+    }
+
+    return { kind: 'while', cond, body, span: { start: whileTok.span.start, end: body.span.end } };
   }
 
   // ---- Statement parsing ----------------------------------------------
@@ -340,6 +368,9 @@ export class Parser {
   private parseStmt(): Statement | null {
     if (this.peek().kind === 'KW_FIX') {
       return this.parseFix();
+    }
+    if (this.peek().kind === 'KW_WHILE') {
+      return this.parseWhile();
     }
 
     const expr = this.parseExpr();

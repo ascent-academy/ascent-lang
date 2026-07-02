@@ -36,9 +36,13 @@ export type Expr = (
   | If
 );
 
+// Unlike 'if', 'while' is a statement, not an expression — a loop has
+// no single meaningful result (zero iterations has no last value to
+// give), so it always yields Done rather than forcing a fake one.
 export type Statement = (
   | { kind: 'fix'; name: string; init: Expr; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
+  | { kind: 'while'; cond: Expr; body: Block; span: Span }
 );
 
 export type Program = { stmts: Statement[] };

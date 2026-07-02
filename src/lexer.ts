@@ -16,6 +16,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   fix: 'KW_FIX',
   if: 'KW_IF',
   else: 'KW_ELSE',
+  while: 'KW_WHILE',
 };
 
 // Built-in constructors: uppercase names that are part of the language

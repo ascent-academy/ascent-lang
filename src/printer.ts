@@ -70,6 +70,11 @@ const stmtLines = (stmt: Statement): string[] => {
     }
     case 'expr':
       return exprLines(stmt.expr);
+    case 'while': {
+      const cond = branch(exprLines(stmt.cond), false);
+      const body = branch(exprLines(stmt.body), true);
+      return [`${chalk.cyan('While')}`, ...cond, ...body];
+    }
   }
 };
 

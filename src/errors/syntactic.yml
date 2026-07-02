@@ -26,9 +26,9 @@
   summary: "An opening '{' has no matching '}'."
 
 - code: 'S0006'
-  name: 'expected-if-paren'
+  name: 'expected-test-paren'
   category: 'syntactic'
-  summary: "An '(' was expected after 'if'."
+  summary: "An '(' was expected here to start the condition."
 
 - code: 'S0007'
   name: 'expected-block'
