@@ -7,6 +7,8 @@
     "doc": "docs"
   },
   "scripts": {
+    "generate": "tsx scripts/gen-errors.ts",
+    "prestart": "tsx scripts/gen-errors.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "tsx src/index.ts"
   },
@@ -24,7 +26,9 @@
   "devDependencies": {
     "@types/node": "^26.0.1",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-yaml-plugin": "^1.0.11",
+    "yaml": "^2.9.0"
   },
   "dependencies": {
     "chalk": "^5.6.2"

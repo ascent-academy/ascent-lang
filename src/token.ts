@@ -1,4 +1,4 @@
-import type { Span } from './error-marker.js';
+import type { Span } from './errors/marker.js';
 
 export type TokenKind =
   | 'INT_LIT'    // a sequence of decimal digits: 0, 42, 1000

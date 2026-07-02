@@ -1,4 +1,4 @@
-import type { Span } from './error-marker.js';
+import type { Span } from './errors/marker.js';
 
 export type Expr = (
   | { kind: 'int'; value: bigint; span: Span }

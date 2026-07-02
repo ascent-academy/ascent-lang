@@ -1,0 +1,11 @@
+# S — syntactic: the tokens don't form a valid expression
+
+- code: 'S0001'
+  name: 'unclosed-paren'
+  category: 'syntactic'
+  summary: "An opening '(' has no matching ')'."
+
+- code: 'S0002'
+  name: 'expected-expression'
+  category: 'syntactic'
+  summary: 'An expression was required here but the input contained none.'

@@ -1,5 +1,5 @@
 import type { Token, TokenKind } from './token.js';
-import type { ErrorMarker } from './error-marker.js';
+import type { ErrorMarker } from './errors/marker.js';
 import type { Expr } from './ast.js';
 
 export interface ParseResult {
@@ -47,7 +47,7 @@ export class Parser {
   // the loop below. '*', '/', 'div' and 'mod' all share a binding power
   // — they're the same precedence tier — so all four outbind '+'.
   private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: '+' | '-' | '*' | '/' | 'div' | 'mod'; bp: number }>> = {
-    PLUS:  { op: '+', bp: 1 },
+    PLUS: { op: '+', bp: 1 },
     MINUS: { op: '-', bp: 1 },
     STAR: { op: '*', bp: 2 },
     SLASH: { op: '/', bp: 2 },

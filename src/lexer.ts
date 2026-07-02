@@ -1,4 +1,4 @@
-import type { Position, Span, ErrorMarker } from './error-marker.js';
+import type { Position, Span, ErrorMarker } from './errors/marker.js';
 import type { Token, TokenKind } from './token.js';
 
 export interface LexResult {
@@ -125,7 +125,7 @@ export class Lexer {
     }
 
     const ch = this.peek();
-    
+
     if (isDigit(ch)) {
       return this.readNumber();
     }
@@ -148,10 +148,10 @@ export class Lexer {
     this.advance();
 
     switch (ch) {
-      case '+': return { kind: 'PLUS',   value: '+', span: this.spanFrom(start) };
-      case '-': return { kind: 'MINUS',  value: '-', span: this.spanFrom(start) };
-      case '*': return { kind: 'STAR',   value: '*', span: this.spanFrom(start) };
-      case '/': return { kind: 'SLASH',  value: '/', span: this.spanFrom(start) };
+      case '+': return { kind: 'PLUS', value: '+', span: this.spanFrom(start) };
+      case '-': return { kind: 'MINUS', value: '-', span: this.spanFrom(start) };
+      case '*': return { kind: 'STAR', value: '*', span: this.spanFrom(start) };
+      case '/': return { kind: 'SLASH', value: '/', span: this.spanFrom(start) };
       case '(': return { kind: 'LPAREN', value: '(', span: this.spanFrom(start) };
       case ')': return { kind: 'RPAREN', value: ')', span: this.spanFrom(start) };
       default: return this.error('L0001', this.spanFrom(start));
