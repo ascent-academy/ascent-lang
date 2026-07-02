@@ -9,3 +9,13 @@
   name: 'expected-expression'
   category: 'syntactic'
   summary: 'An expression was required here but the input contained none.'
+
+- code: 'S0003'
+  name: 'expected-slot-name'
+  category: 'syntactic'
+  summary: "A slot name (lowercase identifier) was expected after 'fix'."
+
+- code: 'S0004'
+  name: 'expected-equals'
+  category: 'syntactic'
+  summary: "An '=' was expected after the slot name in a 'fix' declaration."

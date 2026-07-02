@@ -1,9 +1,9 @@
 import type { Token, TokenKind } from './token.js';
 import type { ErrorMarker } from './errors/marker.js';
-import type { Expr } from './ast.js';
+import type { Expr, Statement, Program } from './ast.js';
 
 export interface ParseResult {
-  expr: Expr | null;
+  program: Program | null;
   errorMarkers: ErrorMarker[];
 }
 
@@ -132,6 +132,15 @@ export class Parser {
       };
     }
 
+    if (tok.kind === 'SLOT') {
+      this.advance();
+      return {
+        kind: 'slot',
+        name: tok.value,
+        span: tok.span
+      };
+    }
+
     if (tok.kind === 'LPAREN') {
       this.advance();
       const inner = this.parseExpr();
@@ -161,8 +170,77 @@ export class Parser {
     return null;
   }
 
-  public parse(): ParseResult {
+  // ---- Statement parsing ----------------------------------------------
+
+  private parseFix(): Statement | null {
+    const kwTok = this.advance(); // consume 'fix'
+
+    const nameTok = this.peek();
+    if (nameTok.kind !== 'SLOT') {
+      this.errorMarkers.push({ code: 'S0003', span: nameTok.span });
+      return null;
+    }
+    this.advance(); // consume slot name
+
+    const eqTok = this.peek();
+    if (eqTok.kind !== 'EQUALS') {
+      this.errorMarkers.push({ code: 'S0004', span: eqTok.span });
+      return null;
+    }
+    this.advance(); // consume '='
+
+    const init = this.parseExpr();
+    if (init === null) {
+      return null;
+    }
+
+    return {
+      kind: 'fix',
+      name: nameTok.value,
+      init,
+      span: { start: kwTok.span.start, end: init.span.end },
+    };
+  }
+
+  private parseStmt(): Statement | null {
+    if (this.peek().kind === 'KW_FIX') {
+      return this.parseFix();
+    }
+
     const expr = this.parseExpr();
-    return { expr, errorMarkers: this.errorMarkers };
+    if (expr === null) {
+      return null;
+    }
+    return { kind: 'expr', expr, span: expr.span };
+  }
+
+  private parseProgram(): Program | null {
+    const stmts: Statement[] = [];
+
+    while (this.peek().kind !== 'EOF') {
+      // Skip any stray semicolons between statements.
+      if (this.peek().kind === 'SEMICOLON') {
+        this.advance();
+        continue;
+      }
+
+      const stmt = this.parseStmt();
+      if (stmt === null) {
+        return null;
+      }
+      stmts.push(stmt);
+
+      // Consume the optional trailing semicolon.
+      if (this.peek().kind === 'SEMICOLON') {
+        this.advance();
+      }
+    }
+
+    return { stmts };
+  }
+
+  public parse(): ParseResult {
+    const program = this.parseProgram();
+    return { program, errorMarkers: this.errorMarkers };
   }
 }

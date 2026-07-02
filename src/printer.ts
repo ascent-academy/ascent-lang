@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { Expr } from './ast.js';
+import type { Expr, Statement } from './ast.js';
 import type { RuntimeValue } from './interpreter.js';
 
 // Returns the node as a list of lines so callers can prefix them with
@@ -14,6 +14,8 @@ const exprLines = (expr: Expr): string[] => {
       return [`${chalk.cyan('Bool')} ${chalk.yellow(String(expr.value))}`];
     case 'none':
       return [`${chalk.cyan('None')}`];
+    case 'slot':
+      return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];
     case 'unary': {
       const operand = branch(exprLines(expr.operand), true);
       return [`${chalk.cyan('Unary')} ${chalk.magenta(expr.op)}`, ...operand];
@@ -36,6 +38,17 @@ export const branch = (lines: string[], isLast: boolean): string[] => {
 
 export const formatExpr = (expr: Expr): string => {
   return exprLines(expr).join('\n');
+};
+
+export const formatStmt = (stmt: Statement): string => {
+  switch (stmt.kind) {
+    case 'fix': {
+      const init = branch(exprLines(stmt.init), true);
+      return [`${chalk.cyan('Fix')} ${chalk.green(stmt.name)}`, ...init].join('\n');
+    }
+    case 'expr':
+      return formatExpr(stmt.expr);
+  }
 };
 
 export const formatValue = (value: RuntimeValue): string => {

@@ -2,17 +2,19 @@ import { createInterface } from 'node:readline/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer.js';
 import { Parser } from './parser.js';
-import { formatExpr, formatValue } from './printer.js';
-import { evaluate } from './interpreter.js';
+import { formatStmt, formatValue } from './printer.js';
+import { executeStmt } from './interpreter.js';
+import type { Environment } from './interpreter.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
 
 const main = async (): Promise<void> => {
-  process.stdout.write(chalk.bold.green('Ascent') + ' token REPL\n');
+  process.stdout.write(chalk.bold.green('Ascent') + ' REPL\n');
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const env: Environment = new Map();
 
   try {
     while (true) {
@@ -34,10 +36,22 @@ const main = async (): Promise<void> => {
 
       const parseResult = new Parser(lexResult.tokens).parse();
 
-      if (parseResult.expr !== null) {
-        process.stdout.write(formatExpr(parseResult.expr) + '\n');
-        const value = evaluate(parseResult.expr);
-        process.stdout.write(chalk.dim('=> ') + formatValue(value) + '\n');
+      if (parseResult.program !== null) {
+        for (const stmt of parseResult.program.stmts) {
+          process.stdout.write(formatStmt(stmt) + '\n');
+          try {
+            const result = executeStmt(stmt, env);
+            if (result.kind === 'fix') {
+              process.stdout.write(
+                chalk.green(result.name) + chalk.dim(' => ') + formatValue(result.value) + '\n'
+              );
+            } else {
+              process.stdout.write(chalk.dim('=> ') + formatValue(result.value) + '\n');
+            }
+          } catch (e) {
+            process.stdout.write(chalk.red(String(e)) + '\n');
+          }
+        }
       } else if (lexResult.errorMarkers.length === 0) {
         // Only show parser errors when the lexer succeeded — if the lexer
         // already flagged something, the parser error is a downstream echo.

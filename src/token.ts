@@ -5,12 +5,16 @@ export type TokenKind =
   | 'FLOAT_LIT'  // a decimal number with a dot: 0.5, 3.14, 1.0
   | 'BOOL_LIT'   // the keywords true and false
   | 'NONE_LIT'   // the keyword none
+  | 'SLOT'       // a lowercase-starting identifier — a binding name
   | 'PLUS'       // '+'
   | 'MINUS'      // '-'
   | 'STAR'       // '*'
   | 'SLASH'      // '/', always real division — yields a Float
   | 'KW_DIV'     // the keyword div — Int-only floor division
   | 'KW_MOD'     // the keyword mod — Int-only floored modulo
+  | 'KW_FIX'     // the keyword fix — declares a fixed slot
+  | 'EQUALS'     // '=' — used in slot declarations and updates
+  | 'SEMICOLON'  // ';' — statement terminator
   | 'LPAREN'     // '('
   | 'RPAREN'     // ')'
   | 'ERROR'      // a character or run the lexer couldn't recognise

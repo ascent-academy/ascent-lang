@@ -16,6 +16,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   none: 'NONE_LIT',
   div: 'KW_DIV',
   mod: 'KW_MOD',
+  fix: 'KW_FIX',
 };
 
 export class Lexer {
@@ -70,15 +71,22 @@ export class Lexer {
 
   private readWord(): Token {
     const start = this.mark();
+    const firstCh = this.peek();
     while (isAlpha(this.peek()) || isDigit(this.peek())) {
       this.advance();
     }
     const value = this.src.slice(start.offset, this.pos);
+    const span = this.spanFrom(start);
     const kind = KEYWORDS[value];
-    if (kind === undefined) {
-      return this.error('L0001', this.spanFrom(start));
+    if (kind !== undefined) {
+      return { kind, value, span };
     }
-    return { kind, value, span: this.spanFrom(start) };
+    // Uppercase-starting names are type/constructor names — not in scope
+    // until stage 4 (types). For now they are unrecognised.
+    if (firstCh >= 'A' && firstCh <= 'Z') {
+      return this.error('L0001', span);
+    }
+    return { kind: 'SLOT', value, span };
   }
 
   private readNumber(): Token {
@@ -152,6 +160,8 @@ export class Lexer {
       case '-': return { kind: 'MINUS', value: '-', span: this.spanFrom(start) };
       case '*': return { kind: 'STAR', value: '*', span: this.spanFrom(start) };
       case '/': return { kind: 'SLASH', value: '/', span: this.spanFrom(start) };
+      case '=': return { kind: 'EQUALS', value: '=', span: this.spanFrom(start) };
+      case ';': return { kind: 'SEMICOLON', value: ';', span: this.spanFrom(start) };
       case '(': return { kind: 'LPAREN', value: '(', span: this.spanFrom(start) };
       case ')': return { kind: 'RPAREN', value: ')', span: this.spanFrom(start) };
       default: return this.error('L0001', this.spanFrom(start));

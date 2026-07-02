@@ -1,4 +1,4 @@
-import type { Expr } from './ast.js';
+import type { Expr, Statement } from './ast.js';
 
 export type RuntimeValue = (
   | { type: 'int'; value: bigint }
@@ -7,7 +7,9 @@ export type RuntimeValue = (
   | { type: 'none' }
 );
 
-export const evaluate = (expr: Expr): RuntimeValue => {
+export type Environment = Map<string, RuntimeValue>;
+
+export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
     case 'int':
       return { type: 'int', value: expr.value };
@@ -17,14 +19,40 @@ export const evaluate = (expr: Expr): RuntimeValue => {
       return { type: 'bool', value: expr.value };
     case 'none':
       return { type: 'none' };
+    case 'slot': {
+      const value = env.get(expr.name);
+      if (value === undefined) {
+        throw new Error(`N0001: undefined slot '${expr.name}'`);
+      }
+      return value;
+    }
     case 'unary': {
-      const operand = evaluate(expr.operand);
+      const operand = evaluateExpr(expr.operand, env);
       if (operand.type === 'int') return { type: 'int', value: -operand.value };
       if (operand.type === 'float') return { type: 'float', value: -operand.value };
       throw new Error(`unary '-' is not defined for ${operand.type}`);
     }
     case 'binary':
-      return evaluateBinary(expr.op, evaluate(expr.left), evaluate(expr.right));
+      return evaluateBinary(expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
+  }
+};
+
+export type StmtResult = (
+  | { kind: 'fix'; name: string; value: RuntimeValue }
+  | { kind: 'expr'; value: RuntimeValue }
+);
+
+export const executeStmt = (stmt: Statement, env: Environment): StmtResult => {
+  switch (stmt.kind) {
+    case 'fix': {
+      const value = evaluateExpr(stmt.init, env);
+      env.set(stmt.name, value);
+      return { kind: 'fix', name: stmt.name, value };
+    }
+    case 'expr': {
+      const value = evaluateExpr(stmt.expr, env);
+      return { kind: 'expr', value };
+    }
   }
 };
 

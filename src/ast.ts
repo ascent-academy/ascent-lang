@@ -5,9 +5,14 @@ export type Expr = (
   | { kind: 'float'; value: number; span: Span }
   | { kind: 'bool'; value: boolean; span: Span }
   | { kind: 'none'; span: Span }
-  // `op` carries which operator this is — every future binary operator
-  // (-, ==, and, ...) joins this same shape rather than getting its own
-  // Expr kind.
+  | { kind: 'slot'; name: string; span: Span }
   | { kind: 'unary'; op: '-'; operand: Expr; span: Span }
   | { kind: 'binary'; op: '+' | '-' | '*' | '/' | 'div' | 'mod'; left: Expr; right: Expr; span: Span }
 );
+
+export type Statement = (
+  | { kind: 'fix'; name: string; init: Expr; span: Span }
+  | { kind: 'expr'; expr: Expr; span: Span }
+);
+
+export type Program = { stmts: Statement[] };
