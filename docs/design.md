@@ -443,7 +443,7 @@ args (age: Int, name: String)
 ## 13. Tooling (v1 features, not afterthoughts)
 
 - **Zero-config formatter** — one canonical style ends all layout arguments at format time.
-- **REPL / playground.**
+- **REPL / playground.** A terminal REPL (auto-prints each expression's value) and a browser playground. Both surface a **type-inspection** query — "what type does the checker infer for this expression?" — because a beginner asks it constantly, especially of the `Int`/`Float` promotion (is `x / 2` an `Int` or a `Float`?). It has two surfaces for two environments: **hover / inspect** in the playground, and a **`:type` / `:t` meta-command** in the REPL (`:t x / 2` → `Float`). Crucially this is a **tooling feature, not a language operator** — there is deliberately no `typeof` in the grammar. A type is a *compile-time* fact the tool reports, never a runtime value program source can interrogate; a runtime `typeof` would contradict the no-runtime-type-interrogation basis of the nominal type system (§6) and seed exactly the branch-on-runtime-type habit Ascent forecloses. The `:` prefix marks REPL meta-commands (`:type`/`:t`, `:doc`, `:load`, `:reload`, `:quit`) as instructions to the REPL, never Ascent code — so "ask the type" lives honestly in the developer tool, in both the terminal and the browser. (A learner can also *assert* a type actively with an annotation — `fix x: Float = a / b`, which the compiler confirms or corrects with the real type — the static, checked counterpart to `:type`.)
 - **Built-in `assert` + test runner** — the on-ramp to "is my code correct?" needs no installs.
 
 ---
