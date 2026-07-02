@@ -3,8 +3,9 @@ import type { Span } from './errors/marker.js';
 export type TokenKind =
   | 'INT_LIT'    // a sequence of decimal digits: 0, 42, 1000
   | 'FLOAT_LIT'  // a decimal number with a dot: 0.5, 3.14, 1.0
-  | 'BOOL_LIT'   // the keywords true and false
-  | 'NONE_LIT'   // the keyword none
+  | 'BOOL_LIT'   // True or False
+  | 'NONE_LIT'   // None
+  | 'DONE_LIT'   // Done — the unit constructor
   | 'SLOT'       // a lowercase-starting identifier — a binding name
   | 'PLUS'       // '+'
   | 'MINUS'      // '-'

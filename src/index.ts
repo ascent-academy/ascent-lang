@@ -41,13 +41,7 @@ const main = async (): Promise<void> => {
           process.stdout.write(formatStmt(stmt) + '\n');
           try {
             const result = executeStmt(stmt, env);
-            if (result.kind === 'fix') {
-              process.stdout.write(
-                chalk.green(result.name) + chalk.dim(' => ') + formatValue(result.value) + '\n'
-              );
-            } else {
-              process.stdout.write(chalk.dim('=> ') + formatValue(result.value) + '\n');
-            }
+            process.stdout.write(chalk.dim('=> ') + formatValue(result) + '\n');
           } catch (e) {
             process.stdout.write(chalk.red(String(e)) + '\n');
           }

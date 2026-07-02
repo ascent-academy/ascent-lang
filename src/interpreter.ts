@@ -1,10 +1,11 @@
 import type { Expr, Statement } from './ast.js';
 
 export type RuntimeValue = (
-  | { type: 'int'; value: bigint }
-  | { type: 'float'; value: number }
-  | { type: 'bool'; value: boolean }
-  | { type: 'none' }
+  | { type: 'Int'; value: bigint }
+  | { type: 'Float'; value: number }
+  | { type: 'Bool'; value: boolean }
+  | { type: 'None' }
+  | { type: 'Done' }
 );
 
 export type Environment = Map<string, RuntimeValue>;
@@ -12,13 +13,15 @@ export type Environment = Map<string, RuntimeValue>;
 export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
     case 'int':
-      return { type: 'int', value: expr.value };
+      return { type: 'Int', value: expr.value };
     case 'float':
-      return { type: 'float', value: expr.value };
+      return { type: 'Float', value: expr.value };
     case 'bool':
-      return { type: 'bool', value: expr.value };
+      return { type: 'Bool', value: expr.value };
     case 'none':
-      return { type: 'none' };
+      return { type: 'None' };
+    case 'done':
+      return { type: 'Done' };
     case 'slot': {
       const value = env.get(expr.name);
       if (value === undefined) {
@@ -28,8 +31,8 @@ export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
     }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);
-      if (operand.type === 'int') return { type: 'int', value: -operand.value };
-      if (operand.type === 'float') return { type: 'float', value: -operand.value };
+      if (operand.type === 'Int') return { type: 'Int', value: -operand.value };
+      if (operand.type === 'Float') return { type: 'Float', value: -operand.value };
       throw new Error(`unary '-' is not defined for ${operand.type}`);
     }
     case 'binary':
@@ -37,28 +40,22 @@ export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
   }
 };
 
-export type StmtResult = (
-  | { kind: 'fix'; name: string; value: RuntimeValue }
-  | { kind: 'expr'; value: RuntimeValue }
-);
-
-export const executeStmt = (stmt: Statement, env: Environment): StmtResult => {
+export const executeStmt = (stmt: Statement, env: Environment): RuntimeValue => {
   switch (stmt.kind) {
     case 'fix': {
-      const value = evaluateExpr(stmt.init, env);
-      env.set(stmt.name, value);
-      return { kind: 'fix', name: stmt.name, value };
+      const boundValue = evaluateExpr(stmt.init, env);
+      env.set(stmt.name, boundValue);
+      return { type: 'Done' };
     }
     case 'expr': {
-      const value = evaluateExpr(stmt.expr, env);
-      return { kind: 'expr', value };
+      return evaluateExpr(stmt.expr, env);
     }
   }
 };
 
-type Numeric = { type: 'int'; value: bigint } | { type: 'float'; value: number };
-const isNumeric = (v: RuntimeValue): v is Numeric => v.type === 'int' || v.type === 'float';
-const asFloat = (v: Numeric): number => (v.type === 'int' ? Number(v.value) : v.value);
+type Numeric = { type: 'Int'; value: bigint } | { type: 'Float'; value: number };
+const isNumeric = (v: RuntimeValue): v is Numeric => v.type === 'Int' || v.type === 'Float';
+const asFloat = (v: Numeric): number => (v.type === 'Int' ? Number(v.value) : v.value);
 
 // BigInt's own '%' truncates toward zero (remainder takes the sign of
 // the dividend, like C/Java/JS). 'mod' instead floors — the result
@@ -89,14 +86,14 @@ const evaluateBinary = (op: '+' | '-' | '*' | '/' | 'div' | 'mod', left: Runtime
   // 'div'/'mod' are Int-only — floor division/modulo answers "how many
   // whole times" and "what's left over", concepts a Float doesn't have.
   if (op === 'div' || op === 'mod') {
-    if (left.type !== 'int' || right.type !== 'int') {
+    if (left.type !== 'Int' || right.type !== 'Int') {
       throw new Error(`'${op}' requires Int operands, got ${left.type} and ${right.type}`);
     }
     if (right.value === 0n) {
       throw new Error(`${op} by zero`);
     }
     const { div, mod } = floorDivMod(left.value, right.value);
-    return { type: 'int', value: op === 'div' ? div : mod };
+    return { type: 'Int', value: op === 'div' ? div : mod };
   }
 
   // '/' always yields a Float, whatever the operand types — this is what
@@ -108,18 +105,18 @@ const evaluateBinary = (op: '+' | '-' | '*' | '/' | 'div' | 'mod', left: Runtime
     if (divisor === 0) {
       throw new Error('division by zero');
     }
-    return { type: 'float', value: asFloat(left) / divisor };
+    return { type: 'Float', value: asFloat(left) / divisor };
   }
 
-  if (left.type === 'int' && right.type === 'int') {
+  if (left.type === 'Int' && right.type === 'Int') {
     const v = op === '+' ? left.value + right.value
-            : op === '-' ? left.value - right.value
-            : left.value * right.value;
-    return { type: 'int', value: v };
+      : op === '-' ? left.value - right.value
+        : left.value * right.value;
+    return { type: 'Int', value: v };
   }
 
   const l = asFloat(left);
   const r = asFloat(right);
   const v = op === '+' ? l + r : op === '-' ? l - r : l * r;
-  return { type: 'float', value: v };
+  return { type: 'Float', value: v };
 };

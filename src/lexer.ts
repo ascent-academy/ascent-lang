@@ -11,12 +11,19 @@ const isAlpha = (ch: string): boolean =>
   (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_';
 
 const KEYWORDS: Record<string, TokenKind> = {
-  true: 'BOOL_LIT',
-  false: 'BOOL_LIT',
-  none: 'NONE_LIT',
   div: 'KW_DIV',
   mod: 'KW_MOD',
   fix: 'KW_FIX',
+};
+
+// Built-in constructors: uppercase names that are part of the language
+// core but are not keywords — they are non-shadowable constructor names
+// (True, False, None) that happen to be built in rather than user-defined.
+const CONSTRUCTORS: Record<string, TokenKind> = {
+  True: 'BOOL_LIT',
+  False: 'BOOL_LIT',
+  None: 'NONE_LIT',
+  Done: 'DONE_LIT',
 };
 
 export class Lexer {
@@ -77,16 +84,17 @@ export class Lexer {
     }
     const value = this.src.slice(start.offset, this.pos);
     const span = this.spanFrom(start);
-    const kind = KEYWORDS[value];
-    if (kind !== undefined) {
-      return { kind, value, span };
-    }
-    // Uppercase-starting names are type/constructor names — not in scope
-    // until stage 4 (types). For now they are unrecognised.
+
     if (firstCh >= 'A' && firstCh <= 'Z') {
-      return this.error('L0001', span);
+      // Uppercase-starting: check built-in constructors (True, False, None).
+      // All other uppercase names are type/constructor names not in scope
+      // until stage 4 (types).
+      const kind = CONSTRUCTORS[value];
+      return kind !== undefined ? { kind, value, span } : this.error('L0001', span);
     }
-    return { kind: 'SLOT', value, span };
+
+    const kind = KEYWORDS[value];
+    return kind !== undefined ? { kind, value, span } : { kind: 'SLOT', value, span };
   }
 
   private readNumber(): Token {

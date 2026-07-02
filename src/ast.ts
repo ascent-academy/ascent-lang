@@ -5,6 +5,7 @@ export type Expr = (
   | { kind: 'float'; value: number; span: Span }
   | { kind: 'bool'; value: boolean; span: Span }
   | { kind: 'none'; span: Span }
+  | { kind: 'done'; span: Span }
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'unary'; op: '-'; operand: Expr; span: Span }
   | { kind: 'binary'; op: '+' | '-' | '*' | '/' | 'div' | 'mod'; left: Expr; right: Expr; span: Span }

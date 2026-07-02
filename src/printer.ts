@@ -11,9 +11,11 @@ const exprLines = (expr: Expr): string[] => {
     case 'float':
       return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
     case 'bool':
-      return [`${chalk.cyan('Bool')} ${chalk.yellow(String(expr.value))}`];
+      return [`${chalk.cyan('Bool')} ${chalk.yellow(expr.value ? 'True' : 'False')}`];
     case 'none':
       return [`${chalk.cyan('None')}`];
+    case 'done':
+      return [`${chalk.cyan('Done')}`];
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];
     case 'unary': {
@@ -53,14 +55,16 @@ export const formatStmt = (stmt: Statement): string => {
 
 export const formatValue = (value: RuntimeValue): string => {
   switch (value.type) {
-    case 'int':
+    case 'Int':
       return chalk.yellow(String(value.value));
-    case 'float':
+    case 'Float':
       const floatStr = String(value.value);
       return floatStr.includes('.') ? chalk.yellow(floatStr) : chalk.yellow(floatStr + '.0');
-    case 'bool':
-      return chalk.yellow(String(value.value));
-    case 'none':
-      return chalk.yellow('none');
+    case 'Bool':
+      return chalk.yellow(value.value ? 'True' : 'False');
+    case 'None':
+      return chalk.yellow('None');
+    case 'Done':
+      return chalk.yellow('Done');
   }
 };

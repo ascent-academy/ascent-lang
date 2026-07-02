@@ -119,17 +119,19 @@ export class Parser {
       this.advance();
       return {
         kind: 'bool',
-        value: tok.value === 'true',
+        value: tok.value === 'True',
         span: tok.span
       };
     }
 
     if (tok.kind === 'NONE_LIT') {
       this.advance();
-      return {
-        kind: 'none',
-        span: tok.span
-      };
+      return { kind: 'none', span: tok.span };
+    }
+
+    if (tok.kind === 'DONE_LIT') {
+      this.advance();
+      return { kind: 'done', span: tok.span };
     }
 
     if (tok.kind === 'SLOT') {
