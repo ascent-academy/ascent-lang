@@ -26,6 +26,13 @@ export class Parser {
     return this.tokens[this.pos++] ?? this.tokens[this.tokens.length - 1]!;
   }
 
+  // Looks past the current token without consuming anything — needed to
+  // tell an assignment ('x = …') apart from an expression starting with
+  // a slot reference, which otherwise look identical for one token.
+  private peekNext(): Token {
+    return this.tokens[this.pos + 1] ?? this.tokens[this.tokens.length - 1]!;
+  }
+
   // ---- Pratt parsing --------------------------------------------------
   //
   // A Pratt parser recognises an expression as an atom (a "nud" — null
@@ -335,8 +342,10 @@ export class Parser {
 
   // ---- Statement parsing ----------------------------------------------
 
-  private parseFix(): Statement | null {
-    const kwTok = this.advance(); // consume 'fix'
+  // 'fix' and 'mut' share every rule but the keyword itself and the
+  // mutability it grants — one parse method, told which by 'kind'.
+  private parseDecl(kind: 'fix' | 'mut'): Statement | null {
+    const kwTok = this.advance(); // consume 'fix' or 'mut'
 
     const nameTok = this.peek();
     if (nameTok.kind !== 'SLOT') {
@@ -358,19 +367,46 @@ export class Parser {
     }
 
     return {
-      kind: 'fix',
+      kind,
       name: nameTok.value,
       init,
       span: { start: kwTok.span.start, end: init.span.end },
     };
   }
 
+  // 'name = expr;' — reassigns a slot already declared with 'fix' or
+  // 'mut'. Whether that's actually allowed (the slot must be 'mut') is
+  // a name-binding rule, not a grammar rule, so it's checked at
+  // evaluation time (interpreter.ts), not here.
+  private parseAssign(): Statement | null {
+    const nameTok = this.advance(); // consume slot name
+    this.advance(); // consume '='
+
+    const value = this.parseExpr();
+    if (value === null) {
+      return null;
+    }
+
+    return {
+      kind: 'assign',
+      name: nameTok.value,
+      value,
+      span: { start: nameTok.span.start, end: value.span.end },
+    };
+  }
+
   private parseStmt(): Statement | null {
     if (this.peek().kind === 'KW_FIX') {
-      return this.parseFix();
+      return this.parseDecl('fix');
+    }
+    if (this.peek().kind === 'KW_MUT') {
+      return this.parseDecl('mut');
     }
     if (this.peek().kind === 'KW_WHILE') {
       return this.parseWhile();
+    }
+    if (this.peek().kind === 'SLOT' && this.peekNext().kind === 'EQUALS') {
+      return this.parseAssign();
     }
 
     const expr = this.parseExpr();

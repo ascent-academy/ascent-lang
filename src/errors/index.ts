@@ -6,6 +6,7 @@ export const ERRORS: ErrorEntry[] = [
   { code: 'L0001', name: 'unexpected-character', category: 'lexical', summary: "A character that can't begin any token." },
   { code: 'L0002', name: 'unterminated-string', category: 'lexical', summary: "A string literal that doesn't end before the end of the line." },
   { code: 'N0001', name: 'undefined-slot', category: 'name', summary: "A name was used that has not been declared with 'fix' or 'mut'." },
+  { code: 'N0002', name: 'reassign-fix', category: 'name', summary: "Assignment to a slot declared with 'fix' — 'fix' slots never change; declare it with 'mut' instead if it needs to." },
   { code: 'S0001', name: 'unclosed-paren', category: 'syntactic', summary: "An opening '(' has no matching ')'." },
   { code: 'S0002', name: 'expected-expression', category: 'syntactic', summary: "An expression was required here but the input contained none." },
   { code: 'S0003', name: 'expected-slot-name', category: 'syntactic', summary: "A slot name (lowercase identifier) was expected after 'fix'." },

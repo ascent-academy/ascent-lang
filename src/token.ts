@@ -14,6 +14,7 @@ export type TokenKind =
   | 'KW_DIV'     // the keyword div — Int-only floor division
   | 'KW_MOD'     // the keyword mod — Int-only floored modulo
   | 'KW_FIX'     // the keyword fix — declares a fixed slot
+  | 'KW_MUT'     // the keyword mut — declares a mutable slot
   | 'KW_IF'      // the keyword if — starts a conditional expression
   | 'KW_ELSE'    // the keyword else — the alternative branch of an if
   | 'KW_WHILE'   // the keyword while — starts a condition loop

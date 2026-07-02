@@ -41,6 +41,8 @@ export type Expr = (
 // give), so it always yields Done rather than forcing a fake one.
 export type Statement = (
   | { kind: 'fix'; name: string; init: Expr; span: Span }
+  | { kind: 'mut'; name: string; init: Expr; span: Span }
+  | { kind: 'assign'; name: string; value: Expr; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
 );

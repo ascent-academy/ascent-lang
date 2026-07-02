@@ -64,9 +64,15 @@ export const formatExpr = (expr: Expr): string => {
 // to embed a statement's lines and prefix them with tree-drawing chars.
 const stmtLines = (stmt: Statement): string[] => {
   switch (stmt.kind) {
-    case 'fix': {
+    case 'fix':
+    case 'mut': {
       const init = branch(exprLines(stmt.init), true);
-      return [`${chalk.cyan('Fix')} ${chalk.green(stmt.name)}`, ...init];
+      const label = stmt.kind === 'fix' ? 'Fix' : 'Mut';
+      return [`${chalk.cyan(label)} ${chalk.green(stmt.name)}`, ...init];
+    }
+    case 'assign': {
+      const value = branch(exprLines(stmt.value), true);
+      return [`${chalk.cyan('Assign')} ${chalk.green(stmt.name)}`, ...value];
     }
     case 'expr':
       return exprLines(stmt.expr);

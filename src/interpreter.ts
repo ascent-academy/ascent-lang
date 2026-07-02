@@ -8,21 +8,43 @@ export type RuntimeValue = (
   | { type: 'Done' }
 );
 
-// A chain of scopes, one per block. A lookup walks outward through
-// parents; a set always writes to the current (innermost) scope, so a
-// 'fix' inside a block shadows an outer slot of the same name without
-// touching it, and the shadow disappears once the block ends.
+type Binding = { value: RuntimeValue; mutable: boolean };
+
+export type AssignResult = 'ok' | 'immutable' | 'undeclared';
+
+// A chain of scopes, one per block. A lookup (or assignment) walks
+// outward through parents; a declaration always writes to the current
+// (innermost) scope, so a 'fix'/'mut' inside a block shadows an outer
+// slot of the same name without touching it, and the shadow disappears
+// once the block ends.
 export class Environment {
-  private readonly vars = new Map<string, RuntimeValue>();
+  private readonly vars = new Map<string, Binding>();
 
   public constructor(private readonly parent: Environment | null = null) {}
 
   public get(name: string): RuntimeValue | undefined {
-    return this.vars.get(name) ?? this.parent?.get(name);
+    return this.vars.get(name)?.value ?? this.parent?.get(name);
   }
 
-  public set(name: string, value: RuntimeValue): void {
-    this.vars.set(name, value);
+  public declare(name: string, value: RuntimeValue, mutable: boolean): void {
+    this.vars.set(name, { value, mutable });
+  }
+
+  // Reassigns a slot in whichever scope actually owns it (not
+  // necessarily this one), mutating the binding in place so every
+  // Environment sharing this chain sees the new value immediately —
+  // this is what lets a 'while' loop's condition observe a slot its
+  // body just changed.
+  public assign(name: string, value: RuntimeValue): AssignResult {
+    const binding = this.vars.get(name);
+    if (binding === undefined) {
+      return this.parent?.assign(name, value) ?? 'undeclared';
+    }
+    if (!binding.mutable) {
+      return 'immutable';
+    }
+    binding.value = value;
+    return 'ok';
   }
 
   public child(): Environment {
@@ -95,7 +117,23 @@ export const executeStmt = (stmt: Statement, env: Environment): RuntimeValue => 
   switch (stmt.kind) {
     case 'fix': {
       const boundValue = evaluateExpr(stmt.init, env);
-      env.set(stmt.name, boundValue);
+      env.declare(stmt.name, boundValue, false);
+      return { type: 'Done' };
+    }
+    case 'mut': {
+      const boundValue = evaluateExpr(stmt.init, env);
+      env.declare(stmt.name, boundValue, true);
+      return { type: 'Done' };
+    }
+    case 'assign': {
+      const value = evaluateExpr(stmt.value, env);
+      const result = env.assign(stmt.name, value);
+      if (result === 'undeclared') {
+        throw new Error(`N0001: undefined slot '${stmt.name}'`);
+      }
+      if (result === 'immutable') {
+        throw new Error(`N0002: cannot assign to '${stmt.name}' — it was declared with 'fix', which never changes`);
+      }
       return { type: 'Done' };
     }
     case 'expr': {

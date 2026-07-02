@@ -14,6 +14,7 @@ const KEYWORDS: Record<string, TokenKind> = {
   div: 'KW_DIV',
   mod: 'KW_MOD',
   fix: 'KW_FIX',
+  mut: 'KW_MUT',
   if: 'KW_IF',
   else: 'KW_ELSE',
   while: 'KW_WHILE',
