@@ -6,16 +6,19 @@ import type { RuntimeValue } from './interpreter.js';
 // branch characters (├─, └─) when embedding inside a parent node.
 const exprLines = (expr: Expr): string[] => {
   switch (expr.kind) {
-    case 'int':
-      return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}`];
-    case 'float':
-      return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
-    case 'bool':
-      return [`${chalk.cyan('Bool')} ${chalk.yellow(expr.value ? 'True' : 'False')}`];
-    case 'none':
-      return [`${chalk.cyan('None')}`];
-    case 'done':
-      return [`${chalk.cyan('Done')}`];
+    case 'literal':
+      switch (expr.type) {
+        case 'Int':
+          return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}`];
+        case 'Float':
+          return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
+        case 'Bool':
+          return [`${chalk.cyan('Bool')} ${chalk.yellow(expr.value ? 'True' : 'False')}`];
+        case 'None':
+          return [`${chalk.cyan('None')}`];
+        case 'Done':
+          return [`${chalk.cyan('Done')}`];
+    }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];
     case 'unary': {
