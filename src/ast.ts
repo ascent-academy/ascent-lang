@@ -1,14 +1,21 @@
 import type { Span } from './errors/marker.js';
 
+export type Literal = (
+  | { kind: 'literal'; type: 'Int'; value: bigint; span: Span }
+  | { kind: 'literal'; type: 'Float'; value: number; span: Span }
+  | { kind: 'literal'; type: 'Bool'; value: boolean; span: Span }
+  | { kind: 'literal'; type: 'None'; span: Span }
+  | { kind: 'literal'; type: 'Done'; span: Span }
+);
+
+export type UnaryOp = '-';
+export type BinaryOp = '+' | '-' | '*' | '/' | 'div' | 'mod';
+
 export type Expr = (
-  | { kind: 'int'; value: bigint; span: Span }
-  | { kind: 'float'; value: number; span: Span }
-  | { kind: 'bool'; value: boolean; span: Span }
-  | { kind: 'none'; span: Span }
-  | { kind: 'done'; span: Span }
+  | Literal
   | { kind: 'slot'; name: string; span: Span }
-  | { kind: 'unary'; op: '-'; operand: Expr; span: Span }
-  | { kind: 'binary'; op: '+' | '-' | '*' | '/' | 'div' | 'mod'; left: Expr; right: Expr; span: Span }
+  | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
+  | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
 );
 
 export type Statement = (

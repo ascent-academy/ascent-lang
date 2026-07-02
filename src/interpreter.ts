@@ -1,4 +1,4 @@
-import type { Expr, Statement } from './ast.js';
+import type { Expr, Literal, Statement } from './ast.js';
 
 export type RuntimeValue = (
   | { type: 'Int'; value: bigint }
@@ -10,18 +10,25 @@ export type RuntimeValue = (
 
 export type Environment = Map<string, RuntimeValue>;
 
+export const evaluateLiteral = (literal: Literal): RuntimeValue => {
+  switch (literal.type) {
+    case 'Int':
+      return { type: 'Int', value: literal.value };
+    case 'Float':
+      return { type: 'Float', value: literal.value };
+    case 'Bool':
+      return { type: 'Bool', value: literal.value };
+    case 'None':
+      return { type: 'None' };
+    case 'Done':
+      return { type: 'Done' };
+  }
+};
+
 export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
-    case 'int':
-      return { type: 'Int', value: expr.value };
-    case 'float':
-      return { type: 'Float', value: expr.value };
-    case 'bool':
-      return { type: 'Bool', value: expr.value };
-    case 'none':
-      return { type: 'None' };
-    case 'done':
-      return { type: 'Done' };
+    case 'literal':
+      return evaluateLiteral(expr);
     case 'slot': {
       const value = env.get(expr.name);
       if (value === undefined) {
