@@ -1,14 +1,11 @@
 import type { Position, Span, ErrorMarker } from './errors/marker.js';
 import type { Token, TokenKind } from './token.js';
+import { isDigit, isAlpha, isWhitespace } from './chars.js';
 
 export interface LexResult {
   tokens: Token[];
   errorMarkers: ErrorMarker[];
 }
-
-const isDigit = (ch: string): boolean => ch >= '0' && ch <= '9';
-const isAlpha = (ch: string): boolean =>
-  (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch === '_';
 
 const KEYWORDS: Record<string, TokenKind> = {
   div: 'KW_DIV',
@@ -70,12 +67,7 @@ export class Lexer {
   }
 
   private skipWhitespace(): void {
-    while (
-      this.peek() === ' ' ||
-      this.peek() === '\t' ||
-      this.peek() === '\n' ||
-      this.peek() === '\r'
-    ) {
+    while (isWhitespace(this.peek())) {
       this.advance();
     }
   }
