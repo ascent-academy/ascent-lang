@@ -4,7 +4,8 @@ import type { ErrorEntry } from './types.js';
 
 export const ERRORS: ErrorEntry[] = [
   { code: 'L0001', name: 'unexpected-character', category: 'lexical', summary: "A character that can't begin any token." },
-  { code: 'L0002', name: 'unterminated-string', category: 'lexical', summary: "A string literal that doesn't end before the end of the line." },
+  { code: 'L0002', name: 'invalid-number-literal', category: 'lexical', summary: "A letter immediately followed a number — '123abc' is not a valid token." },
+  { code: 'L0003', name: 'unterminated-string', category: 'lexical', summary: "A string literal that doesn't end before the end of the line." },
   { code: 'N0001', name: 'undefined-slot', category: 'name', summary: "A name was used that has not been declared with 'fix' or 'mut'." },
   { code: 'N0002', name: 'reassign-fix', category: 'name', summary: "Assignment to a slot declared with 'fix' — 'fix' slots never change; declare it with 'mut' instead if it needs to." },
   { code: 'S0001', name: 'unclosed-paren', category: 'syntactic', summary: "An opening '(' has no matching ')'." },

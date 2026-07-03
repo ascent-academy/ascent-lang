@@ -4,6 +4,7 @@ export type RuntimeValue = (
   | { type: 'Int'; value: bigint }
   | { type: 'Float'; value: number }
   | { type: 'Bool'; value: boolean }
+  | { type: 'String'; value: string }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -60,6 +61,8 @@ export const evaluateLiteral = (literal: Literal): RuntimeValue => {
       return { type: 'Float', value: literal.value };
     case 'Bool':
       return { type: 'Bool', value: literal.value };
+    case 'String':
+      return { type: 'String', value: literal.value };
     case 'None':
       return { type: 'None' };
     case 'Done':

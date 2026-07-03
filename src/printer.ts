@@ -14,6 +14,8 @@ const exprLines = (expr: Expr): string[] => {
           return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
         case 'Bool':
           return [`${chalk.cyan('Bool')} ${chalk.yellow(expr.value ? 'True' : 'False')}`];
+        case 'String':
+          return [`${chalk.cyan('String')} ${chalk.green(JSON.stringify(expr.value))}`];
         case 'None':
           return [`${chalk.cyan('None')}`];
         case 'Done':
@@ -101,6 +103,8 @@ export const formatValue = (value: RuntimeValue): string => {
       return floatStr.includes('.') ? chalk.yellow(floatStr) : chalk.yellow(floatStr + '.0');
     case 'Bool':
       return chalk.yellow(value.value ? 'True' : 'False');
+    case 'String':
+      return chalk.green(JSON.stringify(value.value));
     case 'None':
       return chalk.yellow('None');
     case 'Done':

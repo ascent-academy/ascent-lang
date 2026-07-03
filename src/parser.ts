@@ -152,6 +152,11 @@ export class Parser {
       };
     }
 
+    if (tok.kind === 'STR_LIT') {
+      this.advance();
+      return { kind: 'literal', type: 'String', value: tok.value, span: tok.span };
+    }
+
     if (tok.kind === 'BOOL_LIT') {
       this.advance();
       return {

@@ -6,6 +6,11 @@
   summary: "A character that can't begin any token."
 
 - code: 'L0002'
+  name: 'invalid-number-literal'
+  category: 'lexical'
+  summary: "A letter immediately followed a number — '123abc' is not a valid token."
+
+- code: 'L0003'
   name: 'unterminated-string'
   category: 'lexical'
   summary: "A string literal that doesn't end before the end of the line."

@@ -44,6 +44,36 @@ export class Lexer {
     return kind !== null ? this.token(kind, start) : this.error('L0001', this.c.spanFrom(start));
   }
 
+  private readString(start: Position): Token {
+    let value = '';
+    while (true) {
+      const ch = this.c.peek();
+      if (ch === '\0' || ch === '\n') {
+        return this.error('L0003', this.c.spanFrom(start));
+      }
+      if (ch === '"') {
+        this.c.advance(); // consume closing '"'
+        return { kind: 'STR_LIT', value, span: this.c.spanFrom(start) };
+      }
+      if (ch === '\\') {
+        this.c.advance(); // consume '\'
+        const esc = this.c.peek();
+        this.c.advance(); // consume escape char
+        switch (esc) {
+          case 'n': value += '\n'; break;
+          case 't': value += '\t'; break;
+          case 'r': value += '\r'; break;
+          case '"': value += '"'; break;
+          case '\\': value += '\\'; break;
+          default: return this.error('L0001', this.c.spanFrom(start));
+        }
+      } else {
+        value += ch;
+        this.c.advance();
+      }
+    }
+  }
+
   private readNumber(): Token {
     const start = this.c.mark();
     this.consumeWhile(isDigit);
@@ -115,6 +145,7 @@ export class Lexer {
       case '>':
         if (this.c.match('=')) return this.token('GT_EQ', start);
         return this.token('GT', start);
+      case '"': return this.readString(start);
       case ',': return this.token('COMMA', start);
       case ';': return this.token('SEMICOLON', start);
       case '(': return this.token('LPAREN', start);
