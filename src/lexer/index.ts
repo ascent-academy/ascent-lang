@@ -48,25 +48,23 @@ export class Lexer {
     const start = this.c.mark();
     this.consumeWhile(isDigit);
 
-    // Float: peek() is '.', peek(1) confirms a digit follows.
-    // We only consume the dot when we are certain — this keeps '3.method()'
+    // Float: only consume the dot when a digit follows — this keeps '3.method()'
     // valid in later sections where '.' is the member-access operator.
+    let kind: TokenKind = 'INT_LIT';
     if (this.c.peek() === '.' && isDigit(this.c.peek(1))) {
       this.c.advance(); // '.'
       this.consumeWhile(isDigit);
-      if (isAlpha(this.c.peek())) {
-        this.consumeWhile(isAlphaNum);
-        return this.error('L0002', this.c.spanFrom(start));
-      }
-      return this.token('FLOAT_LIT', start);
+      kind = 'FLOAT_LIT';
     }
 
+    // A number may not be glued to a letter: 123abc / 1.5x are one malformed
+    // token, not a number followed by a name.
     if (isAlpha(this.c.peek())) {
       this.consumeWhile(isAlphaNum);
       return this.error('L0002', this.c.spanFrom(start));
     }
 
-    return this.token('INT_LIT', start);
+    return this.token(kind, start);
   }
 
   private nextToken(): Token {
