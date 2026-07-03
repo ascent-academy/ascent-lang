@@ -29,6 +29,7 @@ const BUILTIN_TYPES: Record<string, TokenKind> = {
   Float: 'TYPE_NAME',
   Bool: 'TYPE_NAME',
   String: 'TYPE_NAME',
+  List: 'TYPE_NAME',
 };
 
 // Returns the token kind for a scanned word, or null for an unrecognised

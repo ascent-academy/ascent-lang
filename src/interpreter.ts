@@ -1,11 +1,13 @@
-import type { BinaryOp, Expr, Literal, Statement } from './ast.js';
+import type { BinaryOp } from './ast.js';
+import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './typed-ast.js';
+import type { Type } from './types.js';
 
 export type RuntimeValue = (
-  | { type: 'Int'; value: bigint }
-  | { type: 'Float'; value: number }
-  | { type: 'Bool'; value: boolean }
+  | { type: 'Int';    value: bigint }
+  | { type: 'Float';  value: number }
+  | { type: 'Bool';   value: boolean }
   | { type: 'String'; value: string }
-  | { type: 'List'; elements: RuntimeValue[] }
+  | { type: 'List';   elements: RuntimeValue[] }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -22,7 +24,7 @@ export type AssignResult = 'ok' | 'immutable' | 'undeclared';
 export class Environment {
   private readonly vars = new Map<string, Binding>();
 
-  public constructor(private readonly parent: Environment | null = null) { }
+  public constructor(private readonly parent: Environment | null = null) {}
 
   public get(name: string): RuntimeValue | undefined {
     return this.vars.get(name)?.value ?? this.parent?.get(name);
@@ -42,9 +44,7 @@ export class Environment {
     if (binding === undefined) {
       return this.parent?.assign(name, value) ?? 'undeclared';
     }
-    if (!binding.mutable) {
-      return 'immutable';
-    }
+    if (!binding.mutable) return 'immutable';
     binding.value = value;
     return 'ok';
   }
@@ -54,253 +54,199 @@ export class Environment {
   }
 }
 
-export const evaluateLiteral = (literal: Literal): RuntimeValue => {
-  switch (literal.type) {
-    case 'Int':
-      return { type: 'Int', value: literal.value };
-    case 'Float':
-      return { type: 'Float', value: literal.value };
-    case 'Bool':
-      return { type: 'Bool', value: literal.value };
-    case 'String':
-      return { type: 'String', value: literal.value };
-    case 'None':
-      return { type: 'None' };
-    case 'Done':
-      return { type: 'Done' };
+// Coerce a runtime value to match a target type when the target is Float
+// and the value is Int — the only implicit widening the language allows.
+// All other type conversions are explicit (methods like toFloat/toInt).
+const coerce = (v: RuntimeValue, targetType: Type): RuntimeValue => {
+  if (targetType.kind === 'Float' && v.type === 'Int') {
+    return { type: 'Float', value: Number(v.value) };
   }
+  return v;
 };
 
-type Builtin = (args: RuntimeValue[]) => RuntimeValue;
-
-const BUILTINS: Record<string, Builtin> = {
-  floor: (args) => {
-    if (args.length !== 1) throw new Error(`floor expects 1 argument, got ${args.length}`);
-    const arg = args[0]!;
-    if (arg.type !== 'Float') throw new Error(`floor expects Float, got ${arg.type}`);
-    return { type: 'Float', value: Math.floor(arg.value) };
-  },
-};
-
-export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
+export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
-    case 'literal':
-      return evaluateLiteral(expr);
-    case 'slot': {
-      const value = env.get(expr.name);
-      if (value === undefined) {
-        throw new Error(`N0001: undefined slot '${expr.name}'`);
+    case 'literal': {
+      switch (expr.type) {
+        case 'Int':    return { type: 'Int',    value: expr.value };
+        case 'Float':  return { type: 'Float',  value: expr.value };
+        case 'Bool':   return { type: 'Bool',   value: expr.value };
+        case 'String': return { type: 'String', value: expr.value };
+        case 'None':   return { type: 'None' };
+        case 'Done':   return { type: 'Done' };
       }
+    }
+    case 'slot': {
+      // N0001 / N0002 are caught at type-check time; this is an internal guard.
+      const value = env.get(expr.name);
+      if (value === undefined) throw new Error(`internal: unbound slot '${expr.name}'`);
       return value;
     }
     case 'call': {
-      const fn = BUILTINS[expr.callee];
-      if (fn === undefined) throw new Error(`N0001: undefined function '${expr.callee}'`);
-      return fn(expr.args.map(arg => evaluateExpr(arg, env)));
+      // floor is the only built-in; others are rejected by the type checker.
+      const args = expr.args.map(a => evaluateExpr(a, env));
+      if (expr.callee === 'floor') {
+        const arg = args[0]!;
+        if (arg.type !== 'Float') throw new Error('internal: floor arg not Float');
+        return { type: 'Float', value: Math.floor(arg.value) };
+      }
+      throw new Error(`internal: unknown built-in '${expr.callee}'`);
     }
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
-      const args = expr.args.map(arg => evaluateExpr(arg, env));
-      return evalMethodCall(receiver, expr.method, args);
+      const args = expr.args.map(a => evaluateExpr(a, env));
+      return evalMethodCall(receiver, expr.method, args, expr.ty);
     }
-    case 'list':
-      return { type: 'List', elements: expr.elements.map(e => evaluateExpr(e, env)) };
+    case 'list': {
+      // expr.ty is List<T>; coerce each element to T (handles Int → Float).
+      const elemType = expr.ty.kind === 'List' ? expr.ty.elem : null;
+      const elements = expr.elements.map(el => {
+        const v = evaluateExpr(el, env);
+        return elemType !== null ? coerce(v, elemType) : v;
+      });
+      return { type: 'List', elements };
+    }
     case 'index': {
-      const list = evaluateExpr(expr.list, env);
+      const list = evaluateExpr(expr.list,  env);
       const idx  = evaluateExpr(expr.index, env);
-      if (list.type !== 'List') throw new Error(`'[]' requires a List, got ${list.type}`);
-      if (idx.type !== 'Int')   throw new Error(`list index must be Int, got ${idx.type}`);
+      if (list.type !== 'List') throw new Error('internal: index receiver not a List');
+      if (idx.type  !== 'Int')  throw new Error('internal: index not an Int');
       const i = Number(idx.value);
       if (i < 0 || i >= list.elements.length) {
-        throw new Error(`index ${i} is out of bounds (length ${list.elements.length})`);
+        throw new Error(`index ${i} out of bounds (length ${list.elements.length})`);
       }
       return list.elements[i]!;
     }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);
-      if (operand.type === 'Int') return { type: 'Int', value: -operand.value };
+      if (operand.type === 'Int')   return { type: 'Int',   value: -operand.value };
       if (operand.type === 'Float') return { type: 'Float', value: -operand.value };
-      throw new Error(`unary '-' is not defined for ${operand.type}`);
+      throw new Error(`internal: unary '-' on ${operand.type}`);
     }
     case 'binary':
       return evaluateBinary(expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
     case 'block': {
-      // Each block gets its own scope, so slots it declares don't leak
-      // into the enclosing one. An empty block has no last statement,
-      // so it falls through to Done — the '{}' unit value.
-      const blockEnv = env.child();
-      let result: RuntimeValue = { type: 'Done' };
-      for (const stmt of expr.stmts) {
-        result = executeStmt(stmt, blockEnv);
-      }
-      return result;
+      return evaluateBlock(expr, env);
     }
     case 'if': {
       const cond = evaluateExpr(expr.cond, env);
-      if (cond.type !== 'Bool') {
-        throw new Error(`if condition must be Bool, got ${cond.type}`);
-      }
-      if (cond.value) {
-        return evaluateExpr(expr.then, env);
-      }
-      if (expr.else !== null) {
-        return evaluateExpr(expr.else, env);
-      }
+      if (cond.type !== 'Bool') throw new Error('internal: if condition not Bool');
+      if (cond.value) return evaluateExpr(expr.then, env);
+      if (expr.else !== null) return evaluateExpr(expr.else, env);
       return { type: 'Done' };
     }
   }
 };
 
-export const executeStmt = (stmt: Statement, env: Environment): RuntimeValue => {
+const evaluateBlock = (block: TypedBlock, env: Environment): RuntimeValue => {
+  const blockEnv = env.child();
+  let result: RuntimeValue = { type: 'Done' };
+  for (const stmt of block.stmts) {
+    result = executeStmt(stmt, blockEnv);
+  }
+  return result;
+};
+
+export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValue => {
   switch (stmt.kind) {
-    case 'fix': {
-      const boundValue = evaluateExpr(stmt.init, env);
-      env.declare(stmt.name, boundValue, false);
-      return { type: 'Done' };
-    }
+    case 'fix':
     case 'mut': {
-      const boundValue = evaluateExpr(stmt.init, env);
-      env.declare(stmt.name, boundValue, true);
+      // Coerce the init value to the declared slot type (handles Int → Float
+      // when the annotation says Float but the literal is an Int).
+      const value = coerce(evaluateExpr(stmt.init, env), stmt.slotType);
+      env.declare(stmt.name, value, stmt.kind === 'mut');
       return { type: 'Done' };
     }
     case 'assign': {
-      const value = evaluateExpr(stmt.value, env);
+      const value = coerce(evaluateExpr(stmt.value, env), stmt.slotType);
       const result = env.assign(stmt.name, value);
-      if (result === 'undeclared') {
-        throw new Error(`N0001: undefined slot '${stmt.name}'`);
-      }
-      if (result === 'immutable') {
-        throw new Error(`N0002: cannot assign to '${stmt.name}' — it was declared with 'fix', which never changes`);
-      }
+      if (result !== 'ok') throw new Error(`internal: assign '${stmt.name}' → ${result}`);
       return { type: 'Done' };
     }
-    case 'expr': {
+    case 'expr':
       return evaluateExpr(stmt.expr, env);
-    }
     case 'while': {
-      // Evaluating the body as a Block (rather than looping over its
-      // statements here) reuses the block case's own env.child() call,
-      // so every iteration gets its own fresh scope — a 'fix' from one
-      // iteration doesn't leak into the next, exactly as if it were a
-      // fresh block each time round.
+      // Each iteration evaluates the body as a block, giving it a fresh
+      // child scope — a 'fix' from one iteration doesn't leak into the next.
       while (true) {
         const cond = evaluateExpr(stmt.cond, env);
-        if (cond.type !== 'Bool') {
-          throw new Error(`while condition must be Bool, got ${cond.type}`);
-        }
-        if (!cond.value) {
-          break;
-        }
-        evaluateExpr(stmt.body, env);
+        if (cond.type !== 'Bool') throw new Error('internal: while condition not Bool');
+        if (!cond.value) break;
+        evaluateBlock(stmt.body, env);
       }
       return { type: 'Done' };
     }
   }
 };
 
-const evalIntMethod = (receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
-  const requireArity = (n: number) => {
-    if (args.length !== n) throw new Error(`T0002: Int.${method}() takes ${n} argument(s), got ${args.length}`);
-  };
+// ---- Method dispatch ------------------------------------------------
+
+const evalIntMethod = (receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, _args: RuntimeValue[]): RuntimeValue => {
   switch (method) {
-    case 'toStr': {
-      requireArity(0);
-      return { type: 'String', value: String(receiver.value) };
-    }
-    case 'toFloat': {
-      requireArity(0);
-      return { type: 'Float', value: Number(receiver.value) };
-    }
-    case 'abs': {
-      requireArity(0);
-      return { type: 'Int', value: receiver.value < 0n ? -receiver.value : receiver.value };
-    }
-    default:
-      throw new Error(`T0001: Int has no method '${method}'`);
+    case 'toStr':   return { type: 'String', value: String(receiver.value) };
+    case 'toFloat': return { type: 'Float',  value: Number(receiver.value) };
+    case 'abs':     return { type: 'Int',    value: receiver.value < 0n ? -receiver.value : receiver.value };
+    default: throw new Error(`internal: Int has no method '${method}'`);
   }
 };
 
 const evalFloatMethod = (receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
-  const requireArity = (n: number) => {
-    if (args.length !== n) throw new Error(`T0002: Float.${method}() takes ${n} argument(s), got ${args.length}`);
-  };
   switch (method) {
-    case 'toStr': {
-      requireArity(0);
-      return { type: 'String', value: String(receiver.value) };
-    }
-    case 'toInt': {
-      requireArity(0);
-      return { type: 'Int', value: BigInt(Math.trunc(receiver.value)) };
-    }
-    case 'abs': {
-      requireArity(0);
-      return { type: 'Float', value: Math.abs(receiver.value) };
-    }
+    case 'toStr':  return { type: 'String', value: String(receiver.value) };
+    case 'toInt':  return { type: 'Int',    value: BigInt(Math.trunc(receiver.value)) };
+    case 'abs':    return { type: 'Float',  value: Math.abs(receiver.value) };
     case 'min': {
-      requireArity(1);
-      const other = args[0]!;
-      if (other.type !== 'Float' && other.type !== 'Int') throw new Error(`T0001: Float.min() expects a numeric argument, got ${other.type}`);
-      const r = other.type === 'Int' ? Number(other.value) : other.value;
-      return { type: 'Float', value: Math.min(receiver.value, r) };
+      const r = args[0]!;
+      return { type: 'Float', value: Math.min(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, {type:'Float'}>).value) };
     }
     case 'max': {
-      requireArity(1);
-      const other = args[0]!;
-      if (other.type !== 'Float' && other.type !== 'Int') throw new Error(`T0001: Float.max() expects a numeric argument, got ${other.type}`);
-      const r = other.type === 'Int' ? Number(other.value) : other.value;
-      return { type: 'Float', value: Math.max(receiver.value, r) };
+      const r = args[0]!;
+      return { type: 'Float', value: Math.max(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, {type:'Float'}>).value) };
     }
-    default:
-      throw new Error(`T0001: Float has no method '${method}'`);
+    default: throw new Error(`internal: Float has no method '${method}'`);
   }
 };
 
-const evalListMethod = (receiver: Extract<RuntimeValue, { type: 'List' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
-  const requireArity = (n: number) => {
-    if (args.length !== n) throw new Error(`List.${method}() takes ${n} argument(s), got ${args.length}`);
-  };
+const evalListMethod = (
+  receiver: Extract<RuntimeValue, { type: 'List' }>,
+  method: string, args: RuntimeValue[], resultType: Type,
+): RuntimeValue => {
+  // For methods that return a List, resultType.elem is the element type to
+  // coerce to (handles Int → Float when the list widens, e.g. after concat).
+  const elemType = resultType.kind === 'List' ? resultType.elem : null;
+  const coerceElem = (v: RuntimeValue) => elemType !== null ? coerce(v, elemType) : v;
+
   switch (method) {
-    case 'length': {
-      requireArity(0);
-      return { type: 'Int', value: BigInt(receiver.elements.length) };
-    }
-    case 'isEmpty': {
-      requireArity(0);
-      return { type: 'Bool', value: receiver.elements.length === 0 };
-    }
-    case 'append': {
-      requireArity(1);
-      return { type: 'List', elements: [...receiver.elements, args[0]!] };
-    }
-    case 'prepend': {
-      requireArity(1);
-      return { type: 'List', elements: [args[0]!, ...receiver.elements] };
-    }
-    case 'reverse': {
-      requireArity(0);
-      return { type: 'List', elements: [...receiver.elements].reverse() };
-    }
+    case 'length':  return { type: 'Int',  value: BigInt(receiver.elements.length) };
+    case 'isEmpty': return { type: 'Bool', value: receiver.elements.length === 0 };
+    case 'reverse': return { type: 'List', elements: [...receiver.elements].reverse().map(coerceElem) };
+    case 'append':
+      return { type: 'List', elements: [...receiver.elements.map(coerceElem), coerceElem(args[0]!)] };
+    case 'prepend':
+      return { type: 'List', elements: [coerceElem(args[0]!), ...receiver.elements.map(coerceElem)] };
     case 'concat': {
-      requireArity(1);
-      const other = args[0]!;
-      if (other.type !== 'List') throw new Error(`List.concat() expects a List argument, got ${other.type}`);
-      return { type: 'List', elements: [...receiver.elements, ...other.elements] };
+      const other = args[0]! as Extract<RuntimeValue, { type: 'List' }>;
+      return {
+        type: 'List',
+        elements: [...receiver.elements.map(coerceElem), ...other.elements.map(coerceElem)],
+      };
     }
-    default:
-      throw new Error(`List has no method '${method}'`);
+    default: throw new Error(`internal: List has no method '${method}'`);
   }
 };
 
-const evalMethodCall = (receiver: RuntimeValue, method: string, args: RuntimeValue[]): RuntimeValue => {
+const evalMethodCall = (
+  receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: Type,
+): RuntimeValue => {
   switch (receiver.type) {
     case 'Int':   return evalIntMethod(receiver, method, args);
     case 'Float': return evalFloatMethod(receiver, method, args);
-    case 'List':  return evalListMethod(receiver, method, args);
-    default:
-      throw new Error(`${receiver.type} has no methods`);
+    case 'List':  return evalListMethod(receiver, method, args, resultType);
+    default: throw new Error(`internal: ${receiver.type} has no methods`);
   }
 };
+
+// ---- Binary operators -----------------------------------------------
 
 type Numeric = { type: 'Int'; value: bigint } | { type: 'Float'; value: number };
 const isNumeric = (v: RuntimeValue): v is Numeric => v.type === 'Int' || v.type === 'Float';
@@ -314,9 +260,7 @@ const asFloat = (v: Numeric): number => (v.type === 'Int' ? Number(v.value) : v.
 // `(a div b) * b + (a mod b) == a` holds by construction.
 const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
   let mod = a % b;
-  if (mod !== 0n && (mod < 0n) !== (b < 0n)) {
-    mod += b;
-  }
+  if (mod !== 0n && (mod < 0n) !== (b < 0n)) mod += b;
   return { div: (a - mod) / b, mod };
 };
 
@@ -325,97 +269,51 @@ const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
 // same one-way promotion arithmetic uses). Two Ints compare exactly, as
 // BigInts, rather than going through asFloat and risking the precision
 // loss a huge Int would suffer converting to a JS number.
-const valuesEqual = (op: '==' | '!=', left: RuntimeValue, right: RuntimeValue): boolean => {
+const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean => {
   if (isNumeric(left) && isNumeric(right)) {
     return left.type === 'Int' && right.type === 'Int'
       ? left.value === right.value
       : asFloat(left) === asFloat(right);
   }
-  if (left.type !== right.type) {
-    throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
-  }
-  if (left.type === 'Bool' && right.type === 'Bool') {
-    return left.value === right.value;
-  }
-  // None and Done are singleton types — matching type already means equal.
-  return true;
+  if (left.type !== right.type) return false;
+  if (left.type === 'Bool' && right.type === 'Bool') return left.value === right.value;
+  if (left.type === 'String' && right.type === 'String') return left.value === right.value;
+  return true; // None, Done — singleton types
 };
 
-// '<' '<=' '>' '>=' are Int/Float only for now (String ordering is a
-// later section, once String exists as a RuntimeValue) — same one-way
-// promotion and exact-Int-comparison rule as '==' above.
-const evaluateOrdering = (op: '<' | '<=' | '>' | '>=', left: RuntimeValue, right: RuntimeValue): boolean => {
-  if (!isNumeric(left) || !isNumeric(right)) {
-    throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
-  }
-
-  if (left.type === 'Int' && right.type === 'Int') {
-    switch (op) {
-      case '<': return left.value < right.value;
-      case '<=': return left.value <= right.value;
-      case '>': return left.value > right.value;
-      case '>=': return left.value >= right.value;
-    }
-  }
-
-  const l = asFloat(left);
-  const r = asFloat(right);
-  switch (op) {
-    case '<': return l < r;
-    case '<=': return l <= r;
-    case '>': return l > r;
-    case '>=': return l >= r;
-  }
-};
-
-// Int op Int stays an Int (exact BigInt arithmetic); an Int meeting a
-// Float promotes to Float first (the one-way, value-preserving
-// Int -> Float rule) so the result is a Float the moment either operand
-// is one. Bool/None operands have no defined arithmetic; a real T-code
-// diagnostic lands with the type checker (agenda §5/§6) — for now this
-// throws rather than silently returning a nonsense value, honouring the
-// "no silent failure states" rule even before the proper machinery exists.
 const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
   if (op === '==' || op === '!=') {
-    return { type: 'Bool', value: valuesEqual(op, left, right) };
+    const eq = valuesEqual(left, right);
+    return { type: 'Bool', value: op === '==' ? eq : !eq };
   }
+
+  if (!isNumeric(left) || !isNumeric(right)) throw new Error(`internal: '${op}' on non-numeric`);
+
   if (op === '<' || op === '<=' || op === '>' || op === '>=') {
-    return { type: 'Bool', value: evaluateOrdering(op, left, right) };
+    const useInt = left.type === 'Int' && right.type === 'Int';
+    const l = useInt ? left.value  : asFloat(left);
+    const r = useInt ? right.value : asFloat(right);
+    const result = op === '<' ? l < r : op === '<=' ? l <= r : op === '>' ? l > r : l >= r;
+    return { type: 'Bool', value: result };
   }
 
-  if (!isNumeric(left) || !isNumeric(right)) {
-    throw new Error(`'${op}' is not defined for ${left.type} and ${right.type}`);
-  }
-
-  // 'div'/'mod' are Int-only — floor division/modulo answers "how many
-  // whole times" and "what's left over", concepts a Float doesn't have.
   if (op === 'div' || op === 'mod') {
-    if (left.type !== 'Int' || right.type !== 'Int') {
-      throw new Error(`'${op}' requires Int operands, got ${left.type} and ${right.type}`);
-    }
-    if (right.value === 0n) {
-      throw new Error(`${op} by zero`);
-    }
+    if (left.type !== 'Int' || right.type !== 'Int') throw new Error(`internal: '${op}' on non-Int`);
+    if (right.value === 0n) throw new Error(`${op} by zero`);
     const { div, mod } = floorDivMod(left.value, right.value);
     return { type: 'Int', value: op === 'div' ? div : mod };
   }
 
-  // '/' always yields a Float, whatever the operand types — this is what
-  // stops the silent integer-truncation bug (7 / 2 is 3.5, not the 3
-  // that C/Java/JS would give). Infinity/NaN aren't values in Ascent
-  // (§4), so division by zero is a loud crash rather than a silent one.
   if (op === '/') {
     const divisor = asFloat(right);
-    if (divisor === 0) {
-      throw new Error('division by zero');
-    }
+    if (divisor === 0) throw new Error('division by zero');
     return { type: 'Float', value: asFloat(left) / divisor };
   }
 
   if (left.type === 'Int' && right.type === 'Int') {
     const v = op === '+' ? left.value + right.value
-      : op === '-' ? left.value - right.value
-        : left.value * right.value;
+            : op === '-' ? left.value - right.value
+            :               left.value * right.value;
     return { type: 'Int', value: v };
   }
 
@@ -423,4 +321,12 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
   const r = asFloat(right);
   const v = op === '+' ? l + r : op === '-' ? l - r : l * r;
   return { type: 'Float', value: v };
+};
+
+export const executeProgram = (program: TypedProgram, env: Environment): RuntimeValue => {
+  let result: RuntimeValue = { type: 'Done' };
+  for (const stmt of program.stmts) {
+    result = executeStmt(stmt, env);
+  }
+  return result;
 };

@@ -1,6 +1,13 @@
 import chalk from 'chalk';
-import type { Expr, Statement } from './ast.js';
+import type { Expr, Statement, TypeExpr } from './ast.js';
 import type { RuntimeValue } from './interpreter.js';
+
+const formatTypeExpr = (te: TypeExpr): string => {
+  switch (te.kind) {
+    case 'TypeName': return te.name;
+    case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
+  }
+};
 
 // Returns the node as a list of lines so callers can prefix them with
 // branch characters (├─, └─) when embedding inside a parent node.
@@ -97,7 +104,8 @@ const stmtLines = (stmt: Statement): string[] => {
     case 'mut': {
       const init = branch(exprLines(stmt.init), true);
       const label = stmt.kind === 'fix' ? 'Fix' : 'Mut';
-      return [`${chalk.cyan(label)} ${chalk.green(stmt.name)}`, ...init];
+      const ann = stmt.typeAnnotation !== null ? chalk.dim(`: ${formatTypeExpr(stmt.typeAnnotation)}`) : '';
+      return [`${chalk.cyan(label)} ${chalk.green(stmt.name)}${ann}`, ...init];
     }
     case 'assign': {
       const value = branch(exprLines(stmt.value), true);

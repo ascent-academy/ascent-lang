@@ -1,5 +1,11 @@
 import type { Span } from './errors/marker.js';
 
+// TypeExpr is the AST node for a type written in source code.
+// It carries span information so the type checker can point at it in errors.
+export type TypeExpr =
+  | { kind: 'TypeName'; name: 'Int' | 'Float' | 'Bool' | 'String'; span: Span }
+  | { kind: 'ListType'; elem: TypeExpr; span: Span };
+
 export type Literal = (
   | { kind: 'literal'; type: 'Int'; value: bigint; span: Span }
   | { kind: 'literal'; type: 'Float'; value: number; span: Span }
@@ -45,8 +51,8 @@ export type Expr = (
 // no single meaningful result (zero iterations has no last value to
 // give), so it always yields Done rather than forcing a fake one.
 export type Statement = (
-  | { kind: 'fix'; name: string; init: Expr; span: Span }
-  | { kind: 'mut'; name: string; init: Expr; span: Span }
+  | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
+  | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'assign'; name: string; value: Expr; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }

@@ -48,7 +48,7 @@
 - code: 'S0010'
   name: 'expected-type'
   category: 'syntactic'
-  summary: "A type name was expected here. Valid argument types are Int, Float, Bool, and String."
+  summary: "A type name was expected here. Valid types are Int, Float, Bool, String, and List<T>."
 
 - code: 'S0011'
   name: 'expected-semicolon'

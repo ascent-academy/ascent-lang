@@ -3,8 +3,9 @@ import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { Parser } from './parser.js';
+import { typecheck } from './typechecker.js';
 import { formatStmt, formatValue } from './printer.js';
-import { executeStmt, Environment, RuntimeValue } from './interpreter.js';
+import { executeStmt, executeProgram, Environment, RuntimeValue } from './interpreter.js';
 import type { ArgDef } from './ast.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
@@ -104,23 +105,27 @@ const runFile = async (filePath: string): Promise<void> => {
 
   if (parseResult.program === null) return;
 
+  const typeResult = typecheck(parseResult.program);
+  if (typeResult.errorMarkers.length > 0) {
+    for (const marker of typeResult.errorMarkers) {
+      process.stderr.write(chalk.red(`[${marker.code}]`) + '\n');
+    }
+    process.exit(1);
+  }
+
   const env = new Environment();
   if (parseResult.program.args.length > 0) {
     bindArgs(parseResult.program.args, parseCliFlags(process.argv.slice(3)), env);
   }
 
-  let result: RuntimeValue = { type: 'Done' };
-  for (const stmt of parseResult.program.stmts) {
-    try {
-      result = executeStmt(stmt, env);
-    } catch (e) {
-      process.stderr.write(chalk.red(String(e)) + '\n');
-      process.exit(1);
+  try {
+    const result = executeProgram(typeResult.typedProgram!, env);
+    if (result.type !== 'Done') {
+      process.stdout.write(formatValue(result) + '\n');
     }
-  }
-
-  if (result.type !== 'Done') {
-    process.stdout.write(formatValue(result) + '\n');
+  } catch (e) {
+    process.stderr.write(chalk.red(String(e)) + '\n');
+    process.exit(1);
   }
 };
 
@@ -151,13 +156,26 @@ const runRepl = async (): Promise<void> => {
       const parseResult = new Parser(lexResult.tokens).parse();
 
       if (parseResult.program !== null) {
-        for (const stmt of parseResult.program.stmts) {
-          process.stdout.write(formatStmt(stmt) + '\n');
-          try {
-            const result = executeStmt(stmt, env);
-            process.stdout.write(chalk.dim('=> ') + formatValue(result) + '\n');
-          } catch (e) {
-            process.stdout.write(chalk.red(String(e)) + '\n');
+        const typeResult = typecheck(parseResult.program);
+        const typeErrors = typeResult.errorMarkers;
+
+        if (typeErrors.length > 0) {
+          for (const marker of typeErrors) {
+            process.stdout.write(chalk.red(`[${marker.code}]`) + '\n');
+          }
+        } else {
+          // Print the untyped parse tree; execute the typed AST.
+          // The two arrays are guaranteed to be the same length when
+          // typedProgram is non-null (every statement type-checked).
+          const typedStmts = typeResult.typedProgram!.stmts;
+          for (let i = 0; i < typedStmts.length; i++) {
+            process.stdout.write(formatStmt(parseResult.program.stmts[i]!) + '\n');
+            try {
+              const result = executeStmt(typedStmts[i]!, env);
+              process.stdout.write(chalk.dim('=> ') + formatValue(result) + '\n');
+            } catch (e) {
+              process.stdout.write(chalk.red(String(e)) + '\n');
+            }
           }
         }
       } else if (lexResult.errorMarkers.length === 0) {

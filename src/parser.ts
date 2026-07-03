@@ -1,6 +1,6 @@
 import type { Token, TokenKind } from './token.js';
 import type { ErrorMarker } from './errors/marker.js';
-import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType } from './ast.js';
+import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType, TypeExpr } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;
@@ -487,6 +487,40 @@ export class Parser {
 
   // ---- Statement parsing ----------------------------------------------
 
+  // 'Int', 'Float', 'Bool', 'String', or 'List<Type>' — used in type annotations.
+  private parseTypeExpr(): TypeExpr | null {
+    const tok = this.peek();
+    if (tok.kind !== 'TYPE_NAME') {
+      this.errorMarkers.push({ code: 'S0010', span: tok.span });
+      return null;
+    }
+    this.advance(); // consume type name
+
+    if (tok.value === 'List') {
+      const lt = this.peek();
+      if (lt.kind !== 'LT') {
+        this.errorMarkers.push({ code: 'S0010', span: lt.span });
+        return null;
+      }
+      this.advance(); // consume '<'
+
+      const elem = this.parseTypeExpr();
+      if (elem === null) return null;
+
+      const gt = this.peek();
+      if (gt.kind !== 'GT') {
+        this.errorMarkers.push({ code: 'S0010', span: gt.span });
+        return null;
+      }
+      this.advance(); // consume '>'
+
+      return { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
+    }
+
+    const name = tok.value as 'Int' | 'Float' | 'Bool' | 'String';
+    return { kind: 'TypeName', name, span: tok.span };
+  }
+
   // 'fix' and 'mut' share every rule but the keyword itself and the
   // mutability it grants — one parse method, told which by 'kind'.
   private parseDecl(kind: 'fix' | 'mut'): Statement | null {
@@ -498,6 +532,13 @@ export class Parser {
       return null;
     }
     this.advance(); // consume slot name
+
+    let typeAnnotation: TypeExpr | null = null;
+    if (this.peek().kind === 'COLON') {
+      this.advance(); // consume ':'
+      typeAnnotation = this.parseTypeExpr();
+      if (typeAnnotation === null) return null;
+    }
 
     const eqTok = this.peek();
     if (eqTok.kind !== 'EQUALS') {
@@ -514,6 +555,7 @@ export class Parser {
     return {
       kind,
       name: nameTok.value,
+      typeAnnotation,
       init,
       span: { start: kwTok.span.start, end: init.span.end },
     };
