@@ -1,6 +1,6 @@
-import type { Span, ErrorMarker } from '../errors/marker.js';
+import type { Position, Span, ErrorMarker } from '../errors/marker.js';
 import type { Token, TokenKind } from '../token.js';
-import { isDigit, isAlpha, isWhitespace } from './chars.js';
+import { isDigit, isAlpha, isAlphaNum, isWhitespace } from './chars.js';
 import { Cursor } from './cursor.js';
 
 export interface LexResult {
@@ -36,71 +36,66 @@ export class Lexer {
     this.c = new Cursor(src);
   }
 
+  private token(kind: TokenKind, start: Position): Token {
+    return { kind, value: this.c.slice(start), span: this.c.spanFrom(start) };
+  }
+
   private error(code: string, span: Span): Token {
     this.errorMarkers.push({ code, span });
     return { kind: 'ERROR', value: '', span };
   }
 
-  private skipWhitespace(): void {
-    while (isWhitespace(this.c.peek())) {
+  private consumeWhile(pred: (ch: string) => boolean): void {
+    while (pred(this.c.peek())) {
       this.c.advance();
     }
+  }
+
+  private skipWhitespace(): void {
+    this.consumeWhile(isWhitespace);
   }
 
   private readWord(): Token {
     const start = this.c.mark();
     const firstCh = this.c.peek();
-    while (isAlpha(this.c.peek()) || isDigit(this.c.peek())) {
-      this.c.advance();
-    }
+    this.consumeWhile(isAlphaNum);
     const value = this.c.slice(start);
-    const span = this.c.spanFrom(start);
 
     if (firstCh >= 'A' && firstCh <= 'Z') {
       // Uppercase-starting: check built-in constructors (True, False, None).
       // All other uppercase names are type/constructor names not in scope
       // until stage 4 (types).
       const kind = CONSTRUCTORS[value];
-      return kind !== undefined ? { kind, value, span } : this.error('L0001', span);
+      return kind !== undefined ? this.token(kind, start) : this.error('L0001', this.c.spanFrom(start));
     }
 
     const kind = KEYWORDS[value];
-    return kind !== undefined ? { kind, value, span } : { kind: 'SLOT', value, span };
+    return kind !== undefined ? this.token(kind, start) : this.token('SLOT', start);
   }
 
   private readNumber(): Token {
     const start = this.c.mark();
-    while (isDigit(this.c.peek())) {
-      this.c.advance();
-    }
+    this.consumeWhile(isDigit);
 
     // Float: peek() is '.', peek(1) confirms a digit follows.
     // We only consume the dot when we are certain — this keeps '3.method()'
     // valid in later sections where '.' is the member-access operator.
     if (this.c.peek() === '.' && isDigit(this.c.peek(1))) {
       this.c.advance(); // '.'
-      while (isDigit(this.c.peek())) {
-        this.c.advance();
-      }
+      this.consumeWhile(isDigit);
       if (isAlpha(this.c.peek())) {
-        while (isAlpha(this.c.peek()) || isDigit(this.c.peek())) {
-          this.c.advance();
-        }
+        this.consumeWhile(isAlphaNum);
         return this.error('L0002', this.c.spanFrom(start));
       }
-      const value = this.c.slice(start);
-      return { kind: 'FLOAT_LIT', value, span: this.c.spanFrom(start) };
+      return this.token('FLOAT_LIT', start);
     }
 
     if (isAlpha(this.c.peek())) {
-      while (isAlpha(this.c.peek()) || isDigit(this.c.peek())) {
-        this.c.advance();
-      }
+      this.consumeWhile(isAlphaNum);
       return this.error('L0002', this.c.spanFrom(start));
     }
 
-    const value = this.c.slice(start);
-    return { kind: 'INT_LIT', value, span: this.c.spanFrom(start) };
+    return this.token('INT_LIT', start);
   }
 
   private nextToken(): Token {
@@ -108,7 +103,7 @@ export class Lexer {
 
     if (this.c.atEnd()) {
       const start = this.c.mark();
-      return { kind: 'EOF', value: '', span: this.c.spanFrom(start) };
+      return this.token('EOF', start);
     }
 
     const ch = this.c.peek();
@@ -125,9 +120,7 @@ export class Lexer {
     if (ch === '.' && isDigit(this.c.peek(1))) {
       const start = this.c.mark();
       this.c.advance(); // '.'
-      while (isDigit(this.c.peek())) {
-        this.c.advance();
-      }
+      this.consumeWhile(isDigit);
       return this.error('L0002', this.c.spanFrom(start));
     }
 
@@ -135,29 +128,29 @@ export class Lexer {
     this.c.advance();
 
     switch (ch) {
-      case '+': return { kind: 'PLUS', value: '+', span: this.c.spanFrom(start) };
-      case '-': return { kind: 'MINUS', value: '-', span: this.c.spanFrom(start) };
-      case '*': return { kind: 'STAR', value: '*', span: this.c.spanFrom(start) };
-      case '/': return { kind: 'SLASH', value: '/', span: this.c.spanFrom(start) };
+      case '+': return this.token('PLUS', start);
+      case '-': return this.token('MINUS', start);
+      case '*': return this.token('STAR', start);
+      case '/': return this.token('SLASH', start);
       case '=':
-        if (this.c.match('=')) return { kind: 'EQ_EQ', value: '==', span: this.c.spanFrom(start) };
-        return { kind: 'EQUALS', value: '=', span: this.c.spanFrom(start) };
+        if (this.c.match('=')) return this.token('EQ_EQ', start);
+        return this.token('EQUALS', start);
       case '!':
         // Bare '!' has no meaning — negation is the word 'not' (§5), so
         // only '!=' is a valid token starting with '!'.
-        if (this.c.match('=')) return { kind: 'BANG_EQ', value: '!=', span: this.c.spanFrom(start) };
+        if (this.c.match('=')) return this.token('BANG_EQ', start);
         return this.error('L0001', this.c.spanFrom(start));
       case '<':
-        if (this.c.match('=')) return { kind: 'LT_EQ', value: '<=', span: this.c.spanFrom(start) };
-        return { kind: 'LT', value: '<', span: this.c.spanFrom(start) };
+        if (this.c.match('=')) return this.token('LT_EQ', start);
+        return this.token('LT', start);
       case '>':
-        if (this.c.match('=')) return { kind: 'GT_EQ', value: '>=', span: this.c.spanFrom(start) };
-        return { kind: 'GT', value: '>', span: this.c.spanFrom(start) };
-      case ';': return { kind: 'SEMICOLON', value: ';', span: this.c.spanFrom(start) };
-      case '(': return { kind: 'LPAREN', value: '(', span: this.c.spanFrom(start) };
-      case ')': return { kind: 'RPAREN', value: ')', span: this.c.spanFrom(start) };
-      case '{': return { kind: 'LBRACE', value: '{', span: this.c.spanFrom(start) };
-      case '}': return { kind: 'RBRACE', value: '}', span: this.c.spanFrom(start) };
+        if (this.c.match('=')) return this.token('GT_EQ', start);
+        return this.token('GT', start);
+      case ';': return this.token('SEMICOLON', start);
+      case '(': return this.token('LPAREN', start);
+      case ')': return this.token('RPAREN', start);
+      case '{': return this.token('LBRACE', start);
+      case '}': return this.token('RBRACE', start);
       default: return this.error('L0001', this.c.spanFrom(start));
     }
   }
