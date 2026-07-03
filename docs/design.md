@@ -427,10 +427,10 @@ Reserved words: `import`, `export`, `from`.
 
 A browser-based **canvas**. You open a code panel to write a program; a program can spawn new interactive panels onto the same canvas.
 
-**Program input — `args`.** Before any UI (or even functions), a program asks for typed values with an `args` preamble — a parenthesized, typed list at the very top:
+**Program input — `args`.** Before any UI (or even functions), a program asks for typed values with an `args` preamble — a parenthesized, typed list at the very top, terminated by a semicolon (which closes the clause, marking the end of the signature before the body begins):
 
 ```ascent
-args (age: Int, name: String)
+args (age: Int, name: String);
 
 "Hi ${name} — next year you'll be ${age + 1}"
 ```
