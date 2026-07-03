@@ -19,6 +19,9 @@ export type TokenKind =
   | 'KW_IF'      // the keyword if — starts a conditional expression
   | 'KW_ELSE'    // the keyword else — the alternative branch of an if
   | 'KW_WHILE'   // the keyword while — starts a condition loop
+  | 'KW_ARGS'    // the keyword args — declares the program's typed inputs
+  | 'TYPE_NAME'  // a built-in type name: Int, Float, Bool, String
+  | 'COLON'      // ':' — separates a name from its type annotation
   | 'EQUALS'     // '=' — used in slot declarations and updates
   | 'EQ_EQ'      // '==' — structural equality
   | 'BANG_EQ'    // '!=' — structural inequality

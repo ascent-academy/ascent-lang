@@ -16,6 +16,9 @@ export const ERRORS: ErrorEntry[] = [
   { code: 'S0006', name: 'expected-test-paren', category: 'syntactic', summary: "An '(' was expected here to start the condition." },
   { code: 'S0007', name: 'expected-block', category: 'syntactic', summary: "A block ('{ … }') was expected here." },
   { code: 'S0008', name: 'chained-comparison', category: 'syntactic', summary: "Comparisons don't chain — 'a < b < c' isn't valid. Group with parentheses instead." },
+  { code: 'S0009', name: 'expected-colon', category: 'syntactic', summary: "A ':' was expected between the argument name and its type." },
+  { code: 'S0010', name: 'expected-type', category: 'syntactic', summary: "A type name was expected here. Valid argument types are Int, Float, Bool, and String." },
+  { code: 'S0011', name: 'expected-semicolon', category: 'syntactic', summary: "A ';' was expected here." },
 ];
 
 export const byCode = new Map(ERRORS.map(e => [e.code, e]));

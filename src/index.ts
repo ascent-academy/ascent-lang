@@ -5,10 +5,77 @@ import { Lexer } from './lexer/index.js';
 import { Parser } from './parser.js';
 import { formatStmt, formatValue } from './printer.js';
 import { executeStmt, Environment, RuntimeValue } from './interpreter.js';
+import type { ArgDef } from './ast.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
+
+// Parses '--name value' pairs from argv into a name→raw-string map.
+const parseCliFlags = (argv: string[]): Map<string, string> => {
+  const flags = new Map<string, string>();
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    if (arg.startsWith('--')) {
+      const name = arg.slice(2);
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        flags.set(name, next);
+        i++;
+      } else {
+        flags.set(name, 'true'); // bare flag → boolean
+      }
+    }
+  }
+  return flags;
+};
+
+// Converts raw CLI strings to RuntimeValues according to each ArgDef,
+// then declares them as fixed slots. Exits on missing or ill-typed args.
+const bindArgs = (argDefs: ArgDef[], cliFlags: Map<string, string>, env: Environment): void => {
+  for (const def of argDefs) {
+    const raw = cliFlags.get(def.name);
+    if (raw === undefined) {
+      process.stderr.write(`Missing argument: --${def.name} (${def.type})\n`);
+      process.exit(1);
+    }
+
+    let value: RuntimeValue;
+    switch (def.type) {
+      case 'Int': {
+        if (!/^-?\d+$/.test(raw)) {
+          process.stderr.write(`--${def.name}: expected Int, got '${raw}'\n`);
+          process.exit(1);
+        }
+        value = { type: 'Int', value: BigInt(raw) };
+        break;
+      }
+      case 'Float': {
+        const n = Number(raw);
+        if (isNaN(n)) {
+          process.stderr.write(`--${def.name}: expected Float, got '${raw}'\n`);
+          process.exit(1);
+        }
+        value = { type: 'Float', value: n };
+        break;
+      }
+      case 'Bool': {
+        if (raw !== 'true' && raw !== 'false') {
+          process.stderr.write(`--${def.name}: expected Bool (true or false), got '${raw}'\n`);
+          process.exit(1);
+        }
+        value = { type: 'Bool', value: raw === 'true' };
+        break;
+      }
+      case 'String': {
+        value = { type: 'String', value: raw };
+        break;
+      }
+    }
+
+    env.declare(def.name, value, false);
+  }
+};
 
 const runFile = async (filePath: string): Promise<void> => {
   if (!filePath.endsWith('.asc')) {
@@ -38,6 +105,10 @@ const runFile = async (filePath: string): Promise<void> => {
   if (parseResult.program === null) return;
 
   const env = new Environment();
+  if (parseResult.program.args.length > 0) {
+    bindArgs(parseResult.program.args, parseCliFlags(process.argv.slice(3)), env);
+  }
+
   let result: RuntimeValue = { type: 'Done' };
   for (const stmt of parseResult.program.stmts) {
     try {

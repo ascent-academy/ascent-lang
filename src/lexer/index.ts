@@ -146,6 +146,7 @@ export class Lexer {
         if (this.c.match('=')) return this.token('GT_EQ', start);
         return this.token('GT', start);
       case '"': return this.readString(start);
+      case ':': return this.token('COLON', start);
       case ',': return this.token('COMMA', start);
       case ';': return this.token('SEMICOLON', start);
       case '(': return this.token('LPAREN', start);

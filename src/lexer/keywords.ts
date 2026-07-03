@@ -8,6 +8,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   if: 'KW_IF',
   else: 'KW_ELSE',
   while: 'KW_WHILE',
+  args: 'KW_ARGS',
 };
 
 // Built-in constructors: uppercase names that are part of the language
@@ -20,12 +21,22 @@ export const CONSTRUCTORS: Record<string, TokenKind> = {
   Done: 'DONE_LIT',
 };
 
+// Built-in type names: recognised as TYPE_NAME tokens so the parser can
+// use them in type annotations (e.g. args declarations). Other uppercase
+// names that are neither constructors nor type names are still L0001.
+const BUILTIN_TYPES: Record<string, TokenKind> = {
+  Int: 'TYPE_NAME',
+  Float: 'TYPE_NAME',
+  Bool: 'TYPE_NAME',
+  String: 'TYPE_NAME',
+};
+
 // Returns the token kind for a scanned word, or null for an unrecognised
 // uppercase name (the caller must emit L0001). Lowercase words that are not
 // keywords resolve to SLOT rather than null.
 export function resolveWord(value: string, firstCh: string): TokenKind | null {
   if (firstCh >= 'A' && firstCh <= 'Z') {
-    return CONSTRUCTORS[value] ?? null;
+    return CONSTRUCTORS[value] ?? BUILTIN_TYPES[value] ?? null;
   }
   return KEYWORDS[value] ?? 'SLOT';
 }

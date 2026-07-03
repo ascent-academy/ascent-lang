@@ -1,6 +1,6 @@
 import type { Token, TokenKind } from './token.js';
 import type { ErrorMarker } from './errors/marker.js';
-import type { Expr, Statement, Program, Block, If, BinaryOp } from './ast.js';
+import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;
@@ -453,7 +453,88 @@ export class Parser {
     return { kind: 'expr', expr, span: expr.span };
   }
 
+  // 'name: Type' — one entry in an args declaration.
+  private parseArgDef(): ArgDef | null {
+    const nameTok = this.peek();
+    if (nameTok.kind !== 'SLOT') {
+      this.errorMarkers.push({ code: 'S0003', span: nameTok.span });
+      return null;
+    }
+    this.advance(); // consume name
+
+    const colon = this.peek();
+    if (colon.kind !== 'COLON') {
+      this.errorMarkers.push({ code: 'S0009', span: colon.span });
+      return null;
+    }
+    this.advance(); // consume ':'
+
+    const typeTok = this.peek();
+    if (typeTok.kind !== 'TYPE_NAME') {
+      this.errorMarkers.push({ code: 'S0010', span: typeTok.span });
+      return null;
+    }
+    this.advance(); // consume type name
+
+    return { name: nameTok.value, type: typeTok.value as ArgType };
+  }
+
+  // 'args (name: Type, …)' — the program's typed input declaration.
+  private parseArgs(): ArgDef[] | null {
+    this.advance(); // consume 'args'
+
+    const lparen = this.peek();
+    if (lparen.kind !== 'LPAREN') {
+      this.errorMarkers.push({ code: 'S0006', span: lparen.span });
+      return null;
+    }
+    this.advance(); // consume '('
+
+    const args: ArgDef[] = [];
+
+    if (this.peek().kind !== 'RPAREN') {
+      const first = this.parseArgDef();
+      if (first === null) return null;
+      args.push(first);
+
+      while (this.peek().kind === 'COMMA') {
+        this.advance(); // consume ','
+        const arg = this.parseArgDef();
+        if (arg === null) return null;
+        args.push(arg);
+      }
+    }
+
+    const rparen = this.peek();
+    if (rparen.kind !== 'RPAREN') {
+      this.errorMarkers.push({ code: 'S0001', span: rparen.span });
+      return null;
+    }
+    this.advance(); // consume ')'
+
+    return args;
+  }
+
   private parseProgram(): Program | null {
+    // Skip any leading semicolons before the optional args declaration.
+    while (this.peek().kind === 'SEMICOLON') {
+      this.advance();
+    }
+
+    let args: ArgDef[] = [];
+    if (this.peek().kind === 'KW_ARGS') {
+      const result = this.parseArgs();
+      if (result === null) return null;
+      args = result;
+
+      const semi = this.peek();
+      if (semi.kind !== 'SEMICOLON') {
+        this.errorMarkers.push({ code: 'S0011', span: semi.span });
+        return null;
+      }
+      this.advance(); // consume ';'
+    }
+
     const stmts: Statement[] = [];
 
     while (this.peek().kind !== 'EOF') {
@@ -475,7 +556,7 @@ export class Parser {
       }
     }
 
-    return { stmts };
+    return { args, stmts };
   }
 
   public parse(): ParseResult {

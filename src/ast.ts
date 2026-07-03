@@ -49,4 +49,7 @@ export type Statement = (
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
 );
 
-export type Program = { stmts: Statement[] };
+export type ArgType = 'Int' | 'Float' | 'Bool' | 'String';
+export type ArgDef = { name: string; type: ArgType };
+
+export type Program = { args: ArgDef[]; stmts: Statement[] };
