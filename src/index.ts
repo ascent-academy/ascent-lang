@@ -4,7 +4,8 @@ import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { Parser } from './parser.js';
 import { typecheck } from './typechecker.js';
-import { formatStmt, formatValue } from './printer.js';
+import { formatValue } from './printer.js';
+import { formatTypedStmt } from './typed-printer.js';
 import { executeStmt, executeProgram, Environment, RuntimeValue } from './interpreter.js';
 import type { ArgDef } from './ast.js';
 
@@ -169,7 +170,7 @@ const runRepl = async (): Promise<void> => {
           // typedProgram is non-null (every statement type-checked).
           const typedStmts = typeResult.typedProgram!.stmts;
           for (let i = 0; i < typedStmts.length; i++) {
-            process.stdout.write(formatStmt(parseResult.program.stmts[i]!) + '\n');
+            process.stdout.write(formatTypedStmt(typedStmts[i]!) + '\n');
             try {
               const result = executeStmt(typedStmts[i]!, env);
               process.stdout.write(chalk.dim('=> ') + formatValue(result) + '\n');
