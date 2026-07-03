@@ -119,7 +119,73 @@ lexer stops doing column arithmetic.
 - **Watch:** the uppercase-not-a-constructor path must still yield `L0001`, and
   lowercase-not-a-keyword must still yield `SLOT`.
 
-## Stage 6 (optional) — Lock it down with a test file
+## Stage 6 — Untangle `readNumber` (behaviour-sensitive — decide the approach)
+
+**Goal:** collapse the duplicated trailing-alpha check and make the number rule
+read like its grammar. Unlike Stages 1–5 this touches the one method where a
+careless edit *changes which diagnostic fires*, so it gets its own stage, its
+own edge-case checklist, and a design decision to make first.
+
+**The tangle today.** `readNumber` writes the "a letter may not immediately
+follow a number" rule *twice* — once after the fractional digits and once after
+the integer digits — and the sibling `.5 → L0002` case lives separately up in
+`nextToken`. Three spots, one rule.
+
+**Recommended approach — *maximal munch, then classify*.** Scan the whole
+numeric run first, decide int-vs-float by whether a `.`+digit was consumed, then
+apply the trailing-letter check **once** at the end:
+
+```ts
+private readNumber(): Token {
+  const start = this.c.mark();
+  this.consumeWhile(isDigit);
+
+  let kind: TokenKind = 'INT_LIT';
+  if (this.c.peek() === '.' && isDigit(this.c.peek(1))) {
+    this.c.advance();              // '.'
+    this.consumeWhile(isDigit);
+    kind = 'FLOAT_LIT';
+  }
+
+  // A number may not be glued to a letter: 123abc / 1.5x are one malformed
+  // token, not a number followed by a name.
+  if (isAlpha(this.c.peek())) {
+    this.consumeWhile(isAlphaNum);
+    return this.error('L0002', this.c.spanFrom(start));
+  }
+
+  return this.token(kind, start);
+}
+```
+
+This is **behaviour-preserving** — I've walked the edges (`42`, `3.14`,
+`123abc`, `1.5x`, `3.`, `3.method`, `1.5.3`) and each yields the same token and
+same code as today. The dot is still only consumed with a digit on both sides,
+so `3.` keeps the `.` for a later token.
+
+**The open sub-decision — what to do with the leading-dot case (`.5`).** Two
+choices; this is the part I'd have you pick:
+
+- **A (recommended, smallest): leave `.5` in `nextToken`.** The dispatch already
+  routes on the first character; a number starting with `.` is genuinely a
+  dispatch concern. `readNumber` stays "starts with a digit". Zero behaviour
+  change, three spots become two.
+- **B (fully unified): let `readNumber` own leading dots too.** Route `.`+digit
+  from `nextToken` into `readNumber` and have it accept an optional leading dot.
+  One method owns every number-shaped lexeme — but it re-opens the "is `.5` a
+  valid literal" question (today it's deliberately `L0002`), so it risks turning
+  a structural refactor into a **grammar change**. Only take this if you also
+  want to revisit that rule.
+
+Recommendation: **A**. It gets the real win (the single trailing-alpha check)
+without touching the grammar. Keep B on the table only if you later decide
+leading-dot floats should lex differently.
+
+- **Depends on:** Stage 1 (`isAlphaNum`), Stage 4 (`consumeWhile`, `token`).
+- **Done when:** the trailing-letter rule appears exactly once and the number
+  regression checks below are unchanged.
+
+## Stage 7 (optional) — Lock it down with a test file
 
 **Goal:** turn the regression transcripts below into an actual test so future
 edits can't silently change the token stream.
@@ -137,7 +203,8 @@ identical. Chosen to cover every branch the refactor touches.
 
 - `42` → `INT_LIT`, `EOF`
 - `3.14` → `FLOAT_LIT`
-- `123abc` → `L0002`; `3.` → keeps `.` unconsumed (int + later token), `.5` → `L0002`
+- `123abc` → `L0002`; `1.5x` → `L0002`; `3.` → `INT_LIT` `3` then `.` as a later
+  token; `3.method` → `INT_LIT` `3` then `.`…; `1.5.3` → `FLOAT_LIT` `1.5` then `.3`; `.5` → `L0002`
 - `fix mut if else while div mod` → the seven keyword kinds
 - `True False None Done` → `BOOL_LIT`/`NONE_LIT`/`DONE_LIT`; `Foo` → `L0001`
 - `x _y a1` → `SLOT`
