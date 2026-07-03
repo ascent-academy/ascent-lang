@@ -54,3 +54,8 @@
   name: 'expected-semicolon'
   category: 'syntactic'
   summary: "A ';' was expected here."
+
+- code: 'S0012'
+  name: 'expected-method-name'
+  category: 'syntactic'
+  summary: "A method name (lowercase identifier) was expected after '.'."

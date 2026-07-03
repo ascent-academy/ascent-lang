@@ -85,6 +85,56 @@ export class Parser {
     let chained = false;
 
     while (true) {
+      // Method call: expr.method(args) — DOT binds tighter than any binary op.
+      if (this.peek().kind === 'DOT') {
+        const DOT_BP = 4;
+        if (DOT_BP < minBp) break;
+        this.advance(); // consume '.'
+
+        const methodTok = this.peek();
+        if (methodTok.kind !== 'SLOT') {
+          this.errorMarkers.push({ code: 'S0012', span: methodTok.span });
+          return null;
+        }
+        this.advance(); // consume method name
+
+        if (this.peek().kind !== 'LPAREN') {
+          this.errorMarkers.push({ code: 'S0001', span: this.peek().span });
+          return null;
+        }
+        this.advance(); // consume '('
+
+        const args: Expr[] = [];
+        if (this.peek().kind !== 'RPAREN') {
+          const first = this.parseExpr();
+          if (first === null) return null;
+          args.push(first);
+
+          while (this.peek().kind === 'COMMA') {
+            this.advance(); // consume ','
+            const arg = this.parseExpr();
+            if (arg === null) return null;
+            args.push(arg);
+          }
+        }
+
+        const rparen = this.peek();
+        if (rparen.kind !== 'RPAREN') {
+          this.errorMarkers.push({ code: 'S0001', span: rparen.span });
+          return null;
+        }
+        this.advance(); // consume ')'
+
+        left = {
+          kind: 'methodCall',
+          receiver: left,
+          method: methodTok.value,
+          args,
+          span: { start: left.span.start, end: rparen.span.end },
+        };
+        continue;
+      }
+
       const infix = Parser.INFIX_OPS[this.peek().kind];
       if (infix === undefined || infix.bp < minBp) {
         break;

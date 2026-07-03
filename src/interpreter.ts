@@ -97,6 +97,11 @@ export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
       if (fn === undefined) throw new Error(`N0001: undefined function '${expr.callee}'`);
       return fn(expr.args.map(arg => evaluateExpr(arg, env)));
     }
+    case 'methodCall': {
+      const receiver = evaluateExpr(expr.receiver, env);
+      const args = expr.args.map(arg => evaluateExpr(arg, env));
+      return evalMethodCall(receiver, expr.method, args);
+    }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);
       if (operand.type === 'Int') return { type: 'Int', value: -operand.value };
@@ -176,6 +181,73 @@ export const executeStmt = (stmt: Statement, env: Environment): RuntimeValue => 
       }
       return { type: 'Done' };
     }
+  }
+};
+
+const evalIntMethod = (receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
+  const requireArity = (n: number) => {
+    if (args.length !== n) throw new Error(`T0002: Int.${method}() takes ${n} argument(s), got ${args.length}`);
+  };
+  switch (method) {
+    case 'toStr': {
+      requireArity(0);
+      return { type: 'String', value: String(receiver.value) };
+    }
+    case 'toFloat': {
+      requireArity(0);
+      return { type: 'Float', value: Number(receiver.value) };
+    }
+    case 'abs': {
+      requireArity(0);
+      return { type: 'Int', value: receiver.value < 0n ? -receiver.value : receiver.value };
+    }
+    default:
+      throw new Error(`T0001: Int has no method '${method}'`);
+  }
+};
+
+const evalFloatMethod = (receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
+  const requireArity = (n: number) => {
+    if (args.length !== n) throw new Error(`T0002: Float.${method}() takes ${n} argument(s), got ${args.length}`);
+  };
+  switch (method) {
+    case 'toStr': {
+      requireArity(0);
+      return { type: 'String', value: String(receiver.value) };
+    }
+    case 'toInt': {
+      requireArity(0);
+      return { type: 'Int', value: BigInt(Math.trunc(receiver.value)) };
+    }
+    case 'abs': {
+      requireArity(0);
+      return { type: 'Float', value: Math.abs(receiver.value) };
+    }
+    case 'min': {
+      requireArity(1);
+      const other = args[0]!;
+      if (other.type !== 'Float' && other.type !== 'Int') throw new Error(`T0001: Float.min() expects a numeric argument, got ${other.type}`);
+      const r = other.type === 'Int' ? Number(other.value) : other.value;
+      return { type: 'Float', value: Math.min(receiver.value, r) };
+    }
+    case 'max': {
+      requireArity(1);
+      const other = args[0]!;
+      if (other.type !== 'Float' && other.type !== 'Int') throw new Error(`T0001: Float.max() expects a numeric argument, got ${other.type}`);
+      const r = other.type === 'Int' ? Number(other.value) : other.value;
+      return { type: 'Float', value: Math.max(receiver.value, r) };
+    }
+    default:
+      throw new Error(`T0001: Float has no method '${method}'`);
+  }
+};
+
+const evalMethodCall = (receiver: RuntimeValue, method: string, args: RuntimeValue[]): RuntimeValue => {
+  switch (receiver.type) {
+    case 'Int': return evalIntMethod(receiver, method, args);
+    case 'Float': return evalFloatMethod(receiver, method, args);
+    default:
+      throw new Error(`T0001: ${receiver.type} has no methods`);
   }
 };
 

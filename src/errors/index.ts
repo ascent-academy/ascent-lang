@@ -19,6 +19,7 @@ export const ERRORS: ErrorEntry[] = [
   { code: 'S0009', name: 'expected-colon', category: 'syntactic', summary: "A ':' was expected between the argument name and its type." },
   { code: 'S0010', name: 'expected-type', category: 'syntactic', summary: "A type name was expected here. Valid argument types are Int, Float, Bool, and String." },
   { code: 'S0011', name: 'expected-semicolon', category: 'syntactic', summary: "A ';' was expected here." },
+  { code: 'S0012', name: 'expected-method-name', category: 'syntactic', summary: "A method name (lowercase identifier) was expected after '.'." },
 ];
 
 export const byCode = new Map(ERRORS.map(e => [e.code, e]));

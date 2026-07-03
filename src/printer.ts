@@ -29,6 +29,13 @@ const exprLines = (expr: Expr): string[] => {
       );
       return [`${chalk.cyan('Call')} ${chalk.green(expr.callee)}`, ...argLines];
     }
+    case 'methodCall': {
+      const children = [expr.receiver, ...expr.args];
+      const childLines = children.flatMap((child, i) =>
+        branch(exprLines(child), i === children.length - 1)
+      );
+      return [`${chalk.cyan('MethodCall')} ${chalk.green('.' + expr.method)}`, ...childLines];
+    }
     case 'unary': {
       const operand = branch(exprLines(expr.operand), true);
       return [`${chalk.cyan('Unary')} ${chalk.magenta(expr.op)}`, ...operand];
