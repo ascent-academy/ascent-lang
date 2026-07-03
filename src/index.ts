@@ -1,6 +1,6 @@
 import { createInterface } from 'node:readline/promises';
 import chalk from 'chalk';
-import { Lexer } from './lexer.js';
+import { Lexer } from './lexer/index.js';
 import { Parser } from './parser.js';
 import { formatStmt, formatValue } from './printer.js';
 import { executeStmt, Environment } from './interpreter.js';
