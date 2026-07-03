@@ -1,15 +1,59 @@
 import { createInterface } from 'node:readline/promises';
+import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { Parser } from './parser.js';
 import { formatStmt, formatValue } from './printer.js';
-import { executeStmt, Environment } from './interpreter.js';
+import { executeStmt, Environment, RuntimeValue } from './interpreter.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
 
-const main = async (): Promise<void> => {
+const runFile = async (filePath: string): Promise<void> => {
+  if (!filePath.endsWith('.asc')) {
+    process.stderr.write(`Expected a .asc file, got '${filePath}'\n`);
+    process.exit(1);
+  }
+
+  let src: string;
+  try {
+    src = await readFile(filePath, 'utf8');
+  } catch {
+    process.stderr.write(`Cannot read file '${filePath}'\n`);
+    process.exit(1);
+  }
+
+  const lexResult = new Lexer(src).tokenize();
+  const parseResult = new Parser(lexResult.tokens).parse();
+
+  const errors = [...lexResult.errorMarkers, ...parseResult.errorMarkers];
+  if (errors.length > 0) {
+    for (const marker of errors) {
+      process.stderr.write(chalk.red(`[${marker.code}]`) + '\n');
+    }
+    process.exit(1);
+  }
+
+  if (parseResult.program === null) return;
+
+  const env = new Environment();
+  let result: RuntimeValue = { type: 'Done' };
+  for (const stmt of parseResult.program.stmts) {
+    try {
+      result = executeStmt(stmt, env);
+    } catch (e) {
+      process.stderr.write(chalk.red(String(e)) + '\n');
+      process.exit(1);
+    }
+  }
+
+  if (result.type !== 'Done') {
+    process.stdout.write(formatValue(result) + '\n');
+  }
+};
+
+const runRepl = async (): Promise<void> => {
   process.stdout.write(chalk.bold.green('Ascent') + ' REPL\n');
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -57,6 +101,15 @@ const main = async (): Promise<void> => {
     // stdin closed (Ctrl+D)
   } finally {
     rl.close();
+  }
+};
+
+const main = async (): Promise<void> => {
+  const filePath = process.argv[2];
+  if (filePath !== undefined) {
+    await runFile(filePath);
+  } else {
+    await runRepl();
   }
 };
 
