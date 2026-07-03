@@ -21,6 +21,12 @@ const exprLines = (expr: Expr): string[] => {
     }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];
+    case 'call': {
+      const argLines = expr.args.flatMap((arg, i) =>
+        branch(exprLines(arg), i === expr.args.length - 1)
+      );
+      return [`${chalk.cyan('Call')} ${chalk.green(expr.callee)}`, ...argLines];
+    }
     case 'unary': {
       const operand = branch(exprLines(expr.operand), true);
       return [`${chalk.cyan('Unary')} ${chalk.magenta(expr.op)}`, ...operand];

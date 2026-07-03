@@ -20,7 +20,7 @@ export type AssignResult = 'ok' | 'immutable' | 'undeclared';
 export class Environment {
   private readonly vars = new Map<string, Binding>();
 
-  public constructor(private readonly parent: Environment | null = null) {}
+  public constructor(private readonly parent: Environment | null = null) { }
 
   public get(name: string): RuntimeValue | undefined {
     return this.vars.get(name)?.value ?? this.parent?.get(name);
@@ -67,6 +67,17 @@ export const evaluateLiteral = (literal: Literal): RuntimeValue => {
   }
 };
 
+type Builtin = (args: RuntimeValue[]) => RuntimeValue;
+
+const BUILTINS: Record<string, Builtin> = {
+  floor: (args) => {
+    if (args.length !== 1) throw new Error(`floor expects 1 argument, got ${args.length}`);
+    const arg = args[0]!;
+    if (arg.type !== 'Float') throw new Error(`floor expects Float, got ${arg.type}`);
+    return { type: 'Float', value: Math.floor(arg.value) };
+  },
+};
+
 export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
     case 'literal':
@@ -77,6 +88,11 @@ export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
         throw new Error(`N0001: undefined slot '${expr.name}'`);
       }
       return value;
+    }
+    case 'call': {
+      const fn = BUILTINS[expr.callee];
+      if (fn === undefined) throw new Error(`N0001: undefined function '${expr.callee}'`);
+      return fn(expr.args.map(arg => evaluateExpr(arg, env)));
     }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);

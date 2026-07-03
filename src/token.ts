@@ -25,6 +25,7 @@ export type TokenKind =
   | 'LT_EQ'      // '<='
   | 'GT'         // '>'
   | 'GT_EQ'      // '>='
+  | 'COMMA'      // ','
   | 'SEMICOLON'  // ';' — statement terminator
   | 'LPAREN'     // '('
   | 'RPAREN'     // ')'

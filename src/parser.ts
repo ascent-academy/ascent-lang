@@ -174,11 +174,10 @@ export class Parser {
 
     if (tok.kind === 'SLOT') {
       this.advance();
-      return {
-        kind: 'slot',
-        name: tok.value,
-        span: tok.span
-      };
+      if (this.peek().kind === 'LPAREN') {
+        return this.parseCall(tok);
+      }
+      return { kind: 'slot', name: tok.value, span: tok.span };
     }
 
     if (tok.kind === 'LPAREN') {
@@ -216,6 +215,39 @@ export class Parser {
 
     this.errorMarkers.push({ code: 'S0002', span: tok.span });
     return null;
+  }
+
+  // 'name(arg, arg, …)' — callee token already consumed by parseAtom.
+  private parseCall(callee: Token): Expr | null {
+    this.advance(); // consume '('
+    const args: Expr[] = [];
+
+    if (this.peek().kind !== 'RPAREN') {
+      const first = this.parseExpr();
+      if (first === null) return null;
+      args.push(first);
+
+      while (this.peek().kind === 'COMMA') {
+        this.advance(); // consume ','
+        const arg = this.parseExpr();
+        if (arg === null) return null;
+        args.push(arg);
+      }
+    }
+
+    const rparen = this.peek();
+    if (rparen.kind !== 'RPAREN') {
+      this.errorMarkers.push({ code: 'S0001', span: rparen.span });
+      return null;
+    }
+    this.advance(); // consume ')'
+
+    return {
+      kind: 'call',
+      callee: callee.value,
+      args,
+      span: { start: callee.span.start, end: rparen.span.end },
+    };
   }
 
   // A block is '{' stmt* '}' — every statement inside follows the same

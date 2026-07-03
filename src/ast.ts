@@ -30,6 +30,7 @@ export type If = {
 export type Expr = (
   | Literal
   | { kind: 'slot'; name: string; span: Span }
+  | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
   | Block

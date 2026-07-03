@@ -115,6 +115,7 @@ export class Lexer {
       case '>':
         if (this.c.match('=')) return this.token('GT_EQ', start);
         return this.token('GT', start);
+      case ',': return this.token('COMMA', start);
       case ';': return this.token('SEMICOLON', start);
       case '(': return this.token('LPAREN', start);
       case ')': return this.token('RPAREN', start);
