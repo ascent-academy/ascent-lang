@@ -59,3 +59,8 @@
   name: 'expected-method-name'
   category: 'syntactic'
   summary: "A method name (lowercase identifier) was expected after '.'."
+
+- code: 'S0013'
+  name: 'unclosed-bracket'
+  category: 'syntactic'
+  summary: "An opening '[' has no matching ']'."

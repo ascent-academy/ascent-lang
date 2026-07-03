@@ -36,6 +36,20 @@ const exprLines = (expr: Expr): string[] => {
       );
       return [`${chalk.cyan('MethodCall')} ${chalk.green('.' + expr.method)}`, ...childLines];
     }
+    case 'list': {
+      if (expr.elements.length === 0) {
+        return [`${chalk.cyan('List')} ${chalk.dim('[]')}`];
+      }
+      const elementLines = expr.elements.flatMap((el, i) =>
+        branch(exprLines(el), i === expr.elements.length - 1)
+      );
+      return [`${chalk.cyan('List')}`, ...elementLines];
+    }
+    case 'index': {
+      const listLines  = branch(exprLines(expr.list),  false);
+      const indexLines = branch(exprLines(expr.index), true);
+      return [`${chalk.cyan('Index')}`, ...listLines, ...indexLines];
+    }
     case 'unary': {
       const operand = branch(exprLines(expr.operand), true);
       return [`${chalk.cyan('Unary')} ${chalk.magenta(expr.op)}`, ...operand];
@@ -112,6 +126,10 @@ export const formatValue = (value: RuntimeValue): string => {
       return chalk.yellow(value.value ? 'True' : 'False');
     case 'String':
       return chalk.green(JSON.stringify(value.value));
+    case 'List': {
+      const items = value.elements.map(formatValue).join(', ');
+      return chalk.yellow(`[${items}]`);
+    }
     case 'None':
       return chalk.yellow('None');
     case 'Done':

@@ -36,6 +36,8 @@ export type TokenKind =
   | 'RPAREN'     // ')'
   | 'LBRACE'     // '{'
   | 'RBRACE'     // '}'
+  | 'LBRACKET'   // '[' — list literal open / index open
+  | 'RBRACKET'   // ']' — list literal close / index close
   | 'ERROR'      // a character or run the lexer couldn't recognise
   | 'EOF';       // the sentinel that marks the end of source
 

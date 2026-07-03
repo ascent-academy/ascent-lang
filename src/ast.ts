@@ -33,6 +33,8 @@ export type Expr = (
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
+  | { kind: 'list'; elements: Expr[]; span: Span }
+  | { kind: 'index'; list: Expr; index: Expr; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
   | Block

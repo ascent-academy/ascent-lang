@@ -154,6 +154,8 @@ export class Lexer {
       case ')': return this.token('RPAREN', start);
       case '{': return this.token('LBRACE', start);
       case '}': return this.token('RBRACE', start);
+      case '[': return this.token('LBRACKET', start);
+      case ']': return this.token('RBRACKET', start);
       default: return this.error('L0001', this.c.spanFrom(start));
     }
   }

@@ -135,6 +135,31 @@ export class Parser {
         continue;
       }
 
+      // Index access: expr[index] — same binding power as method calls.
+      if (this.peek().kind === 'LBRACKET') {
+        const INDEX_BP = 4;
+        if (INDEX_BP < minBp) break;
+        this.advance(); // consume '['
+
+        const index = this.parseExpr();
+        if (index === null) return null;
+
+        const rbracket = this.peek();
+        if (rbracket.kind !== 'RBRACKET') {
+          this.errorMarkers.push({ code: 'S0013', span: rbracket.span });
+          return null;
+        }
+        this.advance(); // consume ']'
+
+        left = {
+          kind: 'index',
+          list: left,
+          index,
+          span: { start: left.span.start, end: rbracket.span.end },
+        };
+        continue;
+      }
+
       const infix = Parser.INFIX_OPS[this.peek().kind];
       if (infix === undefined || infix.bp < minBp) {
         break;
@@ -260,6 +285,10 @@ export class Parser {
       return { kind: 'unary', op: '-', operand, span: { start, end: operand.span.end } };
     }
 
+    if (tok.kind === 'LBRACKET') {
+      return this.parseList();
+    }
+
     if (tok.kind === 'LBRACE') {
       return this.parseBlock();
     }
@@ -303,6 +332,35 @@ export class Parser {
       args,
       span: { start: callee.span.start, end: rparen.span.end },
     };
+  }
+
+  // '[' expr, expr, … ']' — list literal. Already consumed '[' in parseAtom.
+  private parseList(): Expr | null {
+    const openTok = this.advance(); // consume '['
+    const elements: Expr[] = [];
+
+    if (this.peek().kind !== 'RBRACKET') {
+      const first = this.parseExpr();
+      if (first === null) return null;
+      elements.push(first);
+
+      while (this.peek().kind === 'COMMA') {
+        this.advance(); // consume ','
+        if (this.peek().kind === 'RBRACKET') break; // trailing comma
+        const el = this.parseExpr();
+        if (el === null) return null;
+        elements.push(el);
+      }
+    }
+
+    const closeTok = this.peek();
+    if (closeTok.kind !== 'RBRACKET') {
+      this.errorMarkers.push({ code: 'S0013', span: closeTok.span });
+      return null;
+    }
+    this.advance(); // consume ']'
+
+    return { kind: 'list', elements, span: { start: openTok.span.start, end: closeTok.span.end } };
   }
 
   // A block is '{' stmt* '}' — every statement inside follows the same

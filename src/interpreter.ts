@@ -5,6 +5,7 @@ export type RuntimeValue = (
   | { type: 'Float'; value: number }
   | { type: 'Bool'; value: boolean }
   | { type: 'String'; value: string }
+  | { type: 'List'; elements: RuntimeValue[] }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -101,6 +102,19 @@ export const evaluateExpr = (expr: Expr, env: Environment): RuntimeValue => {
       const receiver = evaluateExpr(expr.receiver, env);
       const args = expr.args.map(arg => evaluateExpr(arg, env));
       return evalMethodCall(receiver, expr.method, args);
+    }
+    case 'list':
+      return { type: 'List', elements: expr.elements.map(e => evaluateExpr(e, env)) };
+    case 'index': {
+      const list = evaluateExpr(expr.list, env);
+      const idx  = evaluateExpr(expr.index, env);
+      if (list.type !== 'List') throw new Error(`'[]' requires a List, got ${list.type}`);
+      if (idx.type !== 'Int')   throw new Error(`list index must be Int, got ${idx.type}`);
+      const i = Number(idx.value);
+      if (i < 0 || i >= list.elements.length) {
+        throw new Error(`index ${i} is out of bounds (length ${list.elements.length})`);
+      }
+      return list.elements[i]!;
     }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);
@@ -242,12 +256,49 @@ const evalFloatMethod = (receiver: Extract<RuntimeValue, { type: 'Float' }>, met
   }
 };
 
+const evalListMethod = (receiver: Extract<RuntimeValue, { type: 'List' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
+  const requireArity = (n: number) => {
+    if (args.length !== n) throw new Error(`List.${method}() takes ${n} argument(s), got ${args.length}`);
+  };
+  switch (method) {
+    case 'length': {
+      requireArity(0);
+      return { type: 'Int', value: BigInt(receiver.elements.length) };
+    }
+    case 'isEmpty': {
+      requireArity(0);
+      return { type: 'Bool', value: receiver.elements.length === 0 };
+    }
+    case 'append': {
+      requireArity(1);
+      return { type: 'List', elements: [...receiver.elements, args[0]!] };
+    }
+    case 'prepend': {
+      requireArity(1);
+      return { type: 'List', elements: [args[0]!, ...receiver.elements] };
+    }
+    case 'reverse': {
+      requireArity(0);
+      return { type: 'List', elements: [...receiver.elements].reverse() };
+    }
+    case 'concat': {
+      requireArity(1);
+      const other = args[0]!;
+      if (other.type !== 'List') throw new Error(`List.concat() expects a List argument, got ${other.type}`);
+      return { type: 'List', elements: [...receiver.elements, ...other.elements] };
+    }
+    default:
+      throw new Error(`List has no method '${method}'`);
+  }
+};
+
 const evalMethodCall = (receiver: RuntimeValue, method: string, args: RuntimeValue[]): RuntimeValue => {
   switch (receiver.type) {
-    case 'Int': return evalIntMethod(receiver, method, args);
+    case 'Int':   return evalIntMethod(receiver, method, args);
     case 'Float': return evalFloatMethod(receiver, method, args);
+    case 'List':  return evalListMethod(receiver, method, args);
     default:
-      throw new Error(`T0001: ${receiver.type} has no methods`);
+      throw new Error(`${receiver.type} has no methods`);
   }
 };
 
