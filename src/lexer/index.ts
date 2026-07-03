@@ -2,31 +2,12 @@ import type { Position, Span, ErrorMarker } from '../errors/marker.js';
 import type { Token, TokenKind } from '../token.js';
 import { isDigit, isAlpha, isAlphaNum, isWhitespace } from './chars.js';
 import { Cursor } from './cursor.js';
+import { resolveWord } from './keywords.js';
 
 export interface LexResult {
   tokens: Token[];
   errorMarkers: ErrorMarker[];
 }
-
-const KEYWORDS: Record<string, TokenKind> = {
-  div: 'KW_DIV',
-  mod: 'KW_MOD',
-  fix: 'KW_FIX',
-  mut: 'KW_MUT',
-  if: 'KW_IF',
-  else: 'KW_ELSE',
-  while: 'KW_WHILE',
-};
-
-// Built-in constructors: uppercase names that are part of the language
-// core but are not keywords — they are non-shadowable constructor names
-// (True, False, None) that happen to be built in rather than user-defined.
-const CONSTRUCTORS: Record<string, TokenKind> = {
-  True: 'BOOL_LIT',
-  False: 'BOOL_LIT',
-  None: 'NONE_LIT',
-  Done: 'DONE_LIT',
-};
 
 export class Lexer {
   private c: Cursor;
@@ -59,18 +40,8 @@ export class Lexer {
     const start = this.c.mark();
     const firstCh = this.c.peek();
     this.consumeWhile(isAlphaNum);
-    const value = this.c.slice(start);
-
-    if (firstCh >= 'A' && firstCh <= 'Z') {
-      // Uppercase-starting: check built-in constructors (True, False, None).
-      // All other uppercase names are type/constructor names not in scope
-      // until stage 4 (types).
-      const kind = CONSTRUCTORS[value];
-      return kind !== undefined ? this.token(kind, start) : this.error('L0001', this.c.spanFrom(start));
-    }
-
-    const kind = KEYWORDS[value];
-    return kind !== undefined ? this.token(kind, start) : this.token('SLOT', start);
+    const kind = resolveWord(this.c.slice(start), firstCh);
+    return kind !== null ? this.token(kind, start) : this.error('L0001', this.c.spanFrom(start));
   }
 
   private readNumber(): Token {
