@@ -37,6 +37,14 @@ export class Cursor {
     return { start, end: this.mark() };
   }
 
+  public match(ch: string): boolean {
+    if (this.src[this.pos] !== ch) {
+      return false;
+    }
+    this.advance();
+    return true;
+  }
+
   public slice(start: Position): string {
     return this.src.slice(start.offset, this.pos);
   }
