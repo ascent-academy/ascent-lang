@@ -63,6 +63,11 @@ export interface Marker {
   code: string;
   span: Span;
   related?: RelatedMarker[];
+  // Named values a stage knows but the source can't reconstruct — chiefly the
+  // type names in a type error ('Int', 'String'). Interpolated into the
+  // message/explanation as {key}. Kept as strings so the checker never holds a
+  // sentence, only the words that fill the blanks.
+  data?: Record<string, string>;
 }
 
 export interface Token {

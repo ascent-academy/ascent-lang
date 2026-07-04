@@ -1,61 +1,147 @@
-# T — type: a type rule is broken
+# T — type: the code fits together, but the types don't line up
+#
+# Same shape as the other error files. Type errors need words the source can't
+# supply — the actual type names ('Int', 'String'), an argument count — so the
+# checker sends them along as data and the messages drop them in as {expected},
+# {actual}, {type}, {op}, and so on. Related spans point at the other places
+# that matter: the two branches of an 'if', the item that breaks a list, the
+# annotation a value was measured against. See lexical.yml for the wording rules.
 
-- code: 'T0001'
-  name: 'annotation-mismatch'
-  category: 'type'
-  summary: "The declared type annotation doesn't match the inferred type of the initialiser."
+- code: T0001
+  name: annotation-mismatch
+  category: type
+  summary: A value's type doesn't match the type expected here (a written annotation, or the name's existing type).
+  message: "This value has type {actual}, but {expected} was expected here."
+  explanation: >-
+    A value's type has to fit the type asked for in this spot. Here the value is
+    {actual} and {expected} was expected, and those don't match. (An Int can go
+    where a Float is expected, but not the other way around.)
+  related:
+    - key: annotation
+      label: "the type was set to {expected} here"
+    - key: declaration
+      label: "this was created holding {expected}"
 
-- code: 'T0002'
-  name: 'incompatible-list-elements'
-  category: 'type'
-  summary: "List elements have incompatible types — a list must be homogeneous (all the same type, with Int widening to Float)."
+- code: T0002
+  name: incompatible-list-elements
+  category: type
+  summary: A list mixes items of types that have no common type.
+  message: "The items in this list don't all have the same type."
+  explanation: >-
+    Every item in a list shares one type. Some items here are {first}, but this
+    one is {other}, and those don't fit together. (A mix of Int and Float is
+    fine — the Ints become Floats — but unrelated types like Int and String
+    can't share a list.)
+  related:
+    - key: element
+      label: "this item is {other}"
 
-- code: 'T0003'
-  name: 'empty-list-needs-annotation'
-  category: 'type'
-  summary: "An empty list '[]' has no element type. Annotate the variable: 'fix xs: List<Int> = []'."
+- code: T0003
+  name: empty-list-needs-annotation
+  category: type
+  summary: An empty list has no items to show its type, and none was written down.
+  message: "This empty list needs a type."
+  explanation: >-
+    An empty list '[]' has no items to show what it holds, so its type has to be
+    written down — for example 'fix xs: List<Int> = []'.
 
-- code: 'T0004'
-  name: 'condition-not-bool'
-  category: 'type'
-  summary: "The condition in 'if' or 'while' must be of type Bool."
+- code: T0004
+  name: condition-not-bool
+  category: type
+  summary: "The condition of an 'if' or 'while' isn't a True/False value."
+  message: "This condition has type {actual}, but it has to be True or False."
+  explanation: >-
+    An 'if' or 'while' chooses what to do from a True/False value, so its
+    condition has to be one — a comparison like 'x > 0', or another Bool. This
+    one has type {actual}.
 
-- code: 'T0005'
-  name: 'if-branch-mismatch'
-  category: 'type'
-  summary: "The 'then' and 'else' branches of 'if' have incompatible types."
+- code: T0005
+  name: if-branch-mismatch
+  category: type
+  summary: "The two branches of an 'if' produce different types."
+  message: "The two branches of this 'if' have different types."
+  explanation: >-
+    When an 'if' is used as a value, both branches have to produce the same
+    type, because the whole 'if' becomes one value. Here one branch gives
+    {then} and the other gives {else}.
+  related:
+    - key: then
+      label: "this branch gives {then}"
+    - key: else
+      label: "this branch gives {else}"
 
-- code: 'T0006'
-  name: 'no-such-method'
-  category: 'type'
-  summary: "The type has no method with this name."
+- code: T0006
+  name: no-such-method
+  category: type
+  summary: A method with this name doesn't exist on the value's type.
+  message: "{type} has no method called '{method}'."
+  explanation: >-
+    The methods you can call depend on the value's type. For example, an Int has
+    'toStr()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)',
+    'reverse()', and more. Check the spelling of '{method}'.
 
-- code: 'T0007'
-  name: 'wrong-arg-count'
-  category: 'type'
-  summary: "Wrong number of arguments for this method or function call."
+- code: T0007
+  name: wrong-arg-count
+  category: type
+  summary: A method or function call was given the wrong number of inputs.
+  message: "This call has the wrong number of inputs."
+  explanation: >-
+    It needs {expected}, but was given {got}. Each input goes inside the '( )',
+    separated by commas.
 
-- code: 'T0008'
-  name: 'wrong-arg-type'
-  category: 'type'
-  summary: "An argument has the wrong type for this method or function call."
+- code: T0008
+  name: wrong-arg-type
+  category: type
+  summary: An input to a method or function has a type that isn't accepted here.
+  message: "This input has type {actual}, but {expected} was expected."
+  explanation: >-
+    Each method or function accepts inputs of certain types. Here {expected} was
+    expected, but the input given is {actual}.
 
-- code: 'T0009'
-  name: 'operator-type-error'
-  category: 'type'
-  summary: "An operator was applied to operands of incompatible types."
+- code: T0009
+  name: operator-type-error
+  category: type
+  summary: An operator was used on types it doesn't accept.
+  message: "I can't use '{op}' on {operands}."
+  explanation: >-
+    Operators only work on certain types: '+', '-', '*', and '/' need numbers
+    (Int or Float); 'div' and 'mod' need whole numbers (Int); and a comparison
+    needs two values of the same kind. '{op}' doesn't work on {operands}.
 
-- code: 'T0010'
-  name: 'index-requires-list'
-  category: 'type'
-  summary: "The '[ ]' index operator requires a List, but the receiver has a different type."
+- code: T0010
+  name: index-requires-list
+  category: type
+  summary: "The '[ ]' index was used on something that isn't a list."
+  message: "I can't use '[ ]' here — this has type {actual}, not a list."
+  explanation: >-
+    Reading an item with '[ ]', like 'items[0]', works only on a list. This
+    value has type {actual}, which isn't a list.
 
-- code: 'T0011'
-  name: 'index-not-int'
-  category: 'type'
-  summary: "List indices must be of type Int."
+- code: T0011
+  name: index-not-int
+  category: type
+  summary: A list index isn't an Int.
+  message: "A list index has to be an Int, but this has type {actual}."
+  explanation: >-
+    Inside 'items[…]', the value in the brackets picks an item by its position,
+    counting from 0, so it has to be a whole number (Int). This one has type
+    {actual}.
 
-- code: 'T0012'
-  name: 'no-methods'
-  category: 'type'
-  summary: "This type has no methods."
+- code: T0012
+  name: no-methods
+  category: type
+  summary: The value's type has no methods at all.
+  message: "Values of type {type} don't have any methods."
+  explanation: >-
+    Only some types have methods you can call with '.': Int, Float, and List. A
+    {type} has none, so 'value.something()' can't be used on it.
+
+- code: T0013
+  name: unknown-function
+  category: type
+  summary: A call names a function that doesn't exist.
+  message: "There's no function called '{name}'."
+  explanation: >-
+    Ascent has just one built-in function right now — 'floor(x)', which rounds a
+    Float down to a whole number. Everything else is a method, called on a value
+    with '.', like 'x.toStr()'.

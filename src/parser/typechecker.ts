@@ -3,7 +3,7 @@ import type { Marker, Span } from '../lexer/token.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram } from './typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType,
-  leastCommonType, isAssignableTo,
+  leastCommonType, isAssignableTo, typeToString,
 } from '../types/types.js';
 
 export interface TypeCheckResult {
@@ -60,8 +60,30 @@ const typeFromExpr = (te: TypeExpr): AscentType =>
 // ---- Method type signatures ------------------------------------------
 
 const requireArity = (expected: number, got: number, markers: Marker[], span: Span): boolean => {
-  if (got !== expected) { markers.push({ code: 'T0007', span }); return false; }
+  if (got !== expected) {
+    markers.push({ code: 'T0007', span, data: { expected: String(expected), got: String(got) } });
+    return false;
+  }
   return true;
+};
+
+// A value-type mismatch that carries the expected and actual type names.
+const typeMismatch = (
+  code: string, markers: Marker[], span: Span, expected: AscentType, actual: AscentType,
+  related: { key: string; span: Span }[] = [],
+): null => {
+  markers.push({
+    code, span, related,
+    data: { expected: typeToString(expected), actual: typeToString(actual) },
+  });
+  return null;
+};
+
+// An operator applied to operands it doesn't accept (T0009). `operands` is the
+// joined list of type names — one for a unary '-', two for a binary operator.
+const operandError = (markers: Marker[], op: string, span: Span, ...operands: AscentType[]): null => {
+  markers.push({ code: 'T0009', span, data: { op, operands: operands.map(typeToString).join(' and ') } });
+  return null;
 };
 
 const intMethodType = (method: string, argTypes: AscentType[], markers: Marker[], span: Span): AscentType | null => {
@@ -69,7 +91,7 @@ const intMethodType = (method: string, argTypes: AscentType[], markers: Marker[]
     case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING_TYPE : null;
     case 'toFloat': return requireArity(0, argTypes.length, markers, span) ? FLOAT_TYPE : null;
     case 'abs': return requireArity(0, argTypes.length, markers, span) ? INT_TYPE : null;
-    default: markers.push({ code: 'T0006', span }); return null;
+    default: markers.push({ code: 'T0006', span, data: { method, type: 'Int' } }); return null;
   }
 };
 
@@ -78,7 +100,7 @@ const floatMethodType = (method: string, argTypes: AscentType[], markers: Marker
     case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING_TYPE : null;
     case 'toInt': return requireArity(0, argTypes.length, markers, span) ? INT_TYPE : null;
     case 'abs': return requireArity(0, argTypes.length, markers, span) ? FLOAT_TYPE : null;
-    default: markers.push({ code: 'T0006', span }); return null;
+    default: markers.push({ code: 'T0006', span, data: { method, type: 'Float' } }); return null;
   }
 };
 
@@ -93,18 +115,18 @@ const listMethodType = (
     case 'prepend': {
       if (!requireArity(1, argTypes.length, markers, span)) return null;
       const ct = leastCommonType(elemType, argTypes[0]!);
-      if (ct === null) { markers.push({ code: 'T0008', span }); return null; }
+      if (ct === null) return typeMismatch('T0008', markers, span, elemType, argTypes[0]!);
       return listOfType(ct);
     }
     case 'concat': {
       if (!requireArity(1, argTypes.length, markers, span)) return null;
       const arg = argTypes[0]!;
-      if (arg.kind !== 'List') { markers.push({ code: 'T0008', span }); return null; }
+      if (arg.kind !== 'List') return typeMismatch('T0008', markers, span, listOfType(elemType), arg);
       const ct = leastCommonType(elemType, arg.elem);
-      if (ct === null) { markers.push({ code: 'T0008', span }); return null; }
+      if (ct === null) return typeMismatch('T0008', markers, span, listOfType(elemType), arg);
       return listOfType(ct);
     }
-    default: markers.push({ code: 'T0006', span }); return null;
+    default: markers.push({ code: 'T0006', span, data: { method, type: typeToString(listOfType(elemType)) } }); return null;
   }
 };
 
@@ -137,11 +159,11 @@ const inferExpr = (
 
     case 'call': {
       // floor is the only built-in for now.
-      if (expr.callee !== 'floor') { markers.push({ code: 'T0006', span: expr.span }); return null; }
+      if (expr.callee !== 'floor') { markers.push({ code: 'T0013', span: expr.span, data: { name: expr.callee } }); return null; }
       if (!requireArity(1, expr.args.length, markers, expr.span)) return null;
       const typedArg = inferExpr(expr.args[0]!, env, markers);
       if (typedArg === null) return null;
-      if (typedArg.type.kind !== 'Float') { markers.push({ code: 'T0008', span: expr.span }); return null; }
+      if (typedArg.type.kind !== 'Float') return typeMismatch('T0008', markers, expr.span, FLOAT_TYPE, typedArg.type);
       return { kind: 'call', callee: expr.callee, args: [typedArg], type: FLOAT_TYPE, span: expr.span };
     }
 
@@ -149,7 +171,7 @@ const inferExpr = (
       const typedOperand = inferExpr(expr.operand, env, markers);
       if (typedOperand === null) return null;
       if (typedOperand.type.kind !== 'Int' && typedOperand.type.kind !== 'Float') {
-        markers.push({ code: 'T0009', span: expr.span }); return null;
+        return operandError(markers, expr.op, expr.span, typedOperand.type);
       }
       return { kind: 'unary', op: expr.op, operand: typedOperand, type: typedOperand.type, span: expr.span };
     }
@@ -165,35 +187,35 @@ const inferExpr = (
       switch (expr.op) {
         case '+': case '-': case '*': {
           if ((lt.kind !== 'Int' && lt.kind !== 'Float') || (rt.kind !== 'Int' && rt.kind !== 'Float')) {
-            markers.push({ code: 'T0009', span: expr.span }); return null;
+            return operandError(markers, expr.op, expr.span, lt, rt);
           }
           type = (lt.kind === 'Float' || rt.kind === 'Float') ? FLOAT_TYPE : INT_TYPE;
           break;
         }
         case '/': {
           if ((lt.kind !== 'Int' && lt.kind !== 'Float') || (rt.kind !== 'Int' && rt.kind !== 'Float')) {
-            markers.push({ code: 'T0009', span: expr.span }); return null;
+            return operandError(markers, expr.op, expr.span, lt, rt);
           }
           type = FLOAT_TYPE;
           break;
         }
         case 'div': case 'mod': {
           if (lt.kind !== 'Int' || rt.kind !== 'Int') {
-            markers.push({ code: 'T0009', span: expr.span }); return null;
+            return operandError(markers, expr.op, expr.span, lt, rt);
           }
           type = INT_TYPE;
           break;
         }
         case '==': case '!=': {
           if (leastCommonType(lt, rt) === null) {
-            markers.push({ code: 'T0009', span: expr.span }); return null;
+            return operandError(markers, expr.op, expr.span, lt, rt);
           }
           type = BOOL_TYPE;
           break;
         }
         case '<': case '<=': case '>': case '>=': {
           if ((lt.kind !== 'Int' && lt.kind !== 'Float') || (rt.kind !== 'Int' && rt.kind !== 'Float')) {
-            markers.push({ code: 'T0009', span: expr.span }); return null;
+            return operandError(markers, expr.op, expr.span, lt, rt);
           }
           type = BOOL_TYPE;
           break;
@@ -222,7 +244,14 @@ const inferExpr = (
       let elemType: AscentType = typedElements[0]!.type;
       for (const te of typedElements.slice(1)) {
         const ct = leastCommonType(elemType, te.type);
-        if (ct === null) { markers.push({ code: 'T0002', span: expr.span }); return null; }
+        if (ct === null) {
+          markers.push({
+            code: 'T0002', span: expr.span,
+            data: { first: typeToString(elemType), other: typeToString(te.type) },
+            related: [{ key: 'element', span: te.span }],
+          });
+          return null;
+        }
         elemType = ct;
       }
       // If the surrounding context expects a List with a wider element type
@@ -239,8 +268,14 @@ const inferExpr = (
       const typedList = inferExpr(expr.list, env, markers);
       const typedIndex = inferExpr(expr.index, env, markers);
       if (typedList === null || typedIndex === null) return null;
-      if (typedList.type.kind !== 'List') { markers.push({ code: 'T0010', span: expr.span }); return null; }
-      if (typedIndex.type.kind !== 'Int') { markers.push({ code: 'T0011', span: expr.span }); return null; }
+      if (typedList.type.kind !== 'List') {
+        markers.push({ code: 'T0010', span: expr.list.span, data: { actual: typeToString(typedList.type) } });
+        return null;
+      }
+      if (typedIndex.type.kind !== 'Int') {
+        markers.push({ code: 'T0011', span: expr.index.span, data: { actual: typeToString(typedIndex.type) } });
+        return null;
+      }
       return { kind: 'index', list: typedList, index: typedIndex, type: typedList.type.elem, span: expr.span };
     }
 
@@ -262,7 +297,7 @@ const inferExpr = (
         case 'Int': resultType = intMethodType(expr.method, argTypes, markers, expr.span); break;
         case 'Float': resultType = floatMethodType(expr.method, argTypes, markers, expr.span); break;
         case 'List': resultType = listMethodType(typedReceiver.type.elem, expr.method, argTypes, markers, expr.span); break;
-        default: markers.push({ code: 'T0012', span: expr.span }); return null;
+        default: markers.push({ code: 'T0012', span: expr.span, data: { type: typeToString(typedReceiver.type) } }); return null;
       }
       if (resultType === null) return null;
       return {
@@ -302,7 +337,7 @@ const inferBlock = (block: Block, env: TypeEnv, markers: Marker[]): TypedBlock |
 const inferIf = (expr: If, env: TypeEnv, markers: Marker[]): TypedIf | null => {
   const typedCond = inferExpr(expr.cond, env, markers);
   if (typedCond !== null && typedCond.type.kind !== 'Bool') {
-    markers.push({ code: 'T0004', span: expr.cond.span });
+    markers.push({ code: 'T0004', span: expr.cond.span, data: { actual: typeToString(typedCond.type) } });
   }
 
   const typedThen = inferBlock(expr.then, env, markers);
@@ -319,7 +354,17 @@ const inferIf = (expr: If, env: TypeEnv, markers: Marker[]): TypedIf | null => {
   if (typedCond === null || typedThen === null || typedElse === null) return null;
 
   const ct = leastCommonType(typedThen.type, typedElse.type);
-  if (ct === null) { markers.push({ code: 'T0005', span: expr.span }); return null; }
+  if (ct === null) {
+    markers.push({
+      code: 'T0005', span: expr.span,
+      data: { then: typeToString(typedThen.type), else: typeToString(typedElse.type) },
+      related: [
+        { key: 'then', span: typedThen.span },
+        { key: 'else', span: typedElse.span },
+      ],
+    });
+    return null;
+  }
 
   return { kind: 'if', cond: typedCond, then: typedThen, else: typedElse, type: ct, span: expr.span };
 };
@@ -334,7 +379,11 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
       let slotType: AscentType | null;
       if (annotation !== null) {
         if (typedInit !== null && !isAssignableTo(typedInit.type, annotation)) {
-          markers.push({ code: 'T0001', span: stmt.span });
+          markers.push({
+            code: 'T0001', span: stmt.init.span,
+            data: { expected: typeToString(annotation), actual: typeToString(typedInit.type) },
+            related: [{ key: 'annotation', span: stmt.typeAnnotation!.span }],
+          });
         }
         slotType = annotation;
       } else {
@@ -374,7 +423,12 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
       }
       const typedValue = inferExpr(stmt.value, env, markers);
       if (binding !== null && typedValue !== null && !isAssignableTo(typedValue.type, binding.ty)) {
-        markers.push({ code: 'T0001', span: stmt.span });
+        const related = binding.declSpan !== null ? [{ key: 'declaration', span: binding.declSpan }] : [];
+        markers.push({
+          code: 'T0001', span: stmt.value.span,
+          data: { expected: typeToString(binding.ty), actual: typeToString(typedValue.type) },
+          related,
+        });
       }
       if (typedValue === null) return null;
       return {
@@ -389,7 +443,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
     case 'while': {
       const typedCond = inferExpr(stmt.cond, env, markers);
       if (typedCond !== null && typedCond.type.kind !== 'Bool') {
-        markers.push({ code: 'T0004', span: stmt.cond.span });
+        markers.push({ code: 'T0004', span: stmt.cond.span, data: { actual: typeToString(typedCond.type) } });
       }
       const typedBody = inferBlock(stmt.body, env, markers);
       if (typedCond === null || typedBody === null) return null;

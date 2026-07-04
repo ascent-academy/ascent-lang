@@ -27,8 +27,15 @@ export interface Diagnostic {
   related: LabeledSpan[];
 }
 
-const fill = (template: string, found: string): string =>
-  template.replaceAll('{found}', found);
+// Substitute {found} (the offending source text) and any {key} the checker
+// supplied in `data` (type names, counts) into a template.
+const fill = (template: string, found: string, data: Record<string, string>): string => {
+  let out = template.replaceAll('{found}', found);
+  for (const [key, value] of Object.entries(data)) {
+    out = out.replaceAll(`{${key}}`, value);
+  }
+  return out;
+};
 
 const matches = (when: When, found: string): boolean =>
   (when.equals === undefined || found === when.equals) &&
@@ -42,12 +49,13 @@ export function elaborate(marker: Marker, source: string): Diagnostic {
 
   const span = marker.span;
   const found = source.slice(span.start.offset, span.end.offset);
+  const data = marker.data ?? {};
 
   // First matching variant wins; it overrides only the fields it sets, so
   // everything else falls through to the base entry.
   const variant = entry.variants?.find(v => matches(v.when, found)) ?? null;
 
-  const message = fill(variant?.message ?? entry.message ?? entry.summary, found);
+  const message = fill(variant?.message ?? entry.message ?? entry.summary, found, data);
   const rawExplanation = variant?.explanation ?? entry.explanation ?? null;
   const fixSpec = variant?.fix ?? entry.fix ?? null;
 
@@ -58,7 +66,7 @@ export function elaborate(marker: Marker, source: string): Diagnostic {
   for (const label of entry.related ?? []) {
     const match = marker.related?.find(r => r.key === label.key) ?? null;
     if (match !== null) {
-      related.push({ span: match.span, label: fill(label.label, found) });
+      related.push({ span: match.span, label: fill(label.label, found, data) });
     }
   }
 
@@ -67,12 +75,12 @@ export function elaborate(marker: Marker, source: string): Diagnostic {
     category: entry.category,
     severity: 'error',
     message,
-    explanation: rawExplanation === null ? null : fill(rawExplanation, found),
+    explanation: rawExplanation === null ? null : fill(rawExplanation, found, data),
     span,
     fix: fixSpec === null ? null : {
-      title: fill(fixSpec.title, found),
+      title: fill(fixSpec.title, found, data),
       span,
-      replacement: fill(fixSpec.replacement, found),
+      replacement: fill(fixSpec.replacement, found, data),
     },
     example: variant?.example ?? entry.example ?? null,
     related,
