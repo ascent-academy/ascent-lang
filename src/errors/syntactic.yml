@@ -1,66 +1,132 @@
-# S — syntactic: the tokens don't form a valid expression
+# S — syntactic: each word is fine on its own, but they don't fit together
+#
+# Same shape as lexical.yml / name.yml: the parser emits only { code, span },
+# and the caret marks the spot where it got stuck. These messages say what was
+# expected there — they don't quote the word that was actually found (the caret
+# already shows it), which keeps them clear for beginners and avoids talk of
+# "tokens". See lexical.yml for the full wording rules.
 
-- code: 'S0001'
-  name: 'unclosed-paren'
-  category: 'syntactic'
+- code: S0001
+  name: unclosed-paren
+  category: syntactic
   summary: "An opening '(' has no matching ')'."
+  message: "I expected a ')' here."
+  explanation: >-
+    Every '(' has to be closed with a matching ')'. One was opened earlier —
+    around a group like '(a + b)', a call's inputs, or an 'if' or 'while'
+    condition — and this is where its ')' should be.
 
-- code: 'S0002'
-  name: 'expected-expression'
-  category: 'syntactic'
-  summary: 'An expression was required here but the input contained none.'
+- code: S0002
+  name: expected-expression
+  category: syntactic
+  summary: A value was expected here, but there wasn't one.
+  message: "I expected a value here."
+  explanation: >-
+    This spot needs a value — a number, a String, a name, or something built
+    from them like 'a + b'. Places that need one include just after '=', just
+    after an operator like '+', and inside '( )'.
 
-- code: 'S0003'
-  name: 'expected-slot-name'
-  category: 'syntactic'
-  summary: "A slot name (lowercase identifier) was expected after 'fix'."
+- code: S0003
+  name: expected-slot-name
+  category: syntactic
+  summary: "A name was expected after 'fix' or 'mut', or as a program input."
+  message: "I expected a name here."
+  explanation: >-
+    A name is needed here — after 'fix' or 'mut' to create one
+    ('fix count = 0'), or as the name of a program input ('args (age: Int)'). A
+    name starts with a lowercase letter.
 
-- code: 'S0004'
-  name: 'expected-equals'
-  category: 'syntactic'
-  summary: "An '=' was expected after the slot name in a 'fix' declaration."
+- code: S0004
+  name: expected-equals
+  category: syntactic
+  summary: "An '=' was expected after the name in a 'fix' or 'mut' declaration."
+  message: "I expected an '=' here."
+  explanation: >-
+    'fix' and 'mut' give a name its starting value, so the name is followed by
+    '=' and the value, like 'fix count = 0'. (A type can go in between, as in
+    'fix count: Int = 0'.)
 
-- code: 'S0005'
-  name: 'unclosed-brace'
-  category: 'syntactic'
+- code: S0005
+  name: unclosed-brace
+  category: syntactic
   summary: "An opening '{' has no matching '}'."
+  message: "I expected a '}' here."
+  explanation: >-
+    A block groups statements between '{' and '}'. One was opened earlier and
+    this is where its closing '}' should be.
 
-- code: 'S0006'
-  name: 'expected-test-paren'
-  category: 'syntactic'
-  summary: "An '(' was expected here to start the condition."
+- code: S0006
+  name: expected-test-paren
+  category: syntactic
+  summary: "A '(' was expected to open a condition or an 'args' list."
+  message: "I expected a '(' here."
+  explanation: >-
+    An 'if' or 'while' condition — and the inputs listed after 'args' — go
+    inside '( )', like 'if (age >= 18) { … }'. This is where that opening '('
+    should be.
 
-- code: 'S0007'
-  name: 'expected-block'
-  category: 'syntactic'
+- code: S0007
+  name: expected-block
+  category: syntactic
   summary: "A block ('{ … }') was expected here."
+  message: "I expected a '{' here."
+  explanation: >-
+    The body of an 'if', 'else', or 'while' is always a block between '{' and
+    '}', even when it holds a single line, as in 'if (ok) { … }'.
 
-- code: 'S0008'
-  name: 'chained-comparison'
-  category: 'syntactic'
-  summary: "Comparisons don't chain — 'a < b < c' isn't valid. Group with parentheses instead."
+- code: S0008
+  name: chained-comparison
+  category: syntactic
+  summary: "Comparisons can't be chained — 'a < b < c' isn't allowed."
+  message: "I can't chain two comparisons like this."
+  explanation: >-
+    A comparison such as '<' or '==' looks at two values and gives back True or
+    False. Chaining a third one, as in 'a < b < c', would then compare that
+    True or False against another value, which has no clear meaning — so
+    compare two values at a time.
 
-- code: 'S0009'
-  name: 'expected-colon'
-  category: 'syntactic'
-  summary: "A ':' was expected between the argument name and its type."
+- code: S0009
+  name: expected-colon
+  category: syntactic
+  summary: "A ':' was expected between a program input's name and its type."
+  message: "I expected a ':' here."
+  explanation: >-
+    Each program input is written as a name, then ':', then its type, like
+    'args (age: Int)'. This is where the ':' should be.
 
-- code: 'S0010'
-  name: 'expected-type'
-  category: 'syntactic'
-  summary: "A type name was expected here. Valid types are Int, Float, Bool, String, and List<T>."
+- code: S0010
+  name: expected-type
+  category: syntactic
+  summary: A type name was expected here.
+  message: "I expected a type name here."
+  explanation: >-
+    A type name says what kind of value this is. The built-in types are Int,
+    Float, Bool, and String, plus 'List<…>' for a list, as in 'List<Int>'.
 
-- code: 'S0011'
-  name: 'expected-semicolon'
-  category: 'syntactic'
-  summary: "A ';' was expected here."
+- code: S0011
+  name: expected-semicolon
+  category: syntactic
+  summary: "A ';' was expected to end the statement."
+  message: "I expected a ';' here."
+  explanation: >-
+    Every statement in Ascent ends with a ';'. It looks like the statement
+    before this point was never finished with one.
 
-- code: 'S0012'
-  name: 'expected-method-name'
-  category: 'syntactic'
-  summary: "A method name (lowercase identifier) was expected after '.'."
+- code: S0012
+  name: expected-method-name
+  category: syntactic
+  summary: "A method name was expected after '.'."
+  message: "I expected a method name here."
+  explanation: >-
+    A '.' calls a method on a value, so it's followed by the method's name and
+    '( )', like 'items.length()'. A method name starts with a lowercase letter.
 
-- code: 'S0013'
-  name: 'unclosed-bracket'
-  category: 'syntactic'
+- code: S0013
+  name: unclosed-bracket
+  category: syntactic
   summary: "An opening '[' has no matching ']'."
+  message: "I expected a ']' here."
+  explanation: >-
+    Square brackets '[ ]' wrap a list like '[1, 2, 3]' or pick an item out of
+    one like 'items[0]'. One '[' was opened earlier and this is where its ']'
+    should be.
