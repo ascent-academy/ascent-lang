@@ -132,10 +132,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // 'and'/'or' short-circuit: the left operand alone can decide the
       // result ('False and e' / 'True or e'), so 'e' is only evaluated
       // when it's still needed — the same laziness every mainstream
-      // language gives its logical operators. 'xor' has no such shortcut
-      // (either operand alone can flip the result), so it falls through
-      // to evaluateBinary, which evaluates both sides eagerly like every
-      // other operator.
+      // language gives its logical operators.
       if (expr.op === 'and' || expr.op === 'or') {
         const left = evaluateExpr(expr.left, env);
         if (left.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
@@ -306,11 +303,6 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
   if (op === '==' || op === '!=') {
     const eq = valuesEqual(left, right);
     return { type: 'Bool', value: op === '==' ? eq : !eq };
-  }
-
-  if (op === 'xor') {
-    if (left.type !== 'Bool' || right.type !== 'Bool') throw new Error(`internal: 'xor' on non-Bool`);
-    return { type: 'Bool', value: left.value !== right.value };
   }
 
   if (!isNumeric(left) || !isNumeric(right)) throw new Error(`internal: '${op}' on non-numeric`);

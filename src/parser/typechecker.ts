@@ -226,7 +226,8 @@ const inferExpr = (
           type = BOOL_TYPE;
           break;
         }
-        case 'and': case 'or': case 'xor': {
+        case 'and':
+        case 'or': {
           if (lt.kind !== 'Bool' || rt.kind !== 'Bool') {
             return operandError(markers, expr.op, expr.span, lt, rt);
           }

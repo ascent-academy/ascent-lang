@@ -22,7 +22,7 @@ import { parseBlock, parseIf } from './stmt.js';
 // This ladder is the single source of truth for what binds tighter
 // than what: postfix (`.method()`, `[index]`) binds tightest, then
 // unary '-', then '*'/'/'/'div'/'mod', then '+'/'-', then the
-// comparisons, then 'not', then 'and', then 'or'/'xor', loosest —
+// comparisons, then 'not', then 'and', then 'or', loosest —
 // the word operators sit below the comparisons (§5 of design.md), so
 // `a == b and c == d` groups as `(a == b) and (c == d)`, never
 // `a == (b and c) == d`. Every table below is keyed off these numbers
@@ -46,12 +46,11 @@ const BP = {
 // `(1 + 2) < (3 * 4)`. Comparisons are also marked `assoc: 'none'`:
 // unlike '+' or '*', two of them can never sit side by side
 // (`a < b < c` is rejected, not silently grouped one way or the other).
-// 'or' and 'xor' share a tier below 'and' — the same "same precedence,
-// left-associative" shape as '+'/'-' — so `a or b xor c` groups as
-// `(a or b) xor c`.
+// 'or' belongs to a tier below 'and' — the same "same precedence,
+// left-associative" shape as '+'/'-' — so `a or b or c` groups as
+// `(a or b) or c`.
 const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'none' }>> = {
   KW_OR: { op: 'or', bp: BP.OR, assoc: 'left' },
-  KW_XOR: { op: 'xor', bp: BP.OR, assoc: 'left' },
   KW_AND: { op: 'and', bp: BP.AND, assoc: 'left' },
   EQ_EQ: { op: '==', bp: BP.COMPARISON, assoc: 'none' },
   BANG_EQ: { op: '!=', bp: BP.COMPARISON, assoc: 'none' },

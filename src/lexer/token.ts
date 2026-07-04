@@ -14,7 +14,6 @@ export type TokenKind =
   | 'KW_MOD'     // the keyword mod — Int-only floored modulo
   | 'KW_AND'     // the keyword and — Bool-only logical and, short-circuits
   | 'KW_OR'      // the keyword or — Bool-only logical or, short-circuits
-  | 'KW_XOR'     // the keyword xor — Bool-only exclusive or, no short-circuit
   | 'KW_NOT'     // the keyword not — Bool-only prefix negation
   | 'KW_FIX'     // the keyword fix — declares a fixed slot
   | 'KW_MUT'     // the keyword mut — declares a mutable slot
