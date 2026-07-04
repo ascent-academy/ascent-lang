@@ -45,6 +45,32 @@ export class Parser {
     return this.advance();
   }
 
+  // Parses `item (sep item)* close`, allowing an empty list and a
+  // trailing separator right before `close`. Returns null on the first
+  // failing item or a missing close token. `close` is returned alongside
+  // the items since callers need its span to close off the enclosing node.
+  private parseSeparated<T>(
+    parseItem: () => T | null,
+    sep: TokenKind,
+    close: TokenKind,
+    closeCode: string,
+  ): { items: T[]; close: Token } | null {
+    const items: T[] = [];
+    if (this.peek().kind !== close) {
+      for (; ;) {
+        const item = parseItem();
+        if (item === null) return null;
+        items.push(item);
+        if (this.peek().kind !== sep) break;
+        this.advance(); // consume separator
+        if (this.peek().kind === close) break; // trailing separator
+      }
+    }
+    const closeTok = this.expect(close, closeCode);
+    if (closeTok === null) return null;
+    return { items, close: closeTok };
+  }
+
   // ---- Pratt parsing --------------------------------------------------
   //
   // A Pratt parser recognises an expression as an atom (a "nud" — null
@@ -116,29 +142,15 @@ export class Parser {
         }
         this.advance(); // consume '('
 
-        const args: Expr[] = [];
-        if (this.peek().kind !== 'RPAREN') {
-          const first = this.parseExpr();
-          if (first === null) return null;
-          args.push(first);
-
-          while (this.peek().kind === 'COMMA') {
-            this.advance(); // consume ','
-            const arg = this.parseExpr();
-            if (arg === null) return null;
-            args.push(arg);
-          }
-        }
-
-        const rparen = this.expect('RPAREN', 'S0001');
-        if (rparen === null) return null;
+        const parsed = this.parseSeparated(() => this.parseExpr(), 'COMMA', 'RPAREN', 'S0001');
+        if (parsed === null) return null;
 
         left = {
           kind: 'methodCall',
           receiver: left,
           method: methodTok.value,
-          args,
-          span: { start: left.span.start, end: rparen.span.end },
+          args: parsed.items,
+          span: { start: left.span.start, end: parsed.close.span.end },
         };
         continue;
       }
@@ -308,91 +320,40 @@ export class Parser {
   // 'name(arg, arg, …)' — callee token already consumed by parseAtom.
   private parseCall(callee: Token): Expr | null {
     this.advance(); // consume '('
-    const args: Expr[] = [];
-
-    if (this.peek().kind !== 'RPAREN') {
-      const first = this.parseExpr();
-      if (first === null) return null;
-      args.push(first);
-
-      while (this.peek().kind === 'COMMA') {
-        this.advance(); // consume ','
-        const arg = this.parseExpr();
-        if (arg === null) return null;
-        args.push(arg);
-      }
-    }
-
-    const rparen = this.expect('RPAREN', 'S0001');
-    if (rparen === null) return null;
+    const parsed = this.parseSeparated(() => this.parseExpr(), 'COMMA', 'RPAREN', 'S0001');
+    if (parsed === null) return null;
 
     return {
       kind: 'call',
       callee: callee.value,
-      args,
-      span: { start: callee.span.start, end: rparen.span.end },
+      args: parsed.items,
+      span: { start: callee.span.start, end: parsed.close.span.end },
     };
   }
 
   // '[' expr, expr, … ']' — list literal. Already consumed '[' in parseAtom.
   private parseList(): Expr | null {
     const openTok = this.advance(); // consume '['
-    const elements: Expr[] = [];
+    const parsed = this.parseSeparated(() => this.parseExpr(), 'COMMA', 'RBRACKET', 'S0013');
+    if (parsed === null) return null;
 
-    if (this.peek().kind !== 'RBRACKET') {
-      const first = this.parseExpr();
-      if (first === null) return null;
-      elements.push(first);
-
-      while (this.peek().kind === 'COMMA') {
-        this.advance(); // consume ','
-        if (this.peek().kind === 'RBRACKET') break; // trailing comma
-        const el = this.parseExpr();
-        if (el === null) return null;
-        elements.push(el);
-      }
-    }
-
-    const closeTok = this.expect('RBRACKET', 'S0013');
-    if (closeTok === null) return null;
-
-    return { kind: 'list', elements, span: { start: openTok.span.start, end: closeTok.span.end } };
+    return { kind: 'list', elements: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
   }
 
-  // A block is '{' stmt* '}' — every statement inside follows the same
-  // rules as top-level statements (parseStmt), just bounded by '}'
-  // instead of EOF. `openTok` lets parseRequiredBlock pass in a '{' it
-  // already consumed via `expect`; parseAtom, which hasn't consumed one,
-  // omits it and this consumes its own.
+  // A block is '{' stmt* '}', each statement separated by ';' — the
+  // same "item (sep item)* close" shape as a call's args or a list
+  // literal, just with SEMICOLON as the separator and RBRACE as the
+  // close (§ design.md: "semicolons terminate every statement"; the
+  // trailing one is optional exactly like a list's trailing comma).
+  // `openTok` lets parseRequiredBlock pass in a '{' it already consumed
+  // via `expect`; parseAtom, which hasn't consumed one, omits it and
+  // this consumes its own.
   private parseBlock(openTok?: Token): Block | null {
     openTok ??= this.advance(); // consume '{' unless already consumed
-    const stmts: Statement[] = [];
+    const parsed = this.parseSeparated(() => this.parseStmt(), 'SEMICOLON', 'RBRACE', 'S0005');
+    if (parsed === null) return null;
 
-    while (this.peek().kind !== 'RBRACE') {
-      if (this.peek().kind === 'EOF') {
-        this.errorMarkers.push({ code: 'S0005', span: this.peek().span });
-        return null;
-      }
-      // Skip any stray semicolons between statements.
-      if (this.peek().kind === 'SEMICOLON') {
-        this.advance();
-        continue;
-      }
-
-      const stmt = this.parseStmt();
-      if (stmt === null) {
-        return null;
-      }
-      stmts.push(stmt);
-
-      // Consume the optional trailing semicolon.
-      if (this.peek().kind === 'SEMICOLON') {
-        this.advance();
-      }
-    }
-
-    const closeTok = this.advance(); // consume '}'
-    return { kind: 'block', stmts, span: { start: openTok.span.start, end: closeTok.span.end } };
+    return { kind: 'block', stmts: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
   }
 
   // The parenthesized test shared by 'if' and 'while' — '(' expr ')'.
@@ -602,32 +563,13 @@ export class Parser {
 
     if (this.expect('LPAREN', 'S0006') === null) return null;
 
-    const args: ArgDef[] = [];
+    const parsed = this.parseSeparated(() => this.parseArgDef(), 'COMMA', 'RPAREN', 'S0001');
+    if (parsed === null) return null;
 
-    if (this.peek().kind !== 'RPAREN') {
-      const first = this.parseArgDef();
-      if (first === null) return null;
-      args.push(first);
-
-      while (this.peek().kind === 'COMMA') {
-        this.advance(); // consume ','
-        const arg = this.parseArgDef();
-        if (arg === null) return null;
-        args.push(arg);
-      }
-    }
-
-    if (this.expect('RPAREN', 'S0001') === null) return null;
-
-    return args;
+    return parsed.items;
   }
 
   private parseProgram(): Program | null {
-    // Skip any leading semicolons before the optional args declaration.
-    while (this.peek().kind === 'SEMICOLON') {
-      this.advance();
-    }
-
     let args: ArgDef[] = [];
     if (this.peek().kind === 'KW_ARGS') {
       const result = this.parseArgs();
@@ -637,28 +579,10 @@ export class Parser {
       if (this.expect('SEMICOLON', 'S0011') === null) return null;
     }
 
-    const stmts: Statement[] = [];
+    const parsed = this.parseSeparated(() => this.parseStmt(), 'SEMICOLON', 'EOF', 'S0011');
+    if (parsed === null) return null;
 
-    while (this.peek().kind !== 'EOF') {
-      // Skip any stray semicolons between statements.
-      if (this.peek().kind === 'SEMICOLON') {
-        this.advance();
-        continue;
-      }
-
-      const stmt = this.parseStmt();
-      if (stmt === null) {
-        return null;
-      }
-      stmts.push(stmt);
-
-      // Consume the optional trailing semicolon.
-      if (this.peek().kind === 'SEMICOLON') {
-        this.advance();
-      }
-    }
-
-    return { args, stmts };
+    return { args, stmts: parsed.items };
   }
 
   public parse(): ParseResult {
