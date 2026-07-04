@@ -2,9 +2,9 @@ import type { Span } from '../lexer/token.js';
 
 // TypeExpr is the AST node for a type written in source code.
 // It carries span information so the type checker can point at it in errors.
-export type TypeExpr =
-  | { kind: 'TypeName'; name: 'Int' | 'Float' | 'Bool' | 'String'; span: Span }
-  | { kind: 'ListType'; elem: TypeExpr; span: Span };
+export type TypeName = { kind: 'TypeName'; name: 'Int' | 'Float' | 'Bool' | 'String'; span: Span };
+export type ListType = { kind: 'ListType'; elem: TypeExpr; span: Span };
+export type TypeExpr = TypeName | ListType;
 
 export type Literal = (
   | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }

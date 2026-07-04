@@ -1,4 +1,4 @@
-import type { Expr, Statement, Program, Block, If, TypeExpr } from './ast.js';
+import type { Expr, Statement, Program, Block, If, TypeExpr, TypeName, ArgType } from './ast.js';
 import type { Marker, Span } from '../lexer/token.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram } from './typed-ast.js';
 import {
@@ -29,20 +29,23 @@ class TypeEnv {
   }
 }
 
-const resolveTypeExpr = (te: TypeExpr): AscentType => {
-  switch (te.kind) {
-    case 'TypeName': {
-      switch (te.name) {
-        case 'Int': return INT_TYPE;
-        case 'Float': return FLOAT_TYPE;
-        case 'Bool': return BOOL_TYPE;
-        case 'String': return STRING_TYPE;
-      }
-    }
-    case 'ListType':
-      return listOfType(resolveTypeExpr(te.elem));
+// ---- Type formation:  ⊢ T type --------------------------------------
+//
+// The one place a syntactic type name becomes a semantic AscentType.
+// Total over the name union, so an unexpected name is a compile error
+// here rather than a silent fall-through elsewhere.
+
+const typeFromName = (name: TypeName['name'] | ArgType): AscentType => {
+  switch (name) {
+    case 'Int': return INT_TYPE;
+    case 'Float': return FLOAT_TYPE;
+    case 'Bool': return BOOL_TYPE;
+    case 'String': return STRING_TYPE;
   }
 };
+
+const typeFromExpr = (te: TypeExpr): AscentType =>
+  te.kind === 'TypeName' ? typeFromName(te.name) : listOfType(typeFromExpr(te.elem));
 
 // ---- Method type signatures ------------------------------------------
 
@@ -315,7 +318,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
   switch (stmt.kind) {
     case 'fix':
     case 'mut': {
-      const annotation = stmt.typeAnnotation !== null ? resolveTypeExpr(stmt.typeAnnotation) : null;
+      const annotation = stmt.typeAnnotation !== null ? typeFromExpr(stmt.typeAnnotation) : null;
       const typedInit = inferExpr(stmt.init, env, markers, annotation);
 
       let slotType: AscentType | null;
@@ -385,11 +388,7 @@ export const typecheck = (program: Program): TypeCheckResult => {
   const env = new TypeEnv();
 
   for (const arg of program.args) {
-    const ty: AscentType = arg.type === 'Int' ? INT_TYPE
-      : arg.type === 'Float' ? FLOAT_TYPE
-        : arg.type === 'Bool' ? BOOL_TYPE
-          : STRING_TYPE;
-    env.set(arg.name, ty, false);
+    env.set(arg.name, typeFromName(arg.type), false);
   }
 
   const typedStmts: TypedStatement[] = [];
