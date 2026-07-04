@@ -50,9 +50,19 @@ export interface Span {
   end: Position;   // exclusive — points one past the last character
 }
 
+// A supporting span a stage attaches to a marker — e.g. the earlier
+// declaration a "can't reassign" error refers back to. `key` names the span's
+// role; the matching label (prose) lives in the error's .yml row, keyed the
+// same way, so no stage holds a user-facing sentence.
+export interface RelatedMarker {
+  key: string;
+  span: Span;
+}
+
 export interface Marker {
   code: string;
   span: Span;
+  related?: RelatedMarker[];
 }
 
 export interface Token {

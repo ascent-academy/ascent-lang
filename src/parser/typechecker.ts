@@ -11,17 +11,27 @@ export interface TypeCheckResult {
   errorMarkers: Marker[];
 }
 
+// origin records how the name was created — 'fix'/'mut' declarations, or a
+// program 'arg' input — so the three reassignment mistakes get distinct errors.
+// declSpan is where a fix/mut name was created (so errors can point back at it);
+// it is null for names with no source location (program args).
+interface Binding {
+  ty: AscentType;
+  origin: 'fix' | 'mut' | 'arg';
+  declSpan: Span | null;
+}
+
 // A chain of scopes mirroring Environment in the interpreter.
 class TypeEnv {
-  private vars = new Map<string, { ty: AscentType; mutable: boolean }>();
+  private vars = new Map<string, Binding>();
   public constructor(private readonly parent: TypeEnv | null = null) { }
 
-  public get(name: string): { ty: AscentType; mutable: boolean } | null {
+  public get(name: string): Binding | null {
     return this.vars.get(name) ?? this.parent?.get(name) ?? null;
   }
 
-  public set(name: string, ty: AscentType, mutable: boolean): void {
-    this.vars.set(name, { ty, mutable });
+  public set(name: string, ty: AscentType, origin: Binding['origin'], declSpan: Span | null = null): void {
+    this.vars.set(name, { ty, origin, declSpan });
   }
 
   public child(): TypeEnv {
@@ -331,7 +341,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
         slotType = typedInit?.type ?? null;
       }
 
-      if (slotType !== null) env.set(stmt.name, slotType, stmt.kind === 'mut');
+      if (slotType !== null) env.set(stmt.name, slotType, stmt.kind, stmt.span);
       if (typedInit === null) return null;
 
       return {
@@ -350,8 +360,17 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
         // Assigning to a name that was never created — a different mistake
         // (and lesson) than using an undefined name in an expression (N0001).
         markers.push({ code: 'N0003', span: stmt.nameSpan });
-      } else if (!binding.mutable) {
-        markers.push({ code: 'N0002', span: stmt.nameSpan });
+      } else if (binding.origin === 'arg') {
+        // A program input is read-only for the whole run — its own lesson,
+        // distinct from a 'fix' slot (there is no 'mut' arg to switch to).
+        markers.push({ code: 'N0004', span: stmt.nameSpan });
+      } else if (binding.origin === 'fix') {
+        // Point back at the 'fix' declaration ("created with 'fix' here"),
+        // which always has a source location.
+        const related = binding.declSpan !== null
+          ? [{ key: 'declaration', span: binding.declSpan }]
+          : [];
+        markers.push({ code: 'N0002', span: stmt.nameSpan, related });
       }
       const typedValue = inferExpr(stmt.value, env, markers);
       if (binding !== null && typedValue !== null && !isAssignableTo(typedValue.type, binding.ty)) {
@@ -390,7 +409,7 @@ export const typecheck = (program: Program): TypeCheckResult => {
   const env = new TypeEnv();
 
   for (const arg of program.args) {
-    env.set(arg.name, typeFromName(arg.type), false);
+    env.set(arg.name, typeFromName(arg.type), 'arg');
   }
 
   const typedStmts: TypedStatement[] = [];

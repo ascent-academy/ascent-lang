@@ -8,6 +8,13 @@ export interface ResolvedFix {
   replacement: string;
 }
 
+// A supporting span with its resolved (interpolated) label — e.g. the earlier
+// declaration a "can't reassign" error points back to.
+export interface LabeledSpan {
+  span: Span;
+  label: string;
+}
+
 export interface Diagnostic {
   code: string;
   category: Category;
@@ -17,6 +24,7 @@ export interface Diagnostic {
   span: Span;
   fix: ResolvedFix | null;
   example: Example | null;
+  related: LabeledSpan[];
 }
 
 const fill = (template: string, found: string): string =>
@@ -43,6 +51,17 @@ export function elaborate(marker: Marker, source: string): Diagnostic {
   const rawExplanation = variant?.explanation ?? entry.explanation ?? null;
   const fixSpec = variant?.fix ?? entry.fix ?? null;
 
+  // Pair each YAML related-label with the span the checker emitted under the
+  // same key. A label with no matching span (the declaration had no source
+  // location) is dropped; a span with no label is ignored.
+  const related: LabeledSpan[] = [];
+  for (const label of entry.related ?? []) {
+    const match = marker.related?.find(r => r.key === label.key) ?? null;
+    if (match !== null) {
+      related.push({ span: match.span, label: fill(label.label, found) });
+    }
+  }
+
   return {
     code: entry.code,
     category: entry.category,
@@ -56,5 +75,6 @@ export function elaborate(marker: Marker, source: string): Diagnostic {
       replacement: fill(fixSpec.replacement, found),
     },
     example: variant?.example ?? entry.example ?? null,
+    related,
   };
 }

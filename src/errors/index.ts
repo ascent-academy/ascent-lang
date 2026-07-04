@@ -75,7 +75,13 @@ export const ERRORS: ErrorEntry[] = [
     "category": "name",
     "summary": "Assignment to a name created with 'fix', whose value never changes.",
     "message": "'{found}' was created with 'fix', so its value can't change.",
-    "explanation": "A name created with 'fix' keeps its first value for good — that's what 'fix' means. If '{found}' needs to hold different values over time, create it with 'mut' instead of 'fix' where it was first made."
+    "explanation": "A name created with 'fix' keeps its first value for good — that's what 'fix' means. If '{found}' needs to hold different values over time, create it with 'mut' instead of 'fix' where it was first made.",
+    "related": [
+      {
+        "key": "declaration",
+        "label": "'{found}' was created with 'fix' here"
+      }
+    ]
   },
   {
     "code": "N0003",
@@ -84,6 +90,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "Assignment to a name that was never created with 'fix' or 'mut'.",
     "message": "I can't find a name '{found}' to assign to.",
     "explanation": "'=' changes the value of a name that already exists. To create '{found}' and give it a value at the same time, write 'mut {found} = …' (for a value you'll change later) or 'fix {found} = …' (for one that won't). If '{found}' should already exist, check the spelling."
+  },
+  {
+    "code": "N0004",
+    "name": "assign-to-arg",
+    "category": "name",
+    "summary": "Assignment to a program input, which is fixed for the whole run.",
+    "message": "'{found}' is a program input, so its value can't change.",
+    "explanation": "'{found}' comes from the program's 'args' — it's set once when the program starts and stays the same for the whole run, so it can't be assigned to. To work with a value you can update, make a new name with 'mut' and start it from '{found}', like 'mut total = {found};'."
   },
   {
     "code": "S0001",

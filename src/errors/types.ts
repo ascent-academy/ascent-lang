@@ -20,6 +20,15 @@ export interface Example {
   invalid: string;
 }
 
+// A label for a supporting span. `key` pairs it with the RelatedMarker the
+// checker emits (by role); `label` is the prose shown beside that span and may
+// contain {found}. If the checker doesn't supply a span for this key (e.g. the
+// declaration has no source location), the label is simply dropped.
+export interface RelatedLabel {
+  key: string;
+  label: string;
+}
+
 // A condition on the offending source text (`found`). The first variant whose
 // `when` matches overrides the base fields it specifies. Kept deliberately tiny
 // — these two forms cover every value-keyed case the lexer produces.
@@ -52,6 +61,8 @@ export interface ErrorEntry {
   explanation?: string;
   fix?: Fix;
   example?: Example;
+  // Labels for supporting spans, keyed to the RelatedMarkers the checker emits.
+  related?: RelatedLabel[];
   variants?: Variant[];
   retired?: boolean;
 }
