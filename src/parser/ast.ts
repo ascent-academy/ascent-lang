@@ -1,4 +1,4 @@
-import type { Span } from './errors/marker.js';
+import type { Span } from '../errors/marker.js';
 
 // TypeExpr is the AST node for a type written in source code.
 // It carries span information so the type checker can point at it in errors.

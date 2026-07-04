@@ -1,6 +1,6 @@
 import type { Token, TokenKind } from '../lexer/token.js';
 import type { ErrorMarker } from '../errors/marker.js';
-import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType, TypeExpr } from '../ast.js';
+import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType, TypeExpr } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;

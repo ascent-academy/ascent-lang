@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { Parser } from './parser/index.js';
-import { typecheck } from './typechecker.js';
-import { formatValue } from './printer.js';
-import { formatTypedStmt } from './typed-printer.js';
+import { typecheck } from './parser/typechecker.js';
+import { formatValue } from './parser/printer.js';
+import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, RuntimeValue } from './interpreter.js';
-import type { ArgDef } from './ast.js';
+import type { ArgDef } from './parser/ast.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.

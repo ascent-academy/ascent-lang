@@ -1,13 +1,13 @@
-import type { BinaryOp } from './ast.js';
-import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './typed-ast.js';
-import type { Type } from './types.js';
+import type { BinaryOp } from './parser/ast.js';
+import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
+import type { Type } from './parser/types.js';
 
 export type RuntimeValue = (
-  | { type: 'Int';    value: bigint }
-  | { type: 'Float';  value: number }
-  | { type: 'Bool';   value: boolean }
+  | { type: 'Int'; value: bigint }
+  | { type: 'Float'; value: number }
+  | { type: 'Bool'; value: boolean }
   | { type: 'String'; value: string }
-  | { type: 'List';   elements: RuntimeValue[] }
+  | { type: 'List'; elements: RuntimeValue[] }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -24,7 +24,7 @@ export type AssignResult = 'ok' | 'immutable' | 'undeclared';
 export class Environment {
   private readonly vars = new Map<string, Binding>();
 
-  public constructor(private readonly parent: Environment | null = null) {}
+  public constructor(private readonly parent: Environment | null = null) { }
 
   public get(name: string): RuntimeValue | undefined {
     return this.vars.get(name)?.value ?? this.parent?.get(name);
@@ -68,12 +68,12 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
   switch (expr.kind) {
     case 'literal': {
       switch (expr.type) {
-        case 'Int':    return { type: 'Int',    value: expr.value };
-        case 'Float':  return { type: 'Float',  value: expr.value };
-        case 'Bool':   return { type: 'Bool',   value: expr.value };
+        case 'Int': return { type: 'Int', value: expr.value };
+        case 'Float': return { type: 'Float', value: expr.value };
+        case 'Bool': return { type: 'Bool', value: expr.value };
         case 'String': return { type: 'String', value: expr.value };
-        case 'None':   return { type: 'None' };
-        case 'Done':   return { type: 'Done' };
+        case 'None': return { type: 'None' };
+        case 'Done': return { type: 'Done' };
       }
     }
     case 'slot': {
@@ -107,10 +107,10 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       return { type: 'List', elements };
     }
     case 'index': {
-      const list = evaluateExpr(expr.list,  env);
-      const idx  = evaluateExpr(expr.index, env);
+      const list = evaluateExpr(expr.list, env);
+      const idx = evaluateExpr(expr.index, env);
       if (list.type !== 'List') throw new Error('internal: index receiver not a List');
-      if (idx.type  !== 'Int')  throw new Error('internal: index not an Int');
+      if (idx.type !== 'Int') throw new Error('internal: index not an Int');
       const i = Number(idx.value);
       if (i < 0 || i >= list.elements.length) {
         throw new Error(`index ${i} out of bounds (length ${list.elements.length})`);
@@ -119,7 +119,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);
-      if (operand.type === 'Int')   return { type: 'Int',   value: -operand.value };
+      if (operand.type === 'Int') return { type: 'Int', value: -operand.value };
       if (operand.type === 'Float') return { type: 'Float', value: -operand.value };
       throw new Error(`internal: unary '-' on ${operand.type}`);
     }
@@ -183,25 +183,25 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
 
 const evalIntMethod = (receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, _args: RuntimeValue[]): RuntimeValue => {
   switch (method) {
-    case 'toStr':   return { type: 'String', value: String(receiver.value) };
-    case 'toFloat': return { type: 'Float',  value: Number(receiver.value) };
-    case 'abs':     return { type: 'Int',    value: receiver.value < 0n ? -receiver.value : receiver.value };
+    case 'toStr': return { type: 'String', value: String(receiver.value) };
+    case 'toFloat': return { type: 'Float', value: Number(receiver.value) };
+    case 'abs': return { type: 'Int', value: receiver.value < 0n ? -receiver.value : receiver.value };
     default: throw new Error(`internal: Int has no method '${method}'`);
   }
 };
 
 const evalFloatMethod = (receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
   switch (method) {
-    case 'toStr':  return { type: 'String', value: String(receiver.value) };
-    case 'toInt':  return { type: 'Int',    value: BigInt(Math.trunc(receiver.value)) };
-    case 'abs':    return { type: 'Float',  value: Math.abs(receiver.value) };
+    case 'toStr': return { type: 'String', value: String(receiver.value) };
+    case 'toInt': return { type: 'Int', value: BigInt(Math.trunc(receiver.value)) };
+    case 'abs': return { type: 'Float', value: Math.abs(receiver.value) };
     case 'min': {
       const r = args[0]!;
-      return { type: 'Float', value: Math.min(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, {type:'Float'}>).value) };
+      return { type: 'Float', value: Math.min(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, { type: 'Float' }>).value) };
     }
     case 'max': {
       const r = args[0]!;
-      return { type: 'Float', value: Math.max(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, {type:'Float'}>).value) };
+      return { type: 'Float', value: Math.max(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, { type: 'Float' }>).value) };
     }
     default: throw new Error(`internal: Float has no method '${method}'`);
   }
@@ -217,7 +217,7 @@ const evalListMethod = (
   const coerceElem = (v: RuntimeValue) => elemType !== null ? coerce(v, elemType) : v;
 
   switch (method) {
-    case 'length':  return { type: 'Int',  value: BigInt(receiver.elements.length) };
+    case 'length': return { type: 'Int', value: BigInt(receiver.elements.length) };
     case 'isEmpty': return { type: 'Bool', value: receiver.elements.length === 0 };
     case 'reverse': return { type: 'List', elements: [...receiver.elements].reverse().map(coerceElem) };
     case 'append':
@@ -239,9 +239,9 @@ const evalMethodCall = (
   receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: Type,
 ): RuntimeValue => {
   switch (receiver.type) {
-    case 'Int':   return evalIntMethod(receiver, method, args);
+    case 'Int': return evalIntMethod(receiver, method, args);
     case 'Float': return evalFloatMethod(receiver, method, args);
-    case 'List':  return evalListMethod(receiver, method, args, resultType);
+    case 'List': return evalListMethod(receiver, method, args, resultType);
     default: throw new Error(`internal: ${receiver.type} has no methods`);
   }
 };
@@ -291,7 +291,7 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
 
   if (op === '<' || op === '<=' || op === '>' || op === '>=') {
     const useInt = left.type === 'Int' && right.type === 'Int';
-    const l = useInt ? left.value  : asFloat(left);
+    const l = useInt ? left.value : asFloat(left);
     const r = useInt ? right.value : asFloat(right);
     const result = op === '<' ? l < r : op === '<=' ? l <= r : op === '>' ? l > r : l >= r;
     return { type: 'Bool', value: result };
@@ -312,8 +312,8 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
 
   if (left.type === 'Int' && right.type === 'Int') {
     const v = op === '+' ? left.value + right.value
-            : op === '-' ? left.value - right.value
-            :               left.value * right.value;
+      : op === '-' ? left.value - right.value
+        : left.value * right.value;
     return { type: 'Int', value: v };
   }
 

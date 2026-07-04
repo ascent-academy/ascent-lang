@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Expr, Statement, TypeExpr } from './ast.js';
-import type { RuntimeValue } from './interpreter.js';
+import type { RuntimeValue } from '../interpreter.js';
 
 const formatTypeExpr = (te: TypeExpr): string => {
   switch (te.kind) {
@@ -27,7 +27,7 @@ const exprLines = (expr: Expr): string[] => {
           return [`${chalk.cyan('None')}`];
         case 'Done':
           return [`${chalk.cyan('Done')}`];
-    }
+      }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];
     case 'call': {
@@ -53,7 +53,7 @@ const exprLines = (expr: Expr): string[] => {
       return [`${chalk.cyan('List')}`, ...elementLines];
     }
     case 'index': {
-      const listLines  = branch(exprLines(expr.list),  false);
+      const listLines = branch(exprLines(expr.list), false);
       const indexLines = branch(exprLines(expr.index), true);
       return [`${chalk.cyan('Index')}`, ...listLines, ...indexLines];
     }

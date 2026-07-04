@@ -1,5 +1,5 @@
 import type { Expr, Statement, Program, Block, If, TypeExpr } from './ast.js';
-import type { ErrorMarker, Span } from './errors/marker.js';
+import type { ErrorMarker, Span } from '../errors/marker.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram } from './typed-ast.js';
 import {
   Type, INT, FLOAT, BOOL, STRING, NONE, DONE, listOf,
@@ -14,7 +14,7 @@ export interface TypeCheckResult {
 // A chain of scopes mirroring Environment in the interpreter.
 class TypeEnv {
   private vars = new Map<string, { ty: Type; mutable: boolean }>();
-  public constructor(private readonly parent: TypeEnv | null = null) {}
+  public constructor(private readonly parent: TypeEnv | null = null) { }
 
   public get(name: string): { ty: Type; mutable: boolean } | null {
     return this.vars.get(name) ?? this.parent?.get(name) ?? null;
@@ -33,9 +33,9 @@ const resolveTypeExpr = (te: TypeExpr): Type => {
   switch (te.kind) {
     case 'TypeName': {
       switch (te.name) {
-        case 'Int':    return INT;
-        case 'Float':  return FLOAT;
-        case 'Bool':   return BOOL;
+        case 'Int': return INT;
+        case 'Float': return FLOAT;
+        case 'Bool': return BOOL;
         case 'String': return STRING;
       }
     }
@@ -53,18 +53,18 @@ const requireArity = (expected: number, got: number, markers: ErrorMarker[], spa
 
 const intMethodType = (method: string, argTypes: Type[], markers: ErrorMarker[], span: Span): Type | null => {
   switch (method) {
-    case 'toStr':   return requireArity(0, argTypes.length, markers, span) ? STRING : null;
-    case 'toFloat': return requireArity(0, argTypes.length, markers, span) ? FLOAT  : null;
-    case 'abs':     return requireArity(0, argTypes.length, markers, span) ? INT    : null;
+    case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING : null;
+    case 'toFloat': return requireArity(0, argTypes.length, markers, span) ? FLOAT : null;
+    case 'abs': return requireArity(0, argTypes.length, markers, span) ? INT : null;
     default: markers.push({ code: 'T0006', span }); return null;
   }
 };
 
 const floatMethodType = (method: string, argTypes: Type[], markers: ErrorMarker[], span: Span): Type | null => {
   switch (method) {
-    case 'toStr':  return requireArity(0, argTypes.length, markers, span) ? STRING : null;
-    case 'toInt':  return requireArity(0, argTypes.length, markers, span) ? INT    : null;
-    case 'abs':    return requireArity(0, argTypes.length, markers, span) ? FLOAT  : null;
+    case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING : null;
+    case 'toInt': return requireArity(0, argTypes.length, markers, span) ? INT : null;
+    case 'abs': return requireArity(0, argTypes.length, markers, span) ? FLOAT : null;
     case 'min':
     case 'max': {
       if (!requireArity(1, argTypes.length, markers, span)) return null;
@@ -80,8 +80,8 @@ const listMethodType = (
   elemType: Type, method: string, argTypes: Type[], markers: ErrorMarker[], span: Span,
 ): Type | null => {
   switch (method) {
-    case 'length':  return requireArity(0, argTypes.length, markers, span) ? INT          : null;
-    case 'isEmpty': return requireArity(0, argTypes.length, markers, span) ? BOOL         : null;
+    case 'length': return requireArity(0, argTypes.length, markers, span) ? INT : null;
+    case 'isEmpty': return requireArity(0, argTypes.length, markers, span) ? BOOL : null;
     case 'reverse': return requireArity(0, argTypes.length, markers, span) ? listOf(elemType) : null;
     case 'append':
     case 'prepend': {
@@ -114,12 +114,12 @@ const inferExpr = (
   switch (expr.kind) {
     case 'literal': {
       switch (expr.type) {
-        case 'Int':    return { ...expr, ty: INT };
-        case 'Float':  return { ...expr, ty: FLOAT };
-        case 'Bool':   return { ...expr, ty: BOOL };
+        case 'Int': return { ...expr, ty: INT };
+        case 'Float': return { ...expr, ty: FLOAT };
+        case 'Bool': return { ...expr, ty: BOOL };
         case 'String': return { ...expr, ty: STRING };
-        case 'None':   return { ...expr, ty: NONE };
-        case 'Done':   return { ...expr, ty: DONE };
+        case 'None': return { ...expr, ty: NONE };
+        case 'Done': return { ...expr, ty: DONE };
       }
     }
 
@@ -149,7 +149,7 @@ const inferExpr = (
     }
 
     case 'binary': {
-      const typedLeft  = inferExpr(expr.left,  env, markers);
+      const typedLeft = inferExpr(expr.left, env, markers);
       const typedRight = inferExpr(expr.right, env, markers);
       if (typedLeft === null || typedRight === null) return null;
       const lt = typedLeft.ty;
@@ -230,11 +230,11 @@ const inferExpr = (
     }
 
     case 'index': {
-      const typedList  = inferExpr(expr.list,  env, markers);
+      const typedList = inferExpr(expr.list, env, markers);
       const typedIndex = inferExpr(expr.index, env, markers);
       if (typedList === null || typedIndex === null) return null;
-      if (typedList.ty.kind !== 'List')  { markers.push({ code: 'T0010', span: expr.span }); return null; }
-      if (typedIndex.ty.kind !== 'Int')  { markers.push({ code: 'T0011', span: expr.span }); return null; }
+      if (typedList.ty.kind !== 'List') { markers.push({ code: 'T0010', span: expr.span }); return null; }
+      if (typedIndex.ty.kind !== 'Int') { markers.push({ code: 'T0011', span: expr.span }); return null; }
       return { kind: 'index', list: typedList, index: typedIndex, ty: typedList.ty.elem, span: expr.span };
     }
 
@@ -253,9 +253,9 @@ const inferExpr = (
       const argTypes = typedArgs.map(a => a.ty);
       let resultType: Type | null;
       switch (typedReceiver.ty.kind) {
-        case 'Int':   resultType = intMethodType(expr.method, argTypes, markers, expr.span); break;
+        case 'Int': resultType = intMethodType(expr.method, argTypes, markers, expr.span); break;
         case 'Float': resultType = floatMethodType(expr.method, argTypes, markers, expr.span); break;
-        case 'List':  resultType = listMethodType(typedReceiver.ty.elem, expr.method, argTypes, markers, expr.span); break;
+        case 'List': resultType = listMethodType(typedReceiver.ty.elem, expr.method, argTypes, markers, expr.span); break;
         default: markers.push({ code: 'T0012', span: expr.span }); return null;
       }
       if (resultType === null) return null;
@@ -394,8 +394,8 @@ export const typecheck = (program: Program): TypeCheckResult => {
   for (const arg of program.args) {
     const ty: Type = arg.type === 'Int' ? INT
       : arg.type === 'Float' ? FLOAT
-      : arg.type === 'Bool'  ? BOOL
-      : STRING;
+        : arg.type === 'Bool' ? BOOL
+          : STRING;
     env.set(arg.name, ty, false);
   }
 
