@@ -33,6 +33,18 @@ export class Parser {
     return this.tokens[this.pos + 1] ?? this.tokens[this.tokens.length - 1]!;
   }
 
+  // Consume-or-diagnose: the shape every "expect this exact token here"
+  // check in the grammar shares. Returns the consumed token, or records
+  // `code` at the offending token's span and returns null.
+  private expect(kind: TokenKind, code: string): Token | null {
+    const tok = this.peek();
+    if (tok.kind !== kind) {
+      this.errorMarkers.push({ code, span: tok.span });
+      return null;
+    }
+    return this.advance();
+  }
+
   // ---- Pratt parsing --------------------------------------------------
   //
   // A Pratt parser recognises an expression as an atom (a "nud" — null
@@ -118,12 +130,8 @@ export class Parser {
           }
         }
 
-        const rparen = this.peek();
-        if (rparen.kind !== 'RPAREN') {
-          this.errorMarkers.push({ code: 'S0001', span: rparen.span });
-          return null;
-        }
-        this.advance(); // consume ')'
+        const rparen = this.expect('RPAREN', 'S0001');
+        if (rparen === null) return null;
 
         left = {
           kind: 'methodCall',
@@ -144,12 +152,8 @@ export class Parser {
         const index = this.parseExpr();
         if (index === null) return null;
 
-        const rbracket = this.peek();
-        if (rbracket.kind !== 'RBRACKET') {
-          this.errorMarkers.push({ code: 'S0013', span: rbracket.span });
-          return null;
-        }
-        this.advance(); // consume ']'
+        const rbracket = this.expect('RBRACKET', 'S0013');
+        if (rbracket === null) return null;
 
         left = {
           kind: 'index',
@@ -319,12 +323,8 @@ export class Parser {
       }
     }
 
-    const rparen = this.peek();
-    if (rparen.kind !== 'RPAREN') {
-      this.errorMarkers.push({ code: 'S0001', span: rparen.span });
-      return null;
-    }
-    this.advance(); // consume ')'
+    const rparen = this.expect('RPAREN', 'S0001');
+    if (rparen === null) return null;
 
     return {
       kind: 'call',
@@ -353,12 +353,8 @@ export class Parser {
       }
     }
 
-    const closeTok = this.peek();
-    if (closeTok.kind !== 'RBRACKET') {
-      this.errorMarkers.push({ code: 'S0013', span: closeTok.span });
-      return null;
-    }
-    this.advance(); // consume ']'
+    const closeTok = this.expect('RBRACKET', 'S0013');
+    if (closeTok === null) return null;
 
     return { kind: 'list', elements, span: { start: openTok.span.start, end: closeTok.span.end } };
   }
@@ -401,24 +397,14 @@ export class Parser {
   // The body braces already delimit the construct, but the test stays
   // parenthesized to match the C-family/TS surface (§5).
   private parseCond(): Expr | null {
-    const lparen = this.peek();
-    if (lparen.kind !== 'LPAREN') {
-      this.errorMarkers.push({ code: 'S0006', span: lparen.span });
-      return null;
-    }
-    this.advance(); // consume '('
+    if (this.expect('LPAREN', 'S0006') === null) return null;
 
     const cond = this.parseExpr();
     if (cond === null) {
       return null;
     }
 
-    const rparen = this.peek();
-    if (rparen.kind !== 'RPAREN') {
-      this.errorMarkers.push({ code: 'S0001', span: rparen.span });
-      return null;
-    }
-    this.advance(); // consume ')'
+    if (this.expect('RPAREN', 'S0001') === null) return null;
 
     return cond;
   }
@@ -497,22 +483,13 @@ export class Parser {
     this.advance(); // consume type name
 
     if (tok.value === 'List') {
-      const lt = this.peek();
-      if (lt.kind !== 'LT') {
-        this.errorMarkers.push({ code: 'S0010', span: lt.span });
-        return null;
-      }
-      this.advance(); // consume '<'
+      if (this.expect('LT', 'S0010') === null) return null;
 
       const elem = this.parseTypeExpr();
       if (elem === null) return null;
 
-      const gt = this.peek();
-      if (gt.kind !== 'GT') {
-        this.errorMarkers.push({ code: 'S0010', span: gt.span });
-        return null;
-      }
-      this.advance(); // consume '>'
+      const gt = this.expect('GT', 'S0010');
+      if (gt === null) return null;
 
       return { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
     }
@@ -540,12 +517,7 @@ export class Parser {
       if (typeAnnotation === null) return null;
     }
 
-    const eqTok = this.peek();
-    if (eqTok.kind !== 'EQUALS') {
-      this.errorMarkers.push({ code: 'S0004', span: eqTok.span });
-      return null;
-    }
-    this.advance(); // consume '='
+    if (this.expect('EQUALS', 'S0004') === null) return null;
 
     const init = this.parseExpr();
     if (init === null) {
@@ -612,12 +584,7 @@ export class Parser {
     }
     this.advance(); // consume name
 
-    const colon = this.peek();
-    if (colon.kind !== 'COLON') {
-      this.errorMarkers.push({ code: 'S0009', span: colon.span });
-      return null;
-    }
-    this.advance(); // consume ':'
+    if (this.expect('COLON', 'S0009') === null) return null;
 
     const typeTok = this.peek();
     if (typeTok.kind !== 'TYPE_NAME') {
@@ -633,12 +600,7 @@ export class Parser {
   private parseArgs(): ArgDef[] | null {
     this.advance(); // consume 'args'
 
-    const lparen = this.peek();
-    if (lparen.kind !== 'LPAREN') {
-      this.errorMarkers.push({ code: 'S0006', span: lparen.span });
-      return null;
-    }
-    this.advance(); // consume '('
+    if (this.expect('LPAREN', 'S0006') === null) return null;
 
     const args: ArgDef[] = [];
 
@@ -655,12 +617,7 @@ export class Parser {
       }
     }
 
-    const rparen = this.peek();
-    if (rparen.kind !== 'RPAREN') {
-      this.errorMarkers.push({ code: 'S0001', span: rparen.span });
-      return null;
-    }
-    this.advance(); // consume ')'
+    if (this.expect('RPAREN', 'S0001') === null) return null;
 
     return args;
   }
@@ -677,12 +634,7 @@ export class Parser {
       if (result === null) return null;
       args = result;
 
-      const semi = this.peek();
-      if (semi.kind !== 'SEMICOLON') {
-        this.errorMarkers.push({ code: 'S0011', span: semi.span });
-        return null;
-      }
-      this.advance(); // consume ';'
+      if (this.expect('SEMICOLON', 'S0011') === null) return null;
     }
 
     const stmts: Statement[] = [];
