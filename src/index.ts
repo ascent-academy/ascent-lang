@@ -157,7 +157,19 @@ const runRepl = async (): Promise<void> => {
 
       const parseResult = new Parser(lexResult.tokens).parse();
 
-      if (parseResult.program !== null) {
+      // A non-null program no longer means error-free: panic-mode
+      // recovery can skip a malformed statement and still finish the
+      // parse, so errorMarkers — not program nullness — is what decides
+      // whether it's safe to typecheck/run.
+      if (parseResult.errorMarkers.length > 0) {
+        // Only show parser errors when the lexer succeeded — if the lexer
+        // already flagged something, the parser error is a downstream echo.
+        if (lexResult.errorMarkers.length === 0) {
+          for (const marker of parseResult.errorMarkers) {
+            process.stdout.write(chalk.red(`[${marker.code}]`) + '\n');
+          }
+        }
+      } else if (parseResult.program !== null) {
         const typeResult = typecheck(parseResult.program);
         const typeErrors = typeResult.errorMarkers;
 
@@ -179,12 +191,6 @@ const runRepl = async (): Promise<void> => {
               process.stdout.write(chalk.red(String(e)) + '\n');
             }
           }
-        }
-      } else if (lexResult.errorMarkers.length === 0) {
-        // Only show parser errors when the lexer succeeded — if the lexer
-        // already flagged something, the parser error is a downstream echo.
-        for (const marker of parseResult.errorMarkers) {
-          process.stdout.write(chalk.red(`[${marker.code}]`) + '\n');
         }
       }
     }

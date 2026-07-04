@@ -45,21 +45,59 @@ export class Parser {
     return this.advance();
   }
 
+  // Keywords that start a statement outright (mirrors parseStmt's own
+  // dispatch below). synchronize() treats one of these as a safe place
+  // to resume, since it's a far more reliable restart point than an
+  // arbitrary token that merely happens to also start an expression.
+  private static readonly STMT_START_KINDS: ReadonlySet<TokenKind> = new Set(['KW_FIX', 'KW_MUT', 'KW_WHILE']);
+
+  // Panic-mode recovery: skip tokens until the next statement boundary —
+  // the separator, the enclosing close token, EOF, or a statement-start
+  // keyword — without consuming whichever of those it lands on. Only
+  // parseSeparated's `recover` path calls this; it never reports a
+  // diagnostic itself, since the caller already recorded one for
+  // whatever failed before giving up and calling this.
+  private synchronize(sep: TokenKind, close: TokenKind): void {
+    while (this.peek().kind !== sep && this.peek().kind !== close && this.peek().kind !== 'EOF') {
+      if (Parser.STMT_START_KINDS.has(this.peek().kind)) return;
+      this.advance();
+    }
+  }
+
   // Parses `item (sep item)* close`, allowing an empty list and a
-  // trailing separator right before `close`. Returns null on the first
-  // failing item or a missing close token. `close` is returned alongside
-  // the items since callers need its span to close off the enclosing node.
+  // trailing separator right before `close`. `close` is returned
+  // alongside the items since callers need its span to close off the
+  // enclosing node.
+  //
+  // Without `recover`, a failing item or a missing close token aborts
+  // the whole list — the right call for a call's args or a list
+  // literal, where a bad element can't be recovered from without
+  // guessing. With `recover` (set only by parseBlock and parseProgram),
+  // a failing item instead calls synchronize() and keeps going, so one
+  // malformed statement doesn't take the rest of the file's diagnostics
+  // down with it. The list can still come back null if synchronize()
+  // runs all the way to EOF without ever finding `close`.
   private parseSeparated<T>(
     parseItem: () => T | null,
     sep: TokenKind,
     close: TokenKind,
     closeCode: string,
+    recover = false,
   ): { items: T[]; close: Token } | null {
     const items: T[] = [];
     if (this.peek().kind !== close) {
       for (; ;) {
         const item = parseItem();
-        if (item === null) return null;
+        if (item === null) {
+          if (!recover) return null;
+          this.synchronize(sep, close);
+          if (this.peek().kind === close || this.peek().kind === 'EOF') break;
+          if (this.peek().kind === sep) {
+            this.advance(); // consume the separator synchronize stopped on
+            if (this.peek().kind === close) break; // trailing separator after a recovered statement
+          }
+          continue;
+        }
         items.push(item);
         if (this.peek().kind !== sep) break;
         this.advance(); // consume separator
@@ -390,7 +428,7 @@ export class Parser {
   // this consumes its own.
   private parseBlock(openTok?: Token): Block | null {
     openTok ??= this.advance(); // consume '{' unless already consumed
-    const parsed = this.parseSeparated(() => this.parseStmt(), 'SEMICOLON', 'RBRACE', 'S0005');
+    const parsed = this.parseSeparated(() => this.parseStmt(), 'SEMICOLON', 'RBRACE', 'S0005', true);
     if (parsed === null) return null;
 
     return { kind: 'block', stmts: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
@@ -619,7 +657,7 @@ export class Parser {
       if (this.expect('SEMICOLON', 'S0011') === null) return null;
     }
 
-    const parsed = this.parseSeparated(() => this.parseStmt(), 'SEMICOLON', 'EOF', 'S0011');
+    const parsed = this.parseSeparated(() => this.parseStmt(), 'SEMICOLON', 'EOF', 'S0011', true);
     if (parsed === null) return null;
 
     return { args, stmts: parsed.items };
