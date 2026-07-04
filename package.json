@@ -1,23 +1,54 @@
 {
   "name": "@ascent-lang/dev",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "The Ascent teaching language: CLI and interpreter for running and embedding .asc programs.",
+  "type": "module",
+  "main": "dist/lib.js",
+  "types": "dist/lib.d.ts",
+  "bin": {
+    "ascent": "dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/lib.d.ts",
+      "default": "./dist/lib.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "directories": {
     "doc": "docs"
   },
   "scripts": {
     "generate": "tsx scripts/gen-errors.ts",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run generate",
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
     "prestart": "tsx scripts/gen-errors.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/podlomar/ascent-lang.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ascent",
+    "language",
+    "interpreter",
+    "teaching",
+    "education",
+    "cli"
+  ],
+  "author": "Martin Podloucký",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/podlomar/ascent-lang/issues"
