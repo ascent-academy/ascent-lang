@@ -105,7 +105,13 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "An opening '(' has no matching ')'.",
     "message": "I expected a ')' here.",
-    "explanation": "Every '(' has to be closed with a matching ')'. One was opened earlier — around a group like '(a + b)', a call's inputs, or an 'if' or 'while' condition — and this is where its ')' should be."
+    "explanation": "Every '(' has to be closed with a matching ')'. One was opened earlier — around a group like '(a + b)', a call's inputs, or an 'if' or 'while' condition — and this is where its ')' should be.",
+    "related": [
+      {
+        "key": "opener",
+        "label": "this '(' was opened here"
+      }
+    ]
   },
   {
     "code": "S0002",
@@ -137,7 +143,13 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "An opening '{' has no matching '}'.",
     "message": "I expected a '}' here.",
-    "explanation": "A block groups statements between '{' and '}'. One was opened earlier and this is where its closing '}' should be."
+    "explanation": "A block groups statements between '{' and '}'. One was opened earlier and this is where its closing '}' should be.",
+    "related": [
+      {
+        "key": "opener",
+        "label": "this '{' was opened here"
+      }
+    ]
   },
   {
     "code": "S0006",
@@ -201,7 +213,21 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "An opening '[' has no matching ']'.",
     "message": "I expected a ']' here.",
-    "explanation": "Square brackets '[ ]' wrap a list like '[1, 2, 3]' or pick an item out of one like 'items[0]'. One '[' was opened earlier and this is where its ']' should be."
+    "explanation": "Square brackets '[ ]' wrap a list like '[1, 2, 3]' or pick an item out of one like 'items[0]'. One '[' was opened earlier and this is where its ']' should be.",
+    "related": [
+      {
+        "key": "opener",
+        "label": "this '[' was opened here"
+      }
+    ]
+  },
+  {
+    "code": "S0014",
+    "name": "expected-call-paren",
+    "category": "syntactic",
+    "summary": "A method call needs '( )' after the method name.",
+    "message": "I expected a '(' here.",
+    "explanation": "A '.' calls a method, and a call always has '( )' after the name — even when the method takes no inputs, as in 'items.length()'. This is where that opening '(' should be."
   },
   {
     "code": "T0001",

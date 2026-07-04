@@ -152,12 +152,14 @@ function parseMethodCall(ts: TokenStream, receiver: Expr): Expr | null {
   ts.advance(); // consume method name
 
   if (ts.peek().kind !== 'LPAREN') {
-    ts.report('S0001', ts.peek().span);
+    // A missing '(' here is not an unclosed group — the call's argument list
+    // never opened — so it's its own error, not S0001.
+    ts.report('S0014', ts.peek().span);
     return null;
   }
-  ts.advance(); // consume '('
+  const openParen = ts.advance(); // consume '('
 
-  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001');
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, openParen.span);
   if (parsed === null) return null;
 
   return {
@@ -171,12 +173,12 @@ function parseMethodCall(ts: TokenStream, receiver: Expr): Expr | null {
 
 // 'list[index]' — LBRACKET already confirmed on lookahead by the Pratt loop.
 function parseIndex(ts: TokenStream, list: Expr): Expr | null {
-  ts.advance(); // consume '['
+  const openBracket = ts.advance(); // consume '['
 
   const index = parseExpr(ts);
   if (index === null) return null;
 
-  const rbracket = ts.expect('RBRACKET', 'S0013');
+  const rbracket = ts.expect('RBRACKET', 'S0013', [{ key: 'opener', span: openBracket.span }]);
   if (rbracket === null) return null;
 
   return {
@@ -255,7 +257,7 @@ function parseAtom(ts: TokenStream): Expr | null {
     }
     const closing = ts.peek();
     if (closing.kind !== 'RPAREN') {
-      ts.report('S0001', closing.span);
+      ts.report('S0001', closing.span, [{ key: 'opener', span: tok.span }]);
       return null;
     }
     ts.advance(); // consume ')'
@@ -291,8 +293,8 @@ function parseAtom(ts: TokenStream): Expr | null {
 
 // 'name(arg, arg, …)' — callee token already consumed by parseAtom.
 function parseCall(ts: TokenStream, callee: Token): Expr | null {
-  ts.advance(); // consume '('
-  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001');
+  const openParen = ts.advance(); // consume '('
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, openParen.span);
   if (parsed === null) return null;
 
   return {
@@ -306,7 +308,7 @@ function parseCall(ts: TokenStream, callee: Token): Expr | null {
 // '[' expr, expr, … ']' — list literal. Already peeked '[' in parseAtom.
 function parseList(ts: TokenStream): Expr | null {
   const openTok = ts.advance(); // consume '['
-  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RBRACKET', 'S0013');
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RBRACKET', 'S0013', false, openTok.span);
   if (parsed === null) return null;
 
   return { kind: 'list', elements: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };

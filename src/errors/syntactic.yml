@@ -1,10 +1,4 @@
 # S — syntactic: each word is fine on its own, but they don't fit together
-#
-# Same shape as lexical.yml / name.yml: the parser emits only { code, span },
-# and the caret marks the spot where it got stuck. These messages say what was
-# expected there — they don't quote the word that was actually found (the caret
-# already shows it), which keeps them clear for beginners and avoids talk of
-# "tokens". See lexical.yml for the full wording rules.
 
 - code: S0001
   name: unclosed-paren
@@ -15,6 +9,9 @@
     Every '(' has to be closed with a matching ')'. One was opened earlier —
     around a group like '(a + b)', a call's inputs, or an 'if' or 'while'
     condition — and this is where its ')' should be.
+  related:
+    - key: opener
+      label: "this '(' was opened here"
 
 - code: S0002
   name: expected-expression
@@ -54,6 +51,9 @@
   explanation: >-
     A block groups statements between '{' and '}'. One was opened earlier and
     this is where its closing '}' should be.
+  related:
+    - key: opener
+      label: "this '{' was opened here"
 
 - code: S0006
   name: expected-test-paren
@@ -130,3 +130,16 @@
     Square brackets '[ ]' wrap a list like '[1, 2, 3]' or pick an item out of
     one like 'items[0]'. One '[' was opened earlier and this is where its ']'
     should be.
+  related:
+    - key: opener
+      label: "this '[' was opened here"
+
+- code: S0014
+  name: expected-call-paren
+  category: syntactic
+  summary: "A method call needs '( )' after the method name."
+  message: "I expected a '(' here."
+  explanation: >-
+    A '.' calls a method, and a call always has '( )' after the name — even
+    when the method takes no inputs, as in 'items.length()'. This is where that
+    opening '(' should be.

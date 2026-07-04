@@ -54,9 +54,10 @@ function parseArgDef(ts: TokenStream): ArgDef | null {
 export function parseArgs(ts: TokenStream): ArgDef[] | null {
   ts.advance(); // consume 'args'
 
-  if (ts.expect('LPAREN', 'S0006') === null) return null;
+  const open = ts.expect('LPAREN', 'S0006');
+  if (open === null) return null;
 
-  const parsed = ts.parseSeparated(() => parseArgDef(ts), 'COMMA', 'RPAREN', 'S0001');
+  const parsed = ts.parseSeparated(() => parseArgDef(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
 
   return parsed.items;

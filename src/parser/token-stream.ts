@@ -1,4 +1,4 @@
-import type { Token, TokenKind, Marker, Span } from '../lexer/token.js';
+import type { Token, TokenKind, Marker, RelatedMarker, Span } from '../lexer/token.js';
 
 // The token stream is everything the grammar productions in expr.ts,
 // stmt.ts and type-expr.ts share but that isn't grammar itself: the
@@ -39,17 +39,20 @@ export class TokenStream {
   // Record a diagnostic at a given span. The one place productions push
   // to the error log when they need to report something expect() can't
   // express (e.g. "this token was fine but the *next* thing is wrong").
-  public report(code: string, span: Span): void {
-    this.errors.push({ code, span });
+  public report(code: string, span: Span, related?: RelatedMarker[]): void {
+    const marker: Marker = { code, span };
+    if (related !== undefined && related.length > 0) marker.related = related;
+    this.errors.push(marker);
   }
 
   // Consume-or-diagnose: the shape every "expect this exact token here"
   // check in the grammar shares. Returns the consumed token, or records
-  // `code` at the offending token's span and returns null.
-  public expect(kind: TokenKind, code: string): Token | null {
+  // `code` at the offending token's span and returns null. `related` carries
+  // any supporting spans (e.g. the '(' this missing ')' should have closed).
+  public expect(kind: TokenKind, code: string, related?: RelatedMarker[]): Token | null {
     const tok = this.peek();
     if (tok.kind !== kind) {
-      this.report(code, tok.span);
+      this.report(code, tok.span, related);
       return null;
     }
     return this.advance();
@@ -87,12 +90,16 @@ export class TokenStream {
   // malformed statement doesn't take the rest of the file's diagnostics
   // down with it. The list can still come back null if synchronize()
   // runs all the way to EOF without ever finding `close`.
+  // `openSpan`, when given, is the span of the opening delimiter (the '(', '{'
+  // or '['); it rides along on the close-token error so an unclosed group can
+  // point back at where it opened.
   public parseSeparated<T>(
     parseItem: () => T | null,
     sep: TokenKind,
     close: TokenKind,
     closeCode: string,
     recover = false,
+    openSpan: Span | null = null,
   ): { items: T[]; close: Token } | null {
     const items: T[] = [];
     if (this.peek().kind !== close) {
@@ -111,10 +118,15 @@ export class TokenStream {
         items.push(item);
         if (this.peek().kind !== sep) break;
         this.advance(); // consume separator
-        if (this.peek().kind === close) break; // trailing separator
+        // Break on the close OR on end-of-input: a trailing separator right
+        // before EOF means the group is simply unclosed, so fall straight to
+        // the close-token error below instead of trying to parse another item
+        // (which would spuriously demand an expression at end of file).
+        if (this.peek().kind === close || this.peek().kind === 'EOF') break;
       }
     }
-    const closeTok = this.expect(close, closeCode);
+    const related: RelatedMarker[] = openSpan !== null ? [{ key: 'opener', span: openSpan }] : [];
+    const closeTok = this.expect(close, closeCode, related);
     if (closeTok === null) return null;
     return { items, close: closeTok };
   }

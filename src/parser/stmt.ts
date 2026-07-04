@@ -14,7 +14,7 @@ import { parseTypeExpr } from './type-expr.js';
 // this consumes its own.
 export function parseBlock(ts: TokenStream, openTok?: Token): Block | null {
   openTok ??= ts.advance(); // consume '{' unless already consumed
-  const parsed = ts.parseSeparated(() => parseStmt(ts), 'SEMICOLON', 'RBRACE', 'S0005', true);
+  const parsed = ts.parseSeparated(() => parseStmt(ts), 'SEMICOLON', 'RBRACE', 'S0005', true, openTok.span);
   if (parsed === null) return null;
 
   return { kind: 'block', stmts: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
@@ -24,14 +24,15 @@ export function parseBlock(ts: TokenStream, openTok?: Token): Block | null {
 // The body braces already delimit the construct, but the test stays
 // parenthesized to match the C-family/TS surface (§5).
 function parseCond(ts: TokenStream): Expr | null {
-  if (ts.expect('LPAREN', 'S0006') === null) return null;
+  const open = ts.expect('LPAREN', 'S0006');
+  if (open === null) return null;
 
   const cond = parseExpr(ts);
   if (cond === null) {
     return null;
   }
 
-  if (ts.expect('RPAREN', 'S0001') === null) return null;
+  if (ts.expect('RPAREN', 'S0001', [{ key: 'opener', span: open.span }]) === null) return null;
 
   return cond;
 }
