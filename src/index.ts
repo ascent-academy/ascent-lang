@@ -8,6 +8,8 @@ import { typecheck } from './parser/typechecker.js';
 import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, RuntimeValue } from './interpreter.js';
+import { elaborate } from './errors/elaborate.js';
+import { renderTerminal } from './errors/render.js';
 import type { ArgDef } from './parser/ast.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
@@ -97,10 +99,14 @@ const runFile = async (filePath: string): Promise<void> => {
   const lexResult = new Lexer(src).tokenize();
   const parseResult = new Parser(lexResult.tokens).parse();
 
-  const errors = [...lexResult.errorMarkers, ...parseResult.errorMarkers];
+  // Lexer errors mask downstream parser noise: if the characters didn't form
+  // valid tokens, the parser's complaints are just echoes of that.
+  const errors = lexResult.errorMarkers.length > 0
+    ? lexResult.errorMarkers
+    : parseResult.errorMarkers;
   if (errors.length > 0) {
     for (const marker of errors) {
-      process.stderr.write(chalk.red(`[${marker.code}]`) + '\n');
+      process.stderr.write(renderTerminal(elaborate(marker, src), src, filePath) + '\n\n');
     }
     process.exit(1);
   }
@@ -110,7 +116,7 @@ const runFile = async (filePath: string): Promise<void> => {
   const typeResult = typecheck(parseResult.program);
   if (typeResult.errorMarkers.length > 0) {
     for (const marker of typeResult.errorMarkers) {
-      process.stderr.write(chalk.red(`[${marker.code}]`) + '\n');
+      process.stderr.write(renderTerminal(elaborate(marker, src), src, filePath) + '\n\n');
     }
     process.exit(1);
   }
@@ -161,13 +167,13 @@ const runRepl = async (): Promise<void> => {
       // recovery can skip a malformed statement and still finish the
       // parse, so errorMarkers — not program nullness — is what decides
       // whether it's safe to typecheck/run.
-      if (parseResult.errorMarkers.length > 0) {
-        // Only show parser errors when the lexer succeeded — if the lexer
-        // already flagged something, the parser error is a downstream echo.
-        if (lexResult.errorMarkers.length === 0) {
-          for (const marker of parseResult.errorMarkers) {
-            process.stdout.write(chalk.red(`[${marker.code}]`) + '\n');
-          }
+      if (lexResult.errorMarkers.length > 0) {
+        for (const marker of lexResult.errorMarkers) {
+          process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
+        }
+      } else if (parseResult.errorMarkers.length > 0) {
+        for (const marker of parseResult.errorMarkers) {
+          process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
         }
       } else if (parseResult.program !== null) {
         const typeResult = typecheck(parseResult.program);
@@ -175,7 +181,7 @@ const runRepl = async (): Promise<void> => {
 
         if (typeErrors.length > 0) {
           for (const marker of typeErrors) {
-            process.stdout.write(chalk.red(`[${marker.code}]`) + '\n');
+            process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
           }
         } else {
           // Print the untyped parse tree; execute the typed AST.

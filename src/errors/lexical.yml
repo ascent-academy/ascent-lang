@@ -1,16 +1,51 @@
-# L — lexical: the characters don't form a valid token
+# L — lexical: the characters don't form a valid piece of Ascent
 
-- code: 'L0001'
-  name: 'unexpected-character'
-  category: 'lexical'
-  summary: "A character that can't begin any token."
+- code: L0001
+  name: unexpected-character
+  category: lexical
+  summary: A character that isn't part of Ascent.
+  message: "I don't recognise '{found}' here."
+  explanation: >-
+    Ascent is built from letters, digits, and a small set of symbols like
+    + - * / ( ) { } = . This character isn't one of them.
+  variants:
+    - when: { equals: "!" }
+      explanation: >-
+        Ascent doesn't use '!' on its own. It writes "is not equal to" as
+        '!=', and flips a True / False value with the word 'not'.
+    - when: { equals: "?" }
+      explanation: >-
+        Ascent doesn't use '?' on its own. It uses '??' to supply a fallback
+        value when something is None.
 
-- code: 'L0002'
-  name: 'invalid-number-literal'
-  category: 'lexical'
-  summary: "A letter immediately followed a number — '123abc' is not a valid token."
+- code: L0002
+  name: invalid-number-literal
+  category: lexical
+  summary: "A number with letters attached, like '123abc'."
+  message: "I can't read '{found}' as a number."
+  explanation: >-
+    A number in Ascent is made of digits, with an optional '.' for a decimal
+    — like 42 or 3.14. This one has letters joined onto it, so it isn't a
+    number.
+  example: { valid: "42", invalid: "123abc" }
 
-- code: 'L0003'
-  name: 'unterminated-string'
-  category: 'lexical'
-  summary: "A string literal that doesn't end before the end of the line."
+- code: L0003
+  name: unterminated-string
+  category: lexical
+  summary: 'A String with no closing ".'
+  message: 'This String is missing its closing ".'
+  explanation: >-
+    Every String begins and ends with a ". This one has an opening " but the
+    line ends before a matching " appears.
+
+- code: L0004
+  name: missing-integer-part
+  category: lexical
+  summary: "A decimal with no digit before the '.', like '.5'."
+  message: "This number needs a digit before the '.'."
+  explanation: >-
+    In Ascent a decimal needs a digit on both sides of the '.'. '{found}' has
+    nothing before the '.', so it isn't complete.
+  # Certain correction — the only reading of '.5' as a number is '0.5'.
+  fix: { title: "Write '0{found}'", replacement: "0{found}" }
+  example: { valid: "0.5", invalid: ".5" }

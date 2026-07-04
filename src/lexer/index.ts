@@ -114,13 +114,14 @@ export class Lexer {
       return this.readWord();
     }
 
-    // A leading-dot float like .5 looks like a number attempt, so L0002 is
-    // more helpful than L0001 ("unexpected character").
+    // A leading-dot float like .5 is a number missing its integer part, so
+    // L0004 (its own error, with a certain '0.5' fix) is more helpful than
+    // L0001 ("unexpected character") or L0002 (a number run into letters).
     if (ch === '.' && isDigit(this.c.peek(1))) {
       const start = this.c.mark();
       this.c.advance(); // '.'
       this.consumeWhile(isDigit);
-      return this.error('L0002', this.c.spanFrom(start));
+      return this.error('L0004', this.c.spanFrom(start));
     }
 
     const start = this.c.mark();
