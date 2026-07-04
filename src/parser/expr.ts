@@ -1,0 +1,313 @@
+import type { Token, TokenKind } from '../lexer/token.js';
+import type { Expr, BinaryOp, UnaryOp } from './ast.js';
+import type { TokenStream } from './token-stream.js';
+import { parseBlock, parseIf } from './stmt.js';
+
+// ---- Pratt parsing ----------------------------------------------------
+//
+// A Pratt parser recognises an expression as an atom (a "nud" — null
+// denotation, a value that doesn't look left at anything) optionally
+// followed by a chain of infix or postfix operators (each a "led" —
+// left denotation, because it combines the value already parsed with
+// whatever comes after it).
+//
+// Every operator — prefix, infix, or postfix — has a binding power: a
+// number saying how tightly it grabs its operands. Higher binds
+// tighter — that's what encodes precedence: '*' outbinds '+', so
+// `1 + 2 * 3` parses as `1 + (2 * 3)`, not `(1 + 2) * 3`. The parsing
+// loop only accepts an operator when its binding power is at least
+// `minBp` — the "how tight does the *caller* need things bound"
+// threshold passed down on each recursive call.
+//
+// This ladder is the single source of truth for what binds tighter
+// than what: postfix (`.method()`, `[index]`) binds tightest, then
+// unary '-', then '*'/'/'/'div'/'mod', then '+'/'-', then the
+// comparisons, loosest. Every table below is keyed off these numbers
+// instead of inlining its own.
+const BP = {
+  COMPARISON: 1,
+  ADDITIVE: 2,
+  MULTIPLICATIVE: 3,
+  UNARY: 4,
+  POSTFIX: 4,
+} as const;
+
+// Every binary operator this parser knows about has one row in this
+// table. Adding the next one means adding a row, never touching the
+// loop below. '*', '/', 'div' and 'mod' all share a binding power —
+// they're the same precedence tier — so all four outbind '+', which
+// in turn outbinds the comparisons — `1 + 2 < 3 * 4` groups as
+// `(1 + 2) < (3 * 4)`. Comparisons are also marked `assoc: 'none'`:
+// unlike '+' or '*', two of them can never sit side by side
+// (`a < b < c` is rejected, not silently grouped one way or the other).
+const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'none' }>> = {
+  EQ_EQ: { op: '==', bp: BP.COMPARISON, assoc: 'none' },
+  BANG_EQ: { op: '!=', bp: BP.COMPARISON, assoc: 'none' },
+  LT: { op: '<', bp: BP.COMPARISON, assoc: 'none' },
+  LT_EQ: { op: '<=', bp: BP.COMPARISON, assoc: 'none' },
+  GT: { op: '>', bp: BP.COMPARISON, assoc: 'none' },
+  GT_EQ: { op: '>=', bp: BP.COMPARISON, assoc: 'none' },
+  PLUS: { op: '+', bp: BP.ADDITIVE, assoc: 'left' },
+  MINUS: { op: '-', bp: BP.ADDITIVE, assoc: 'left' },
+  STAR: { op: '*', bp: BP.MULTIPLICATIVE, assoc: 'left' },
+  SLASH: { op: '/', bp: BP.MULTIPLICATIVE, assoc: 'left' },
+  KW_DIV: { op: 'div', bp: BP.MULTIPLICATIVE, assoc: 'left' },
+  KW_MOD: { op: 'mod', bp: BP.MULTIPLICATIVE, assoc: 'left' },
+};
+
+// Postfix table — dot-calls and indexing are "led" operators exactly
+// like the binary ones above (they look left at the value already
+// parsed), so they're declared here and dispatched on in the loop
+// below instead of being special-cased ahead of the INFIX_OPS lookup.
+// Both bind at POSTFIX — tighter than unary or any binary operator —
+// which is why `-a.b()[0]` parses as `-(a.b()[0])`.
+const POSTFIX_OPS: Partial<Record<TokenKind, { bp: number }>> = {
+  DOT: { bp: BP.POSTFIX },
+  LBRACKET: { bp: BP.POSTFIX },
+};
+
+// Prefix table — unary '-' is the Pratt parser's other operator kind
+// (a "nud" that still takes an operand, parsed in parseAtom below).
+// Only one entry today, but its binding power is declared here rather
+// than inlined at the call site.
+const PREFIX_OPS: Partial<Record<TokenKind, { op: UnaryOp; bp: number }>> = {
+  MINUS: { op: '-', bp: BP.UNARY },
+};
+
+export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
+  let left = parseAtom(ts);
+  if (left === null) {
+    return null;
+  }
+
+  // Tracks whether a non-associative (comparison-tier) operator has
+  // already been consumed at this call's level — a second one directly
+  // beside it (`a < b < c`) is a chain, not a grouping choice, so it's
+  // rejected here rather than silently parsed left- or right-first.
+  let chained = false;
+
+  while (true) {
+    const kind = ts.peek().kind;
+
+    // Postfix: expr.method(args) or expr[index] — dispatched by table
+    // rather than special-cased ahead of the INFIX_OPS lookup below.
+    const postfix = POSTFIX_OPS[kind];
+    if (postfix !== undefined) {
+      if (postfix.bp < minBp) break;
+      left = kind === 'DOT' ? parseMethodCall(ts, left) : parseIndex(ts, left);
+      if (left === null) return null;
+      continue;
+    }
+
+    const infix = INFIX_OPS[kind];
+    if (infix === undefined || infix.bp < minBp) {
+      break;
+    }
+
+    if (infix.assoc === 'none') {
+      if (chained) {
+        ts.report('S0008', ts.peek().span);
+        return null;
+      }
+      chained = true;
+    }
+
+    ts.advance(); // consume the operator
+
+    // Left-associativity — `1 + 2 + 3` must parse as `(1 + 2) + 3`,
+    // not `1 + (2 + 3)`. Parsing the right-hand side with `bp + 1`
+    // (instead of `bp`) is what enforces that: it stops a second '+'
+    // from being absorbed into the *right* operand, forcing it to
+    // instead be picked up by the loop one level up. Non-associative
+    // operators reuse the same `bp + 1` call — it still keeps looser
+    // operators out of the right operand, and the `chained` check
+    // above is what stops them from reappearing at this level.
+    const right = parseExpr(ts, infix.bp + 1);
+    if (right === null) {
+      return null;
+    }
+
+    left = {
+      kind: 'binary',
+      op: infix.op,
+      left,
+      right,
+      span: { start: left.span.start, end: right.span.end }
+    };
+  }
+
+  return left;
+}
+
+// 'receiver.method(args)' — DOT already confirmed on lookahead by the
+// Pratt loop; this consumes it through the closing ')'.
+function parseMethodCall(ts: TokenStream, receiver: Expr): Expr | null {
+  ts.advance(); // consume '.'
+
+  const methodTok = ts.peek();
+  if (methodTok.kind !== 'SLOT') {
+    ts.report('S0012', methodTok.span);
+    return null;
+  }
+  ts.advance(); // consume method name
+
+  if (ts.peek().kind !== 'LPAREN') {
+    ts.report('S0001', ts.peek().span);
+    return null;
+  }
+  ts.advance(); // consume '('
+
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001');
+  if (parsed === null) return null;
+
+  return {
+    kind: 'methodCall',
+    receiver,
+    method: methodTok.value,
+    args: parsed.items,
+    span: { start: receiver.span.start, end: parsed.close.span.end },
+  };
+}
+
+// 'list[index]' — LBRACKET already confirmed on lookahead by the Pratt loop.
+function parseIndex(ts: TokenStream, list: Expr): Expr | null {
+  ts.advance(); // consume '['
+
+  const index = parseExpr(ts);
+  if (index === null) return null;
+
+  const rbracket = ts.expect('RBRACKET', 'S0013');
+  if (rbracket === null) return null;
+
+  return {
+    kind: 'index',
+    list,
+    index,
+    span: { start: list.span.start, end: rbracket.span.end },
+  };
+}
+
+// parseAtom parses the smallest possible expression: a single literal
+// that doesn't depend on any operator. This is the Pratt parser's nud —
+// every future one (parenthesized groups, unary '-', identifiers) is
+// just another case added here, never a change to the loop above.
+function parseAtom(ts: TokenStream): Expr | null {
+  const tok = ts.peek();
+
+  if (tok.kind === 'INT_LIT') {
+    ts.advance();
+    return {
+      kind: 'literal',
+      valueType: 'Int',
+      value: BigInt(tok.value),
+      span: tok.span
+    };
+  }
+
+  if (tok.kind === 'FLOAT_LIT') {
+    ts.advance();
+    return {
+      kind: 'literal',
+      valueType: 'Float',
+      value: parseFloat(tok.value),
+      span: tok.span
+    };
+  }
+
+  if (tok.kind === 'STR_LIT') {
+    ts.advance();
+    return { kind: 'literal', valueType: 'String', value: tok.value, span: tok.span };
+  }
+
+  if (tok.kind === 'BOOL_LIT') {
+    ts.advance();
+    return {
+      kind: 'literal',
+      valueType: 'Bool',
+      value: tok.value === 'True',
+      span: tok.span
+    };
+  }
+
+  if (tok.kind === 'NONE_LIT') {
+    ts.advance();
+    return { kind: 'literal', valueType: 'None', span: tok.span };
+  }
+
+  if (tok.kind === 'DONE_LIT') {
+    ts.advance();
+    return { kind: 'literal', valueType: 'Done', span: tok.span };
+  }
+
+  if (tok.kind === 'SLOT') {
+    ts.advance();
+    if (ts.peek().kind === 'LPAREN') {
+      return parseCall(ts, tok);
+    }
+    return { kind: 'slot', name: tok.value, span: tok.span };
+  }
+
+  if (tok.kind === 'LPAREN') {
+    ts.advance();
+    const inner = parseExpr(ts);
+    if (inner === null) {
+      return null;
+    }
+    const closing = ts.peek();
+    if (closing.kind !== 'RPAREN') {
+      ts.report('S0001', closing.span);
+      return null;
+    }
+    ts.advance(); // consume ')'
+    return inner;
+  }
+
+  const prefix = PREFIX_OPS[tok.kind];
+  if (prefix !== undefined) {
+    const start = tok.span.start;
+    ts.advance();
+    const operand = parseExpr(ts, prefix.bp);
+    if (operand === null) {
+      return null;
+    }
+    return { kind: 'unary', op: prefix.op, operand, span: { start, end: operand.span.end } };
+  }
+
+  if (tok.kind === 'LBRACKET') {
+    return parseList(ts);
+  }
+
+  if (tok.kind === 'LBRACE') {
+    return parseBlock(ts);
+  }
+
+  if (tok.kind === 'KW_IF') {
+    return parseIf(ts);
+  }
+
+  ts.report('S0002', tok.span);
+  return null;
+}
+
+// 'name(arg, arg, …)' — callee token already consumed by parseAtom.
+function parseCall(ts: TokenStream, callee: Token): Expr | null {
+  ts.advance(); // consume '('
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001');
+  if (parsed === null) return null;
+
+  return {
+    kind: 'call',
+    callee: callee.value,
+    args: parsed.items,
+    span: { start: callee.span.start, end: parsed.close.span.end },
+  };
+}
+
+// '[' expr, expr, … ']' — list literal. Already peeked '[' in parseAtom.
+function parseList(ts: TokenStream): Expr | null {
+  const openTok = ts.advance(); // consume '['
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RBRACKET', 'S0013');
+  if (parsed === null) return null;
+
+  return { kind: 'list', elements: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
+}
