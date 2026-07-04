@@ -38,4 +38,4 @@ export const byCode = new Map(ERRORS.map(e => [e.code, e]));
 `;
 
 writeFileSync(outFile, output);
-console.log(`Generated ${entries.length} error entries → src/errors/generated.ts`);
+console.log(`Generated ${entries.length} error entries → src/errors/index.ts`);
