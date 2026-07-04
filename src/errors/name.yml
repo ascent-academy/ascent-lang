@@ -1,13 +1,4 @@
 # N — name & binding: a name/slot rule is broken
-#
-# Same shape as lexical.yml: the checker emits only { code, span }; the
-# elaborator fills {found} (here always the name the error points at) and picks
-# the first matching `variant`. See lexical.yml for the full wording rules —
-# facts only, no jargon, and a `fix` only when the correction is certain.
-#
-# None of these carry a `fix`: whether the author meant to create the name, fix
-# a typo, or change a declaration elsewhere is genuinely ambiguous, so each
-# explanation names the options and leaves the choice to the reader / the LLM.
 
 - code: N0001
   name: undefined-slot
