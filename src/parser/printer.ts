@@ -16,17 +16,17 @@ const exprLines = (expr: Expr): string[] => {
     case 'literal':
       switch (expr.type) {
         case 'Int':
-          return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}`];
+          return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}`];
         case 'Float':
-          return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}`];
+          return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}`];
         case 'Bool':
-          return [`${chalk.cyan('Bool')} ${chalk.yellow(expr.value ? 'True' : 'False')}`];
+          return [`${chalk.cyan('Lit')} ${chalk.yellow(expr.value ? 'True' : 'False')}`];
         case 'String':
-          return [`${chalk.cyan('String')} ${chalk.green(JSON.stringify(expr.value))}`];
+          return [`${chalk.cyan('Lit')} ${chalk.green(JSON.stringify(expr.value))}`];
         case 'None':
-          return [`${chalk.cyan('None')}`];
+          return [`${chalk.cyan('Lit')} ${chalk.yellow('None')}`];
         case 'Done':
-          return [`${chalk.cyan('Done')}`];
+          return [`${chalk.cyan('Lit')} ${chalk.yellow('Done')}`];
       }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];

@@ -12,12 +12,12 @@ const typedExprLines = (expr: TypedExpr): string[] => {
   switch (expr.kind) {
     case 'literal':
       switch (expr.type) {
-        case 'Int':    return [`${chalk.cyan('Int')} ${chalk.yellow(String(expr.value))}${t}`];
-        case 'Float':  return [`${chalk.cyan('Float')} ${chalk.yellow(String(expr.value))}${t}`];
-        case 'Bool':   return [`${chalk.cyan('Bool')} ${chalk.yellow(expr.value ? 'True' : 'False')}${t}`];
-        case 'String': return [`${chalk.cyan('String')} ${chalk.green(JSON.stringify(expr.value))}${t}`];
-        case 'None':   return [`${chalk.cyan('None')}${t}`];
-        case 'Done':   return [`${chalk.cyan('Done')}${t}`];
+        case 'Int': return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}${t}`];
+        case 'Float': return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}${t}`];
+        case 'Bool': return [`${chalk.cyan('Lit')} ${chalk.yellow(expr.value ? 'True' : 'False')}${t}`];
+        case 'String': return [`${chalk.cyan('Lit')} ${chalk.green(JSON.stringify(expr.value))}${t}`];
+        case 'None': return [`${chalk.cyan('Lit')} ${chalk.yellow('None')}${t}`];
+        case 'Done': return [`${chalk.cyan('Lit')} ${chalk.yellow('Done')}${t}`];
       }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}${t}`];
@@ -44,7 +44,7 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       return [`${chalk.cyan('List')}${t}`, ...elementLines];
     }
     case 'index': {
-      const listLines  = branch(typedExprLines(expr.list),  false);
+      const listLines = branch(typedExprLines(expr.list), false);
       const indexLines = branch(typedExprLines(expr.index), true);
       return [`${chalk.cyan('Index')}${t}`, ...listLines, ...indexLines];
     }
@@ -53,7 +53,7 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       return [`${chalk.cyan('Unary')} ${chalk.magenta(expr.op)}${t}`, ...operandLines];
     }
     case 'binary': {
-      const leftLines  = branch(typedExprLines(expr.left),  false);
+      const leftLines = branch(typedExprLines(expr.left), false);
       const rightLines = branch(typedExprLines(expr.right), true);
       return [`${chalk.cyan('Binary')} ${chalk.magenta(expr.op)}${t}`, ...leftLines, ...rightLines];
     }
