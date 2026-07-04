@@ -211,7 +211,7 @@ export class Parser {
       this.advance();
       return {
         kind: 'literal',
-        type: 'Int',
+        valueType: 'Int',
         value: BigInt(tok.value),
         span: tok.span
       };
@@ -221,7 +221,7 @@ export class Parser {
       this.advance();
       return {
         kind: 'literal',
-        type: 'Float',
+        valueType: 'Float',
         value: parseFloat(tok.value),
         span: tok.span
       };
@@ -229,14 +229,14 @@ export class Parser {
 
     if (tok.kind === 'STR_LIT') {
       this.advance();
-      return { kind: 'literal', type: 'String', value: tok.value, span: tok.span };
+      return { kind: 'literal', valueType: 'String', value: tok.value, span: tok.span };
     }
 
     if (tok.kind === 'BOOL_LIT') {
       this.advance();
       return {
         kind: 'literal',
-        type: 'Bool',
+        valueType: 'Bool',
         value: tok.value === 'True',
         span: tok.span
       };
@@ -244,12 +244,12 @@ export class Parser {
 
     if (tok.kind === 'NONE_LIT') {
       this.advance();
-      return { kind: 'literal', type: 'None', span: tok.span };
+      return { kind: 'literal', valueType: 'None', span: tok.span };
     }
 
     if (tok.kind === 'DONE_LIT') {
       this.advance();
-      return { kind: 'literal', type: 'Done', span: tok.span };
+      return { kind: 'literal', valueType: 'Done', span: tok.span };
     }
 
     if (tok.kind === 'SLOT') {

@@ -7,12 +7,12 @@ export type TypeExpr =
   | { kind: 'ListType'; elem: TypeExpr; span: Span };
 
 export type Literal = (
-  | { kind: 'literal'; type: 'Int'; value: bigint; span: Span }
-  | { kind: 'literal'; type: 'Float'; value: number; span: Span }
-  | { kind: 'literal'; type: 'Bool'; value: boolean; span: Span }
-  | { kind: 'literal'; type: 'String'; value: string; span: Span }
-  | { kind: 'literal'; type: 'None'; span: Span }
-  | { kind: 'literal'; type: 'Done'; span: Span }
+  | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }
+  | { kind: 'literal'; valueType: 'Float'; value: number; span: Span }
+  | { kind: 'literal'; valueType: 'Bool'; value: boolean; span: Span }
+  | { kind: 'literal'; valueType: 'String'; value: string; span: Span }
+  | { kind: 'literal'; valueType: 'None'; span: Span }
+  | { kind: 'literal'; valueType: 'Done'; span: Span }
 );
 
 export type UnaryOp = '-';

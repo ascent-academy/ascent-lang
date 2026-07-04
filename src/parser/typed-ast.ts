@@ -1,39 +1,39 @@
 import type { Span } from '../lexer/token.js';
 import type { UnaryOp, BinaryOp, ArgDef, TypeExpr } from './ast.js';
-import type { Type } from './types.js';
+import type { AscentType } from '../types/types.js';
 
-// Every typed expression carries `ty`: the Type inferred by the type checker.
-// The `ty` field is the semantic type; `type` on literal nodes remains the
-// literal kind discriminator (Int/Float/Bool/String/None/Done), exactly as in
-// the untyped AST, to avoid a field-name collision.
+// Every typed expression carries `type`: the Type inferred by the type
+// checker. On literal nodes, `valueType` remains the literal kind
+// discriminator (Int/Float/Bool/String/None/Done), exactly as in the
+// untyped AST, to avoid a field-name collision with `type`.
 export type TypedLiteral = (
-  | { kind: 'literal'; type: 'Int'; value: bigint; ty: Type; span: Span }
-  | { kind: 'literal'; type: 'Float'; value: number; ty: Type; span: Span }
-  | { kind: 'literal'; type: 'Bool'; value: boolean; ty: Type; span: Span }
-  | { kind: 'literal'; type: 'String'; value: string; ty: Type; span: Span }
-  | { kind: 'literal'; type: 'None'; ty: Type; span: Span }
-  | { kind: 'literal'; type: 'Done'; ty: Type; span: Span }
+  | { kind: 'literal'; valueType: 'Int'; value: bigint; type: AscentType; span: Span }
+  | { kind: 'literal'; valueType: 'Float'; value: number; type: AscentType; span: Span }
+  | { kind: 'literal'; valueType: 'Bool'; value: boolean; type: AscentType; span: Span }
+  | { kind: 'literal'; valueType: 'String'; value: string; type: AscentType; span: Span }
+  | { kind: 'literal'; valueType: 'None'; type: AscentType; span: Span }
+  | { kind: 'literal'; valueType: 'Done'; type: AscentType; span: Span }
 );
 
 export type TypedExpr = (
   | TypedLiteral
-  | { kind: 'slot'; name: string; ty: Type; span: Span }
-  | { kind: 'call'; callee: string; args: TypedExpr[]; ty: Type; span: Span }
-  | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; ty: Type; span: Span }
-  | { kind: 'list'; elements: TypedExpr[]; ty: Type; span: Span }
-  | { kind: 'index'; list: TypedExpr; index: TypedExpr; ty: Type; span: Span }
-  | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; ty: Type; span: Span }
-  | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; ty: Type; span: Span }
+  | { kind: 'slot'; name: string; type: AscentType; span: Span }
+  | { kind: 'call'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
+  | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }
+  | { kind: 'list'; elements: TypedExpr[]; type: AscentType; span: Span }
+  | { kind: 'index'; list: TypedExpr; index: TypedExpr; type: AscentType; span: Span }
+  | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; type: AscentType; span: Span }
+  | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
   | TypedBlock
   | TypedIf
 );
 
-// ty is the type the block yields: the type of the last expr-statement,
+// type is the type the block yields: the type of the last expr-statement,
 // or Done when the block is empty or ends with a non-expr statement.
 export type TypedBlock = {
   kind: 'block';
   stmts: TypedStatement[];
-  ty: Type;
+  type: AscentType;
   span: Span;
 };
 
@@ -42,7 +42,7 @@ export type TypedIf = {
   cond: TypedExpr;
   then: TypedBlock;
   else: TypedBlock | TypedIf | null;
-  ty: Type;
+  type: AscentType;
   span: Span;
 };
 
@@ -50,9 +50,9 @@ export type TypedIf = {
 // when provided, otherwise the inferred init type. The interpreter uses it to
 // coerce the init value (e.g. Int → Float when the annotation says Float).
 export type TypedStatement = (
-  | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; slotType: Type; init: TypedExpr; span: Span }
-  | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; slotType: Type; init: TypedExpr; span: Span }
-  | { kind: 'assign'; name: string; slotType: Type; value: TypedExpr; span: Span }
+  | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
+  | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
+  | { kind: 'assign'; name: string; slotType: AscentType; value: TypedExpr; span: Span }
   | { kind: 'expr'; expr: TypedExpr; span: Span }
   | { kind: 'while'; cond: TypedExpr; body: TypedBlock; span: Span }
 );

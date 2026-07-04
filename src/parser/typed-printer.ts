@@ -1,17 +1,17 @@
 import chalk from 'chalk';
 import type { TypedExpr, TypedStatement } from './typed-ast.js';
-import { typeToString } from './types.js';
+import { typeToString } from '../types/types.js';
 import { branch } from './printer.js';
 
 // Appends the inferred type as a dim annotation on a node label.
 const ty = (t: ReturnType<typeof typeToString>): string => chalk.dim(`: ${t}`);
 
 const typedExprLines = (expr: TypedExpr): string[] => {
-  const t = ty(typeToString(expr.ty));
+  const t = ty(typeToString(expr.type));
 
   switch (expr.kind) {
     case 'literal':
-      switch (expr.type) {
+      switch (expr.valueType) {
         case 'Int': return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}${t}`];
         case 'Float': return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}${t}`];
         case 'Bool': return [`${chalk.cyan('Lit')} ${chalk.yellow(expr.value ? 'True' : 'False')}${t}`];

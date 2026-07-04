@@ -1,6 +1,6 @@
 import type { BinaryOp } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
-import type { Type } from './parser/types.js';
+import type { AscentType } from './types/types.js';
 
 export type RuntimeValue = (
   | { type: 'Int'; value: bigint }
@@ -57,7 +57,7 @@ export class Environment {
 // Coerce a runtime value to match a target type when the target is Float
 // and the value is Int — the only implicit widening the language allows.
 // All other type conversions are explicit (methods like toFloat/toInt).
-const coerce = (v: RuntimeValue, targetType: Type): RuntimeValue => {
+const coerce = (v: RuntimeValue, targetType: AscentType): RuntimeValue => {
   if (targetType.kind === 'Float' && v.type === 'Int') {
     return { type: 'Float', value: Number(v.value) };
   }
@@ -67,7 +67,7 @@ const coerce = (v: RuntimeValue, targetType: Type): RuntimeValue => {
 export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
     case 'literal': {
-      switch (expr.type) {
+      switch (expr.valueType) {
         case 'Int': return { type: 'Int', value: expr.value };
         case 'Float': return { type: 'Float', value: expr.value };
         case 'Bool': return { type: 'Bool', value: expr.value };
@@ -95,11 +95,11 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
       const args = expr.args.map(a => evaluateExpr(a, env));
-      return evalMethodCall(receiver, expr.method, args, expr.ty);
+      return evalMethodCall(receiver, expr.method, args, expr.type);
     }
     case 'list': {
-      // expr.ty is List<T>; coerce each element to T (handles Int → Float).
-      const elemType = expr.ty.kind === 'List' ? expr.ty.elem : null;
+      // expr.type is List<T>; coerce each element to T (handles Int → Float).
+      const elemType = expr.type.kind === 'List' ? expr.type.elem : null;
       const elements = expr.elements.map(el => {
         const v = evaluateExpr(el, env);
         return elemType !== null ? coerce(v, elemType) : v;
@@ -209,7 +209,7 @@ const evalFloatMethod = (receiver: Extract<RuntimeValue, { type: 'Float' }>, met
 
 const evalListMethod = (
   receiver: Extract<RuntimeValue, { type: 'List' }>,
-  method: string, args: RuntimeValue[], resultType: Type,
+  method: string, args: RuntimeValue[], resultType: AscentType,
 ): RuntimeValue => {
   // For methods that return a List, resultType.elem is the element type to
   // coerce to (handles Int → Float when the list widens, e.g. after concat).
@@ -236,7 +236,7 @@ const evalListMethod = (
 };
 
 const evalMethodCall = (
-  receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: Type,
+  receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: AscentType,
 ): RuntimeValue => {
   switch (receiver.type) {
     case 'Int': return evalIntMethod(receiver, method, args);

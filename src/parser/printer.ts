@@ -14,7 +14,7 @@ const formatTypeExpr = (te: TypeExpr): string => {
 const exprLines = (expr: Expr): string[] => {
   switch (expr.kind) {
     case 'literal':
-      switch (expr.type) {
+      switch (expr.valueType) {
         case 'Int':
           return [`${chalk.cyan('Lit')} ${chalk.yellow(String(expr.value))}`];
         case 'Float':
