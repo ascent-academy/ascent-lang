@@ -1,16 +1,16 @@
 import type { Token, TokenKind } from '../lexer/token.js';
-import type { ErrorMarker } from '../errors/marker.js';
+import type { Marker } from '../lexer/token.js';
 import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType, TypeExpr } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;
-  errorMarkers: ErrorMarker[];
+  errorMarkers: Marker[];
 }
 
 export class Parser {
   private tokens: Token[];
   private pos: number = 0;
-  private errorMarkers: ErrorMarker[] = [];
+  private errorMarkers: Marker[] = [];
 
   public constructor(tokens: Token[]) {
     this.tokens = tokens;

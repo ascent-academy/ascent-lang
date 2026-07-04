@@ -1,4 +1,4 @@
-import type { Position, Span, ErrorMarker } from '../errors/marker.js';
+import type { Position, Span, Marker } from './token.js';
 import type { Token, TokenKind } from './token.js';
 import { isDigit, isAlpha, isAlphaNum, isWhitespace } from './chars.js';
 import { Cursor } from './cursor.js';
@@ -6,12 +6,12 @@ import { resolveWord } from './keywords.js';
 
 export interface LexResult {
   tokens: Token[];
-  errorMarkers: ErrorMarker[];
+  errorMarkers: Marker[];
 }
 
 export class Lexer {
   private c: Cursor;
-  private errorMarkers: ErrorMarker[] = [];
+  private errorMarkers: Marker[] = [];
 
   public constructor(src: string) {
     this.c = new Cursor(src);

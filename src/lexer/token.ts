@@ -1,5 +1,3 @@
-import type { Span } from '../errors/marker.js';
-
 export type TokenKind =
   | 'INT_LIT'    // a sequence of decimal digits: 0, 42, 1000
   | 'FLOAT_LIT'  // a decimal number with a dot: 0.5, 3.14, 1.0
@@ -40,6 +38,22 @@ export type TokenKind =
   | 'RBRACKET'   // ']' — list literal close / index close
   | 'ERROR'      // a character or run the lexer couldn't recognise
   | 'EOF';       // the sentinel that marks the end of source
+
+export interface Position {
+  offset: number;  // 0-based index into the source string
+  line: number;    // 1-based
+  column: number;  // 1-based
+}
+
+export interface Span {
+  start: Position;
+  end: Position;   // exclusive — points one past the last character
+}
+
+export interface Marker {
+  code: string;
+  span: Span;
+}
 
 export interface Token {
   kind: TokenKind;

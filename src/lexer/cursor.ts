@@ -1,4 +1,4 @@
-import type { Position, Span } from '../errors/marker.js';
+import type { Position, Span } from './token.js';
 
 export class Cursor {
   private src: string;

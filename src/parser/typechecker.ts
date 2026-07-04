@@ -1,5 +1,5 @@
 import type { Expr, Statement, Program, Block, If, TypeExpr } from './ast.js';
-import type { ErrorMarker, Span } from '../errors/marker.js';
+import type { Marker, Span } from '../lexer/token.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram } from './typed-ast.js';
 import {
   Type, INT, FLOAT, BOOL, STRING, NONE, DONE, listOf,
@@ -8,7 +8,7 @@ import {
 
 export interface TypeCheckResult {
   typedProgram: TypedProgram | null;
-  errorMarkers: ErrorMarker[];
+  errorMarkers: Marker[];
 }
 
 // A chain of scopes mirroring Environment in the interpreter.
@@ -46,12 +46,12 @@ const resolveTypeExpr = (te: TypeExpr): Type => {
 
 // ---- Method type signatures ------------------------------------------
 
-const requireArity = (expected: number, got: number, markers: ErrorMarker[], span: Span): boolean => {
+const requireArity = (expected: number, got: number, markers: Marker[], span: Span): boolean => {
   if (got !== expected) { markers.push({ code: 'T0007', span }); return false; }
   return true;
 };
 
-const intMethodType = (method: string, argTypes: Type[], markers: ErrorMarker[], span: Span): Type | null => {
+const intMethodType = (method: string, argTypes: Type[], markers: Marker[], span: Span): Type | null => {
   switch (method) {
     case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING : null;
     case 'toFloat': return requireArity(0, argTypes.length, markers, span) ? FLOAT : null;
@@ -60,7 +60,7 @@ const intMethodType = (method: string, argTypes: Type[], markers: ErrorMarker[],
   }
 };
 
-const floatMethodType = (method: string, argTypes: Type[], markers: ErrorMarker[], span: Span): Type | null => {
+const floatMethodType = (method: string, argTypes: Type[], markers: Marker[], span: Span): Type | null => {
   switch (method) {
     case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING : null;
     case 'toInt': return requireArity(0, argTypes.length, markers, span) ? INT : null;
@@ -77,7 +77,7 @@ const floatMethodType = (method: string, argTypes: Type[], markers: ErrorMarker[
 };
 
 const listMethodType = (
-  elemType: Type, method: string, argTypes: Type[], markers: ErrorMarker[], span: Span,
+  elemType: Type, method: string, argTypes: Type[], markers: Marker[], span: Span,
 ): Type | null => {
   switch (method) {
     case 'length': return requireArity(0, argTypes.length, markers, span) ? INT : null;
@@ -109,7 +109,7 @@ const listMethodType = (
 // get null should still continue checking siblings to surface more errors.
 
 const inferExpr = (
-  expr: Expr, env: TypeEnv, markers: ErrorMarker[], contextType: Type | null = null,
+  expr: Expr, env: TypeEnv, markers: Marker[], contextType: Type | null = null,
 ): TypedExpr | null => {
   switch (expr.kind) {
     case 'literal': {
@@ -273,7 +273,7 @@ const inferExpr = (
   }
 };
 
-const inferBlock = (block: Block, env: TypeEnv, markers: ErrorMarker[]): TypedBlock | null => {
+const inferBlock = (block: Block, env: TypeEnv, markers: Marker[]): TypedBlock | null => {
   const inner = env.child();
   const typedStmts: TypedStatement[] = [];
   let failed = false;
@@ -293,7 +293,7 @@ const inferBlock = (block: Block, env: TypeEnv, markers: ErrorMarker[]): TypedBl
   return { kind: 'block', stmts: typedStmts, ty: blockTy, span: block.span };
 };
 
-const inferIf = (expr: If, env: TypeEnv, markers: ErrorMarker[]): TypedIf | null => {
+const inferIf = (expr: If, env: TypeEnv, markers: Marker[]): TypedIf | null => {
   const typedCond = inferExpr(expr.cond, env, markers);
   if (typedCond !== null && typedCond.ty.kind !== 'Bool') {
     markers.push({ code: 'T0004', span: expr.cond.span });
@@ -318,7 +318,7 @@ const inferIf = (expr: If, env: TypeEnv, markers: ErrorMarker[]): TypedIf | null
   return { kind: 'if', cond: typedCond, then: typedThen, else: typedElse, ty: ct, span: expr.span };
 };
 
-const inferStmt = (stmt: Statement, env: TypeEnv, markers: ErrorMarker[]): TypedStatement | null => {
+const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedStatement | null => {
   switch (stmt.kind) {
     case 'fix':
     case 'mut': {
@@ -388,7 +388,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: ErrorMarker[]): Typed
 };
 
 export const typecheck = (program: Program): TypeCheckResult => {
-  const markers: ErrorMarker[] = [];
+  const markers: Marker[] = [];
   const env = new TypeEnv();
 
   for (const arg of program.args) {

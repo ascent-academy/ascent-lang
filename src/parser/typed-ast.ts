@@ -1,4 +1,4 @@
-import type { Span } from '../errors/marker.js';
+import type { Span } from '../lexer/token.js';
 import type { UnaryOp, BinaryOp, ArgDef, TypeExpr } from './ast.js';
 import type { Type } from './types.js';
 
