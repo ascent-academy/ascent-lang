@@ -34,20 +34,44 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
   return true;
 };
 
-// Int widens to Float everywhere — the only implicit numeric promotion.
-// List<Int> widens to List<Float> via the same rule applied recursively.
+// A coercion is the runtime witness of a subtyping edge: how to turn a value
+// of the sub-type into one of the super-type. `null` means the two types are
+// equal — no runtime conversion needed.
+export type Coercion = 'intToFloat' | { elem: Coercion } | null;
+
+// S <: T — the one place widening is defined. Int widens to Float, and lists
+// widen covariantly (sound only because Ascent lists are immutable: append /
+// prepend / concat return new lists rather than mutating in place). Returns
+// the coercion that witnesses the edge, or `false` when S is not a subtype of T.
+export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
+  if (typesEqual(sub, sup)) {
+    return null;
+  }
+
+  if (sub.kind === 'Int' && sup.kind === 'Float') {
+    return 'intToFloat';
+  }
+
+  if (sub.kind === 'List' && sup.kind === 'List') {
+    const c = subtype(sub.elem, sup.elem);
+    return c === false ? false : { elem: c };
+  }
+
+  return false;
+};
+
+// The least common supertype — derived from subtyping. When one side
+// subtypes the other, that supertype is the join. Otherwise, for two lists
+// whose elements aren't directly related by subtyping, recurse on the
+// elements (structural join; doesn't add any widening knowledge of its own).
 // Returns null when the two types have no common supertype.
 export const leastCommonType = (a: AscentType, b: AscentType): AscentType | null => {
-  if (typesEqual(a, b)) {
+  if (subtype(a, b) !== false) {
+    return b;
+  }
+
+  if (subtype(b, a) !== false) {
     return a;
-  }
-
-  if (a.kind === 'Int' && b.kind === 'Float') {
-    return FLOAT_TYPE;
-  }
-
-  if (a.kind === 'Float' && b.kind === 'Int') {
-    return FLOAT_TYPE;
   }
 
   if (a.kind === 'List' && b.kind === 'List') {
@@ -57,9 +81,5 @@ export const leastCommonType = (a: AscentType, b: AscentType): AscentType | null
   return null;
 };
 
-// `from` is assignable to `to` when their LCT is exactly `to`
-// (i.e., `from` fits inside `to`, possibly by widening).
-export const isAssignableTo = (from: AscentType, to: AscentType): boolean => {
-  const lct = leastCommonType(from, to);
-  return lct !== null && typesEqual(lct, to);
-};
+// `from` is assignable to `to` exactly when it's a subtype of `to`.
+export const isAssignableTo = (from: AscentType, to: AscentType): boolean => subtype(from, to) !== false;

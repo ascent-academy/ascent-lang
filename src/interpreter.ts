@@ -1,6 +1,6 @@
 import type { BinaryOp } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
-import type { AscentType } from './types/types.js';
+import { INT_TYPE, subtype, type AscentType } from './types/types.js';
 
 export type RuntimeValue = (
   | { type: 'Int'; value: bigint }
@@ -54,11 +54,11 @@ export class Environment {
   }
 }
 
-// Coerce a runtime value to match a target type when the target is Float
-// and the value is Int — the only implicit widening the language allows.
+// Coerce a runtime value to match a target type, per the witness `subtype`
+// produces — currently only Int <: Float, so only an Int value ever moves.
 // All other type conversions are explicit (methods like toFloat/toInt).
 const coerce = (v: RuntimeValue, targetType: AscentType): RuntimeValue => {
-  if (targetType.kind === 'Float' && v.type === 'Int') {
+  if (v.type === 'Int' && subtype(INT_TYPE, targetType) === 'intToFloat') {
     return { type: 'Float', value: Number(v.value) };
   }
   return v;
