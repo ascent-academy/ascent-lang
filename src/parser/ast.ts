@@ -53,7 +53,7 @@ export type Expr = (
 export type Statement = (
   | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
-  | { kind: 'assign'; name: string; value: Expr; span: Span }
+  | { kind: 'assign'; name: string; nameSpan: Span; value: Expr; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
 );

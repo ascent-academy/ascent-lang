@@ -149,6 +149,7 @@ function parseAssign(ts: TokenStream): Statement | null {
   return {
     kind: 'assign',
     name: nameTok.value,
+    nameSpan: nameTok.span,
     value,
     span: { start: nameTok.span.start, end: value.span.end },
   };

@@ -77,7 +77,8 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       }
     }
     case 'slot': {
-      // N0001 / N0002 are caught at type-check time; this is an internal guard.
+      // Name-binding errors (N0001–N0003) are caught at type-check time; this
+      // is an internal guard.
       const value = env.get(expr.name);
       if (value === undefined) throw new Error(`internal: unbound slot '${expr.name}'`);
       return value;

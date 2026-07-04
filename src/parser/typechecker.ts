@@ -347,9 +347,11 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
     case 'assign': {
       const binding = env.get(stmt.name);
       if (binding === null) {
-        markers.push({ code: 'N0001', span: stmt.span });
+        // Assigning to a name that was never created — a different mistake
+        // (and lesson) than using an undefined name in an expression (N0001).
+        markers.push({ code: 'N0003', span: stmt.nameSpan });
       } else if (!binding.mutable) {
-        markers.push({ code: 'N0002', span: stmt.span });
+        markers.push({ code: 'N0002', span: stmt.nameSpan });
       }
       const typedValue = inferExpr(stmt.value, env, markers);
       if (binding !== null && typedValue !== null && !isAssignableTo(typedValue.type, binding.ty)) {

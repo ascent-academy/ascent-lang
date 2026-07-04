@@ -65,13 +65,25 @@ export const ERRORS: ErrorEntry[] = [
     "code": "N0001",
     "name": "undefined-slot",
     "category": "name",
-    "summary": "A name was used that has not been declared with 'fix' or 'mut'."
+    "summary": "A name was used before it was created with 'fix' or 'mut'.",
+    "message": "I can't find anything named '{found}'.",
+    "explanation": "In Ascent a name has to be created before it's used, with 'fix' (a value that never changes) or 'mut' (one you can update later). Check that '{found}' is spelled the same as where you created it, or create it before this line."
   },
   {
     "code": "N0002",
     "name": "reassign-fix",
     "category": "name",
-    "summary": "Assignment to a slot declared with 'fix' — 'fix' slots never change; declare it with 'mut' instead if it needs to."
+    "summary": "Assignment to a name created with 'fix', whose value never changes.",
+    "message": "'{found}' was created with 'fix', so its value can't change.",
+    "explanation": "A name created with 'fix' keeps its first value for good — that's what 'fix' means. If '{found}' needs to hold different values over time, create it with 'mut' instead of 'fix' where it was first made."
+  },
+  {
+    "code": "N0003",
+    "name": "assign-to-undeclared",
+    "category": "name",
+    "summary": "Assignment to a name that was never created with 'fix' or 'mut'.",
+    "message": "I can't find a name '{found}' to assign to.",
+    "explanation": "'=' changes the value of a name that already exists. To create '{found}' and give it a value at the same time, write 'mut {found} = …' (for a value you'll change later) or 'fix {found} = …' (for one that won't). If '{found}' should already exist, check the spelling."
   },
   {
     "code": "S0001",
