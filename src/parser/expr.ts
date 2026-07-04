@@ -22,14 +22,20 @@ import { parseBlock, parseIf } from './stmt.js';
 // This ladder is the single source of truth for what binds tighter
 // than what: postfix (`.method()`, `[index]`) binds tightest, then
 // unary '-', then '*'/'/'/'div'/'mod', then '+'/'-', then the
-// comparisons, loosest. Every table below is keyed off these numbers
+// comparisons, then 'not', then 'and', then 'or'/'xor', loosest —
+// the word operators sit below the comparisons (§5 of design.md), so
+// `a == b and c == d` groups as `(a == b) and (c == d)`, never
+// `a == (b and c) == d`. Every table below is keyed off these numbers
 // instead of inlining its own.
 const BP = {
-  COMPARISON: 1,
-  ADDITIVE: 2,
-  MULTIPLICATIVE: 3,
-  UNARY: 4,
-  POSTFIX: 4,
+  OR: 1,
+  AND: 2,
+  NOT: 3,
+  COMPARISON: 4,
+  ADDITIVE: 5,
+  MULTIPLICATIVE: 6,
+  UNARY: 7,
+  POSTFIX: 7,
 } as const;
 
 // Every binary operator this parser knows about has one row in this
@@ -40,7 +46,13 @@ const BP = {
 // `(1 + 2) < (3 * 4)`. Comparisons are also marked `assoc: 'none'`:
 // unlike '+' or '*', two of them can never sit side by side
 // (`a < b < c` is rejected, not silently grouped one way or the other).
+// 'or' and 'xor' share a tier below 'and' — the same "same precedence,
+// left-associative" shape as '+'/'-' — so `a or b xor c` groups as
+// `(a or b) xor c`.
 const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'none' }>> = {
+  KW_OR: { op: 'or', bp: BP.OR, assoc: 'left' },
+  KW_XOR: { op: 'xor', bp: BP.OR, assoc: 'left' },
+  KW_AND: { op: 'and', bp: BP.AND, assoc: 'left' },
   EQ_EQ: { op: '==', bp: BP.COMPARISON, assoc: 'none' },
   BANG_EQ: { op: '!=', bp: BP.COMPARISON, assoc: 'none' },
   LT: { op: '<', bp: BP.COMPARISON, assoc: 'none' },
@@ -66,12 +78,14 @@ const POSTFIX_OPS: Partial<Record<TokenKind, { bp: number }>> = {
   LBRACKET: { bp: BP.POSTFIX },
 };
 
-// Prefix table — unary '-' is the Pratt parser's other operator kind
-// (a "nud" that still takes an operand, parsed in parseAtom below).
-// Only one entry today, but its binding power is declared here rather
-// than inlined at the call site.
+// Prefix table — the Pratt parser's other operator kind (a "nud" that
+// still takes an operand, parsed in parseAtom below). Unary '-' binds
+// tight, at the same tier as postfix; 'not' binds much looser — tighter
+// than 'and'/'or' but looser than the comparisons — which is what makes
+// `not a == b` parse as `not (a == b)` rather than `(not a) == b`.
 const PREFIX_OPS: Partial<Record<TokenKind, { op: UnaryOp; bp: number }>> = {
   MINUS: { op: '-', bp: BP.UNARY },
+  KW_NOT: { op: 'not', bp: BP.NOT },
 };
 
 export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {

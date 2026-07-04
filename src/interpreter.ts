@@ -120,12 +120,32 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     }
     case 'unary': {
       const operand = evaluateExpr(expr.operand, env);
+      if (expr.op === 'not') {
+        if (operand.type !== 'Bool') throw new Error(`internal: 'not' on ${operand.type}`);
+        return { type: 'Bool', value: !operand.value };
+      }
       if (operand.type === 'Int') return { type: 'Int', value: -operand.value };
       if (operand.type === 'Float') return { type: 'Float', value: -operand.value };
       throw new Error(`internal: unary '-' on ${operand.type}`);
     }
-    case 'binary':
+    case 'binary': {
+      // 'and'/'or' short-circuit: the left operand alone can decide the
+      // result ('False and e' / 'True or e'), so 'e' is only evaluated
+      // when it's still needed — the same laziness every mainstream
+      // language gives its logical operators. 'xor' has no such shortcut
+      // (either operand alone can flip the result), so it falls through
+      // to evaluateBinary, which evaluates both sides eagerly like every
+      // other operator.
+      if (expr.op === 'and' || expr.op === 'or') {
+        const left = evaluateExpr(expr.left, env);
+        if (left.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
+        if (expr.op === 'and' ? !left.value : left.value) return left;
+        const right = evaluateExpr(expr.right, env);
+        if (right.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
+        return right;
+      }
       return evaluateBinary(expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
+    }
     case 'block': {
       return evaluateBlock(expr, env);
     }
@@ -286,6 +306,11 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
   if (op === '==' || op === '!=') {
     const eq = valuesEqual(left, right);
     return { type: 'Bool', value: op === '==' ? eq : !eq };
+  }
+
+  if (op === 'xor') {
+    if (left.type !== 'Bool' || right.type !== 'Bool') throw new Error(`internal: 'xor' on non-Bool`);
+    return { type: 'Bool', value: left.value !== right.value };
   }
 
   if (!isNumeric(left) || !isNumeric(right)) throw new Error(`internal: '${op}' on non-numeric`);

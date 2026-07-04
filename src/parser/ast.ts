@@ -15,10 +15,11 @@ export type Literal = (
   | { kind: 'literal'; valueType: 'Done'; span: Span }
 );
 
-export type UnaryOp = '-';
+export type UnaryOp = '-' | 'not';
 export type ArithmeticOp = '+' | '-' | '*' | '/' | 'div' | 'mod';
 export type ComparisonOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
-export type BinaryOp = ArithmeticOp | ComparisonOp;
+export type BooleanOp = 'and' | 'or' | 'xor';
+export type BinaryOp = ArithmeticOp | ComparisonOp | BooleanOp;
 
 // A block is itself an expression — it yields the value of its last
 // statement, or Done when empty (the '{}' unit value).

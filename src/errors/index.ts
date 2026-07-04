@@ -325,7 +325,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "An operator was used on types it doesn't accept.",
     "message": "I can't use '{op}' on {operands}.",
-    "explanation": "Operators only work on certain types: '+', '-', '*', and '/' need numbers (Int or Float); 'div' and 'mod' need whole numbers (Int); and a comparison needs two values of the same kind. '{op}' doesn't work on {operands}."
+    "explanation": "Operators only work on certain types: '+', '-', '*', and '/' need numbers (Int or Float); 'div' and 'mod' need whole numbers (Int); 'and', 'or', 'xor', and 'not' need True/False values (Bool); and a comparison needs two values of the same kind. '{op}' doesn't work on {operands}."
   },
   {
     "code": "T0010",

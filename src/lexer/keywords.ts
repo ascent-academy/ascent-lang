@@ -3,6 +3,10 @@ import type { TokenKind } from './token.js';
 export const KEYWORDS: Record<string, TokenKind> = {
   div: 'KW_DIV',
   mod: 'KW_MOD',
+  and: 'KW_AND',
+  or: 'KW_OR',
+  xor: 'KW_XOR',
+  not: 'KW_NOT',
   fix: 'KW_FIX',
   mut: 'KW_MUT',
   if: 'KW_IF',

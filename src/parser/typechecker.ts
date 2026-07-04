@@ -170,6 +170,12 @@ const inferExpr = (
     case 'unary': {
       const typedOperand = inferExpr(expr.operand, env, markers);
       if (typedOperand === null) return null;
+      if (expr.op === 'not') {
+        if (typedOperand.type.kind !== 'Bool') {
+          return operandError(markers, expr.op, expr.span, typedOperand.type);
+        }
+        return { kind: 'unary', op: expr.op, operand: typedOperand, type: BOOL_TYPE, span: expr.span };
+      }
       if (typedOperand.type.kind !== 'Int' && typedOperand.type.kind !== 'Float') {
         return operandError(markers, expr.op, expr.span, typedOperand.type);
       }
@@ -215,6 +221,13 @@ const inferExpr = (
         }
         case '<': case '<=': case '>': case '>=': {
           if ((lt.kind !== 'Int' && lt.kind !== 'Float') || (rt.kind !== 'Int' && rt.kind !== 'Float')) {
+            return operandError(markers, expr.op, expr.span, lt, rt);
+          }
+          type = BOOL_TYPE;
+          break;
+        }
+        case 'and': case 'or': case 'xor': {
+          if (lt.kind !== 'Bool' || rt.kind !== 'Bool') {
             return operandError(markers, expr.op, expr.span, lt, rt);
           }
           type = BOOL_TYPE;
