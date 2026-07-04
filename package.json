@@ -54,6 +54,9 @@
     "url": "https://github.com/podlomar/ascent-lang/issues"
   },
   "homepage": "https://github.com/podlomar/ascent-lang#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@types/node": "^26.0.1",
     "tsx": "^4.22.4",
