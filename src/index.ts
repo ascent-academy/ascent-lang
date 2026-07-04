@@ -2,7 +2,7 @@ import { createInterface } from 'node:readline/promises';
 import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
-import { Parser } from './parser.js';
+import { Parser } from './parser/index.js';
 import { typecheck } from './typechecker.js';
 import { formatValue } from './printer.js';
 import { formatTypedStmt } from './typed-printer.js';

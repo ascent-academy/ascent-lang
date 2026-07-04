@@ -1,5 +1,5 @@
 import type { Position, Span, ErrorMarker } from '../errors/marker.js';
-import type { Token, TokenKind } from '../token.js';
+import type { Token, TokenKind } from './token.js';
 import { isDigit, isAlpha, isAlphaNum, isWhitespace } from './chars.js';
 import { Cursor } from './cursor.js';
 import { resolveWord } from './keywords.js';

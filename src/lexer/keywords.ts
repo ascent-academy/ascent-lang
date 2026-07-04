@@ -1,4 +1,4 @@
-import type { TokenKind } from '../token.js';
+import type { TokenKind } from './token.js';
 
 export const KEYWORDS: Record<string, TokenKind> = {
   div: 'KW_DIV',
