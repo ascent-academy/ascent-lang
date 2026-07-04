@@ -1,6 +1,6 @@
 import type { Token, TokenKind } from '../lexer/token.js';
 import type { Marker } from '../lexer/token.js';
-import type { Expr, Statement, Program, Block, If, BinaryOp, ArgDef, ArgType, TypeExpr } from './ast.js';
+import type { Expr, Statement, Program, Block, If, BinaryOp, UnaryOp, ArgDef, ArgType, TypeExpr } from './ast.js';
 
 export interface ParseResult {
   program: Program | null;
@@ -75,39 +75,71 @@ export class Parser {
   //
   // A Pratt parser recognises an expression as an atom (a "nud" — null
   // denotation, a value that doesn't look left at anything) optionally
-  // followed by a chain of infix operators (each a "led" — left
-  // denotation, because it combines the value already parsed with
+  // followed by a chain of infix or postfix operators (each a "led" —
+  // left denotation, because it combines the value already parsed with
   // whatever comes after it).
   //
-  // Every infix operator has a binding power: a number saying how
-  // tightly it grabs its operands. Higher binds tighter — that's what
-  // encodes precedence: '*' outbinds '+', so `1 + 2 * 3` parses as
-  // `1 + (2 * 3)`, not `(1 + 2) * 3`. The parsing loop only accepts an
-  // operator when its binding power is at least `minBp` — the "how
-  // tight does the *caller* need things bound" threshold passed down on
-  // each recursive call.
+  // Every operator — prefix, infix, or postfix — has a binding power: a
+  // number saying how tightly it grabs its operands. Higher binds
+  // tighter — that's what encodes precedence: '*' outbinds '+', so
+  // `1 + 2 * 3` parses as `1 + (2 * 3)`, not `(1 + 2) * 3`. The parsing
+  // loop only accepts an operator when its binding power is at least
+  // `minBp` — the "how tight does the *caller* need things bound"
+  // threshold passed down on each recursive call.
   //
-  // Every operator this parser knows about has one row in this table.
-  // Adding the next one (say '-') means adding a row, never touching
-  // the loop below. '*', '/', 'div' and 'mod' all share a binding power
-  // — they're the same precedence tier — so all four outbind '+', which
+  // This ladder is the single source of truth for what binds tighter
+  // than what: postfix (`.method()`, `[index]`) binds tightest, then
+  // unary '-', then '*'/'/'/'div'/'mod', then '+'/'-', then the
+  // comparisons, loosest. Every table below is keyed off these numbers
+  // instead of inlining its own.
+  private static readonly BP = {
+    COMPARISON: 1,
+    ADDITIVE: 2,
+    MULTIPLICATIVE: 3,
+    UNARY: 4,
+    POSTFIX: 4,
+  } as const;
+
+  // Every binary operator this parser knows about has one row in this
+  // table. Adding the next one means adding a row, never touching the
+  // loop below. '*', '/', 'div' and 'mod' all share a binding power —
+  // they're the same precedence tier — so all four outbind '+', which
   // in turn outbinds the comparisons — `1 + 2 < 3 * 4` groups as
   // `(1 + 2) < (3 * 4)`. Comparisons are also marked `assoc: 'none'`:
   // unlike '+' or '*', two of them can never sit side by side
   // (`a < b < c` is rejected, not silently grouped one way or the other).
   private static readonly INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'none' }>> = {
-    EQ_EQ: { op: '==', bp: 1, assoc: 'none' },
-    BANG_EQ: { op: '!=', bp: 1, assoc: 'none' },
-    LT: { op: '<', bp: 1, assoc: 'none' },
-    LT_EQ: { op: '<=', bp: 1, assoc: 'none' },
-    GT: { op: '>', bp: 1, assoc: 'none' },
-    GT_EQ: { op: '>=', bp: 1, assoc: 'none' },
-    PLUS: { op: '+', bp: 2, assoc: 'left' },
-    MINUS: { op: '-', bp: 2, assoc: 'left' },
-    STAR: { op: '*', bp: 3, assoc: 'left' },
-    SLASH: { op: '/', bp: 3, assoc: 'left' },
-    KW_DIV: { op: 'div', bp: 3, assoc: 'left' },
-    KW_MOD: { op: 'mod', bp: 3, assoc: 'left' },
+    EQ_EQ: { op: '==', bp: Parser.BP.COMPARISON, assoc: 'none' },
+    BANG_EQ: { op: '!=', bp: Parser.BP.COMPARISON, assoc: 'none' },
+    LT: { op: '<', bp: Parser.BP.COMPARISON, assoc: 'none' },
+    LT_EQ: { op: '<=', bp: Parser.BP.COMPARISON, assoc: 'none' },
+    GT: { op: '>', bp: Parser.BP.COMPARISON, assoc: 'none' },
+    GT_EQ: { op: '>=', bp: Parser.BP.COMPARISON, assoc: 'none' },
+    PLUS: { op: '+', bp: Parser.BP.ADDITIVE, assoc: 'left' },
+    MINUS: { op: '-', bp: Parser.BP.ADDITIVE, assoc: 'left' },
+    STAR: { op: '*', bp: Parser.BP.MULTIPLICATIVE, assoc: 'left' },
+    SLASH: { op: '/', bp: Parser.BP.MULTIPLICATIVE, assoc: 'left' },
+    KW_DIV: { op: 'div', bp: Parser.BP.MULTIPLICATIVE, assoc: 'left' },
+    KW_MOD: { op: 'mod', bp: Parser.BP.MULTIPLICATIVE, assoc: 'left' },
+  };
+
+  // Postfix table — dot-calls and indexing are "led" operators exactly
+  // like the binary ones above (they look left at the value already
+  // parsed), so they're declared here and dispatched on in the loop
+  // below instead of being special-cased ahead of the INFIX_OPS lookup.
+  // Both bind at POSTFIX — tighter than unary or any binary operator —
+  // which is why `-a.b()[0]` parses as `-(a.b()[0])`.
+  private static readonly POSTFIX_OPS: Partial<Record<TokenKind, { bp: number }>> = {
+    DOT: { bp: Parser.BP.POSTFIX },
+    LBRACKET: { bp: Parser.BP.POSTFIX },
+  };
+
+  // Prefix table — unary '-' is the Pratt parser's other operator kind
+  // (a "nud" that still takes an operand, parsed in parseAtom below).
+  // Only one entry today, but its binding power is declared here rather
+  // than inlined at the call site.
+  private static readonly PREFIX_OPS: Partial<Record<TokenKind, { op: UnaryOp; bp: number }>> = {
+    MINUS: { op: '-', bp: Parser.BP.UNARY },
   };
 
   private parseExpr(minBp = 0): Expr | null {
@@ -123,60 +155,19 @@ export class Parser {
     let chained = false;
 
     while (true) {
-      // Method call: expr.method(args) — DOT binds tighter than any binary op.
-      if (this.peek().kind === 'DOT') {
-        const DOT_BP = 4;
-        if (DOT_BP < minBp) break;
-        this.advance(); // consume '.'
+      const kind = this.peek().kind;
 
-        const methodTok = this.peek();
-        if (methodTok.kind !== 'SLOT') {
-          this.errorMarkers.push({ code: 'S0012', span: methodTok.span });
-          return null;
-        }
-        this.advance(); // consume method name
-
-        if (this.peek().kind !== 'LPAREN') {
-          this.errorMarkers.push({ code: 'S0001', span: this.peek().span });
-          return null;
-        }
-        this.advance(); // consume '('
-
-        const parsed = this.parseSeparated(() => this.parseExpr(), 'COMMA', 'RPAREN', 'S0001');
-        if (parsed === null) return null;
-
-        left = {
-          kind: 'methodCall',
-          receiver: left,
-          method: methodTok.value,
-          args: parsed.items,
-          span: { start: left.span.start, end: parsed.close.span.end },
-        };
+      // Postfix: expr.method(args) or expr[index] — dispatched by table
+      // rather than special-cased ahead of the INFIX_OPS lookup below.
+      const postfix = Parser.POSTFIX_OPS[kind];
+      if (postfix !== undefined) {
+        if (postfix.bp < minBp) break;
+        left = kind === 'DOT' ? this.parseMethodCall(left) : this.parseIndex(left);
+        if (left === null) return null;
         continue;
       }
 
-      // Index access: expr[index] — same binding power as method calls.
-      if (this.peek().kind === 'LBRACKET') {
-        const INDEX_BP = 4;
-        if (INDEX_BP < minBp) break;
-        this.advance(); // consume '['
-
-        const index = this.parseExpr();
-        if (index === null) return null;
-
-        const rbracket = this.expect('RBRACKET', 'S0013');
-        if (rbracket === null) return null;
-
-        left = {
-          kind: 'index',
-          list: left,
-          index,
-          span: { start: left.span.start, end: rbracket.span.end },
-        };
-        continue;
-      }
-
-      const infix = Parser.INFIX_OPS[this.peek().kind];
+      const infix = Parser.INFIX_OPS[kind];
       if (infix === undefined || infix.bp < minBp) {
         break;
       }
@@ -214,6 +205,54 @@ export class Parser {
     }
 
     return left;
+  }
+
+  // 'receiver.method(args)' — DOT already confirmed on lookahead by the
+  // Pratt loop; this consumes it through the closing ')'.
+  private parseMethodCall(receiver: Expr): Expr | null {
+    this.advance(); // consume '.'
+
+    const methodTok = this.peek();
+    if (methodTok.kind !== 'SLOT') {
+      this.errorMarkers.push({ code: 'S0012', span: methodTok.span });
+      return null;
+    }
+    this.advance(); // consume method name
+
+    if (this.peek().kind !== 'LPAREN') {
+      this.errorMarkers.push({ code: 'S0001', span: this.peek().span });
+      return null;
+    }
+    this.advance(); // consume '('
+
+    const parsed = this.parseSeparated(() => this.parseExpr(), 'COMMA', 'RPAREN', 'S0001');
+    if (parsed === null) return null;
+
+    return {
+      kind: 'methodCall',
+      receiver,
+      method: methodTok.value,
+      args: parsed.items,
+      span: { start: receiver.span.start, end: parsed.close.span.end },
+    };
+  }
+
+  // 'list[index]' — LBRACKET already confirmed on lookahead by the Pratt loop.
+  private parseIndex(list: Expr): Expr | null {
+    this.advance(); // consume '['
+
+    const index = this.parseExpr();
+    if (index === null) return null;
+
+    const rbracket = this.expect('RBRACKET', 'S0013');
+    if (rbracket === null) return null;
+
+    return {
+      kind: 'index',
+      list,
+      index,
+      span: { start: list.span.start, end: rbracket.span.end },
+    };
   }
 
   // parseAtom parses the smallest possible expression: a single literal
@@ -291,14 +330,15 @@ export class Parser {
       return inner;
     }
 
-    if (tok.kind === 'MINUS') {
+    const prefix = Parser.PREFIX_OPS[tok.kind];
+    if (prefix !== undefined) {
       const start = tok.span.start;
       this.advance();
-      const operand = this.parseExpr(4); // bp 4 > any binary op, so unary binds tightest
+      const operand = this.parseExpr(prefix.bp);
       if (operand === null) {
         return null;
       }
-      return { kind: 'unary', op: '-', operand, span: { start, end: operand.span.end } };
+      return { kind: 'unary', op: prefix.op, operand, span: { start, end: operand.span.end } };
     }
 
     if (tok.kind === 'LBRACKET') {
