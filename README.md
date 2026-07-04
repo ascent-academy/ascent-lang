@@ -2,8 +2,20 @@
 
 > *Ascent is a programming language built to teach programming to complete beginners. The goal is to do it clearly, gently, and from the ground up.*
 
+## ⚠️ Experimental
 
-This is the development package for gradually building a compiler and tooling for Ascent. It provides a command-line interface (CLI) for running Ascent programs, as well as a library for integrating the Ascent compiler into your own tooling.
+`@ascent-lang/dev` is an experimental package intended for rapid development and language exploration.
+
+During this phase, the language syntax, parser, interpreter, APIs, and project structure may change frequently between releases. Breaking changes may occur at any time, and version numbers should not be interpreted as indicators of API stability.
+
+This package is primarily intended for:
+- experimenting with new language features,
+- testing language design ideas,
+- early adopters interested in following development.
+
+Once the language and architecture mature, functionality will be split into dedicated packages such as `@ascent-lang/parser`, `@ascent-lang/interpreter`, and `@ascent-lang/core`, which will follow a more stable versioning and compatibility policy.
+
+Until then, expect frequent changes and be prepared to update your code when upgrading to newer releases.
 
 ## Installation
 
