@@ -361,9 +361,11 @@ export class Parser {
 
   // A block is '{' stmt* '}' — every statement inside follows the same
   // rules as top-level statements (parseStmt), just bounded by '}'
-  // instead of EOF.
-  private parseBlock(): Block | null {
-    const openTok = this.advance(); // consume '{'
+  // instead of EOF. `openTok` lets parseRequiredBlock pass in a '{' it
+  // already consumed via `expect`; parseAtom, which hasn't consumed one,
+  // omits it and this consumes its own.
+  private parseBlock(openTok?: Token): Block | null {
+    openTok ??= this.advance(); // consume '{' unless already consumed
     const stmts: Statement[] = [];
 
     while (this.peek().kind !== 'RBRACE') {
@@ -412,11 +414,9 @@ export class Parser {
   // A mandatory body block — every 'if'/'while' branch needs one, even
   // single-statement (§2: no dangling-else, no goto-fail class of bug).
   private parseRequiredBlock(): Block | null {
-    if (this.peek().kind !== 'LBRACE') {
-      this.errorMarkers.push({ code: 'S0007', span: this.peek().span });
-      return null;
-    }
-    return this.parseBlock();
+    const openTok = this.expect('LBRACE', 'S0007');
+    if (openTok === null) return null;
+    return this.parseBlock(openTok);
   }
 
   // 'if (cond) { } else if (cond) { } else { }' — 'else if' is not its
