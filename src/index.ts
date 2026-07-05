@@ -100,9 +100,9 @@ const runFile = async (filePath: string): Promise<void> => {
   }
 
   const parseResult = parse(src);
-  if (parseResult.errorMarkers.length > 0) {
-    for (const marker of parseResult.errorMarkers) {
-      process.stderr.write(renderTerminal(elaborate(marker, src), src, filePath) + '\n\n');
+  if (parseResult.diagnostics.length > 0) {
+    for (const diagnostic of parseResult.diagnostics) {
+      process.stderr.write(renderTerminal(diagnostic, src, filePath) + '\n\n');
     }
     process.exit(1);
   }
@@ -160,12 +160,12 @@ const runRepl = async (): Promise<void> => {
           process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
         }
       } else if (parseResult.program !== null) {
-        const typeResult = typecheck(parseResult.program, typeEnv);
-        const typeErrors = typeResult.errorMarkers;
+        const typeResult = typecheck(parseResult.program, line, typeEnv);
+        const typeDiagnostics = typeResult.diagnostics;
 
-        if (typeErrors.length > 0) {
-          for (const marker of typeErrors) {
-            process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
+        if (typeDiagnostics.length > 0) {
+          for (const diagnostic of typeDiagnostics) {
+            process.stdout.write(renderTerminal(diagnostic, line, null) + '\n');
           }
         } else {
           // Print the untyped parse tree; execute the typed AST.

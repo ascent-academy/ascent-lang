@@ -6,6 +6,7 @@ import { parseStmt } from './stmt.js';
 import { parseArgsSection } from './type-expr.js';
 import { typecheck } from './typechecker.js';
 import type { TypedResult } from './typechecker.js';
+import { elaborate } from '../errors/elaborate.js';
 
 export interface ParseResult {
   program: Program | null;
@@ -38,13 +39,16 @@ export const parseTokens = (tokens: Token[]): ParseResult => {
 export const parse = (src: string): TypedResult => {
   const lexResult = new Lexer(src).tokenize();
   if (lexResult.errorMarkers.length > 0) {
-    return { program: null, errorMarkers: lexResult.errorMarkers };
+    return {
+      program: null,
+      diagnostics: lexResult.errorMarkers.map(marker => elaborate(marker, src))
+    };
   }
 
   const parseResult = parseTokens(lexResult.tokens);
   if (parseResult.program === null || parseResult.errorMarkers.length > 0) {
-    return { program: null, errorMarkers: parseResult.errorMarkers };
+    return { program: null, diagnostics: parseResult.errorMarkers.map(marker => elaborate(marker, src)) };
   }
 
-  return typecheck(parseResult.program);
+  return typecheck(parseResult.program, src);
 }

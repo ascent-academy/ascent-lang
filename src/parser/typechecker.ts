@@ -5,10 +5,11 @@ import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType,
   leastCommonType, isAssignableTo, typeToString, typesEqual, isScalarType,
 } from '../types/types.js';
+import { Diagnostic, elaborate } from '../errors/elaborate.js';
 
 export interface TypedResult {
   program: TypedProgram | null;
-  errorMarkers: Marker[];
+  diagnostics: Diagnostic[];
 }
 
 // origin records how the name was created — 'fix'/'mut' declarations, or a
@@ -591,7 +592,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
 // promotes its new bindings into parentEnv once the whole program
 // succeeds, so a line that fails typechecking never leaks a partial
 // declaration into later lines.
-export const typecheck = (program: Program, parentEnv?: TypeEnv): TypedResult => {
+export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv): TypedResult => {
   const markers: Marker[] = [];
   const env = parentEnv !== undefined ? parentEnv.child() : new TypeEnv();
 
@@ -607,7 +608,7 @@ export const typecheck = (program: Program, parentEnv?: TypeEnv): TypedResult =>
   }
 
   if (failed || markers.length > 0) {
-    return { program: null, errorMarkers: markers };
+    return { program: null, diagnostics: markers.map(m => elaborate(m, source)) };
   }
 
   if (parentEnv !== undefined) {
@@ -616,5 +617,5 @@ export const typecheck = (program: Program, parentEnv?: TypeEnv): TypedResult =>
     }
   }
 
-  return { program: { args: program.args, stmts: typedStmts }, errorMarkers: [] };
+  return { program: { args: program.args, stmts: typedStmts }, diagnostics: [] };
 };
