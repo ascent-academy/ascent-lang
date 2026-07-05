@@ -188,3 +188,43 @@ describe('Interpolation', () => {
     assert.equal(errorMarkers[0]?.code, 'L0006');
   });
 });
+
+describe('Multiline strings', () => {
+  it('tokenizes an empty """..."""  as one MSTR_PART_END', () => {
+    const [tok] = new Lexer('""""""').tokenize().tokens;
+    assert.equal(tok?.kind, 'MSTR_PART_END');
+    assert.equal(tok?.value, '');
+  });
+
+  it('does not treat "" (two quotes) as the start of a multiline string', () => {
+    assert.deepEqual(kinds('"" "a"'), ['STR_PART_END', 'STR_PART_END', 'EOF']);
+  });
+
+  it('keeps a real newline as ordinary content, not a stop condition', () => {
+    const [tok] = new Lexer('"""a\nb"""').tokenize().tokens;
+    assert.equal(tok?.kind, 'MSTR_PART_END');
+    assert.equal(tok?.value, 'a\nb');
+  });
+
+  it('records the margin as the column of the closing """', () => {
+    const [tok] = new Lexer('"""\n    hi\n    """').tokenize().tokens;
+    assert.equal(tok?.kind, 'MSTR_PART_END');
+    assert.equal(tok?.margin, 4);
+  });
+
+  it('tokenizes a hole inside a multiline string like a single-line one', () => {
+    assert.deepEqual(kinds('"""hi ${name}"""'), ['MSTR_PART', 'SLOT', 'MSTR_PART_END', 'EOF']);
+  });
+
+  it('does not resolve escapes inline — \\n stays two raw characters', () => {
+    const [tok] = new Lexer(String.raw`"""a\nb"""`).tokenize().tokens;
+    assert.equal(tok?.kind, 'MSTR_PART_END');
+    assert.equal(tok?.value, String.raw`a\nb`);
+  });
+
+  it('reports L0007 for a multiline string unterminated at EOF', () => {
+    const { tokens, errorMarkers } = new Lexer('"""abc').tokenize();
+    assert.equal(tokens[0]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0007');
+  });
+});

@@ -1,8 +1,10 @@
 export type TokenKind =
   | 'INT_LIT'    // a sequence of decimal digits: 0, 42, 1000
   | 'FLOAT_LIT'  // a decimal number with a dot: 0.5, 3.14, 1.0
-  | 'STR_PART'     // a chunk of string text immediately followed by '${' — an interpolation hole comes next
-  | 'STR_PART_END' // a chunk of string text that runs to the closing '"' — the string ends here
+  | 'STR_PART'      // a chunk of string text immediately followed by '${' — an interpolation hole comes next
+  | 'STR_PART_END'  // a chunk of string text that runs to the closing '"' — the string ends here
+  | 'MSTR_PART'      // like STR_PART, but inside a multiline """..."""  string — raw, undedented text
+  | 'MSTR_PART_END'  // like STR_PART_END, but for """..."""  — carries `margin` (see Token below)
   | 'BOOL_LIT'   // True or False
   | 'NONE_LIT'   // None
   | 'DONE_LIT'   // Done — the unit constructor
@@ -79,4 +81,9 @@ export interface Token {
   kind: TokenKind;
   value: string;
   span: Span;
+  // Only set on MSTR_PART_END: the column of the closing '"""' — how many
+  // characters precede it on its own line, and so how many leading
+  // characters the dedent pass (src/parser/dedent.ts) strips from every
+  // line of the string (design.md §4).
+  margin?: number;
 }

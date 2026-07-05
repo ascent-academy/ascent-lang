@@ -78,6 +78,22 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "Inside a String, ${ starts a hole that puts a value into the text, and it needs a matching } to close it, like \"Hi ${name}\". This one has an opening ${ but the program ends before a matching } appears."
   },
   {
+    "code": "L0007",
+    "name": "unterminated-multiline-string",
+    "category": "lexical",
+    "summary": "A multiline String (\"\"\") with no closing \"\"\".",
+    "message": "This multiline String is missing its closing \"\"\".",
+    "explanation": "A multiline String begins and ends with \"\"\". This one has an opening \"\"\" but the program ends before a matching \"\"\" appears."
+  },
+  {
+    "code": "L0008",
+    "name": "insufficient-indentation",
+    "category": "lexical",
+    "summary": "A line in a multiline String has less indentation than its closing \"\"\".",
+    "message": "This line doesn't have enough indentation to match the closing \"\"\".",
+    "explanation": "In a multiline String, the closing \"\"\" sets how much leading space is shared by every line, and that much is removed from each one. This line starts further left than the closing \"\"\", so there isn't enough shared space to remove."
+  },
+  {
     "code": "N0001",
     "name": "undefined-slot",
     "category": "name",

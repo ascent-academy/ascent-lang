@@ -2,6 +2,7 @@ import type { Token, TokenKind } from '../lexer/token.js';
 import type { Expr, BinaryOp, UnaryOp, TemplatePart } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf } from './stmt.js';
+import { dedent, type RawChunk } from './dedent.js';
 
 // ---- Pratt parsing ----------------------------------------------------
 //
@@ -250,6 +251,10 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseStringTemplate(ts);
   }
 
+  if (tok.kind === 'MSTR_PART' || tok.kind === 'MSTR_PART_END') {
+    return parseMultilineStringTemplate(ts);
+  }
+
   if (tok.kind === 'BOOL_LIT') {
     ts.advance();
     return {
@@ -357,6 +362,56 @@ function parseStringTemplate(ts: TokenStream): Expr | null {
     if (chunk.kind === 'STR_PART_END') break;
   }
 
+  return { kind: 'template', parts, span: { start, end } };
+}
+
+// A multiline """..."""  string's chunks and holes — the same alternating
+// shape as parseStringTemplate above, and holes are parsed exactly the same
+// way, but the chunk tokens (MSTR_PART/MSTR_PART_END) carry *raw* text —
+// escapes undecoded, margin unstripped. Margin dedent is a whole-literal
+// computation (the closing '"""''s column isn't known until the end), so it
+// can't run chunk by chunk during the scan the way single-line escapes do —
+// instead every raw chunk is collected first, then dedent() (src/parser/
+// dedent.ts) turns the whole set into final text in one pass once the
+// terminal chunk (carrying `margin`) is in hand.
+function parseMultilineStringTemplate(ts: TokenStream): Expr | null {
+  const first = ts.advance(); // consume the opening chunk
+  const start = first.span.start;
+  const rawChunks: RawChunk[] = [{ raw: first.value, span: first.span }];
+  const holes: Expr[] = [];
+  let end = first.span.end;
+  let last = first;
+
+  while (last.kind !== 'MSTR_PART_END') {
+    const hole = parseExpr(ts);
+    if (hole === null) return null;
+    holes.push(hole);
+
+    const chunk = ts.peek();
+    if (chunk.kind !== 'MSTR_PART' && chunk.kind !== 'MSTR_PART_END') {
+      // Same S0015 as a single-line hole: leftover content the hole can't hold.
+      ts.report('S0015', chunk.span);
+      return null;
+    }
+    ts.advance();
+    rawChunks.push({ raw: chunk.value, span: chunk.span });
+    end = chunk.span.end;
+    last = chunk;
+  }
+
+  const { texts, errors } = dedent(rawChunks, last.margin ?? 0);
+  for (const e of errors) ts.report(e.code, e.span);
+  if (errors.length > 0) return null;
+
+  if (holes.length === 0) {
+    return { kind: 'literal', valueType: 'String', value: texts[0]!, span: { start, end } };
+  }
+
+  const parts: TemplatePart[] = [];
+  for (let i = 0; i < texts.length; i++) {
+    parts.push({ kind: 'text', value: texts[i]! });
+    if (i < holes.length) parts.push({ kind: 'hole', expr: holes[i]! });
+  }
   return { kind: 'template', parts, span: { start, end } };
 }
 

@@ -9,15 +9,16 @@ export interface LexResult {
   errorMarkers: Marker[];
 }
 
-// A 'string' frame is active while scanning the text of a "..." literal; an
-// 'interp' frame is active while scanning the expression inside a '${ }'
-// hole. Both stack, so a hole may itself contain a string (which may itself
-// interpolate) — nesting is just deeper frames, not a special case.
-// 'interp.depth' counts '{'/'}' opened *inside* the hole (an 'if' body, a
-// block, …) so the '}' that actually closes the hole is the one seen at
-// depth 0, never a nested one.
+// A 'string' frame is active while scanning the text of a "..." literal, and
+// 'mstring' the same for a """..."""  one; an 'interp' frame is active while
+// scanning the expression inside a '${ }' hole. All three stack, so a hole
+// may itself contain a string (which may itself interpolate) — nesting is
+// just deeper frames, not a special case. 'interp.depth' counts '{'/'}'
+// opened *inside* the hole (an 'if' body, a block, …) so the '}' that
+// actually closes the hole is the one seen at depth 0, never a nested one.
 type LexMode =
   | { kind: 'string' }
+  | { kind: 'mstring'; start: Position }
   | { kind: 'interp'; depth: number; start: Position };
 
 export class Lexer {
@@ -152,6 +153,55 @@ export class Lexer {
     }
   }
 
+  // Scans one chunk of a multiline """..."""  string's *raw* text. Unlike
+  // readStringChunk, it does NOT resolve escapes — a '\' plus the next
+  // character is copied through undecoded — and a real newline is ordinary
+  // content, not a stop condition (multiline text is expected to span
+  // lines). Escape resolution and margin dedent both happen later, as a
+  // pure pass over the collected raw chunks (src/parser/dedent.ts):
+  // deferring escape resolution is what lets that pass tell a real source
+  // newline apart from one produced by resolving a '\n' escape, using
+  // nothing more than plain string operations — this scanner just needs to
+  // still recognise an escaped quote/dollar well enough not to mistake it
+  // for the closing '"""' or a hole.
+  private readMultilineChunk(): Token {
+    const start = this.c.mark();
+    let value = '';
+    while (true) {
+      const ch = this.c.peek();
+      if (ch === '\0') {
+        const top = this.modeStack[this.modeStack.length - 1];
+        const openStart = top !== undefined && top.kind === 'mstring' ? top.start : start;
+        this.modeStack.pop();
+        return this.error('L0007', this.c.spanFrom(openStart));
+      }
+      if (ch === '"' && this.c.peek(1) === '"' && this.c.peek(2) === '"') {
+        const margin = this.c.mark().column - 1;
+        this.c.advance();
+        this.c.advance();
+        this.c.advance();
+        this.modeStack.pop();
+        return { kind: 'MSTR_PART_END', value, span: this.c.spanFrom(start), margin };
+      }
+      if (ch === '$' && this.c.peek(1) === '{') {
+        const interpStart = this.c.mark();
+        this.c.advance(); // '$'
+        this.c.advance(); // '{'
+        this.modeStack.push({ kind: 'interp', depth: 0, start: interpStart });
+        return { kind: 'MSTR_PART', value, span: this.c.spanFrom(start) };
+      }
+      if (ch === '\\') {
+        value += ch;
+        this.c.advance();
+        value += this.c.peek();
+        this.c.advance();
+      } else {
+        value += ch;
+        this.c.advance();
+      }
+    }
+  }
+
   private readNumber(): Token {
     const start = this.c.mark();
     this.consumeWhile(isDigit);
@@ -182,6 +232,9 @@ export class Lexer {
     const top = this.modeStack[this.modeStack.length - 1];
     if (top !== undefined && top.kind === 'string') {
       return this.readStringChunk();
+    }
+    if (top !== undefined && top.kind === 'mstring') {
+      return this.readMultilineChunk();
     }
 
     this.skipTrivia();
@@ -246,6 +299,12 @@ export class Lexer {
         if (this.c.match('=')) return this.token('GT_EQ', start);
         return this.token('GT', start);
       case '"':
+        if (this.c.peek() === '"' && this.c.peek(1) === '"') {
+          this.c.advance(); // second '"'
+          this.c.advance(); // third '"'
+          this.modeStack.push({ kind: 'mstring', start });
+          return this.readMultilineChunk();
+        }
         this.modeStack.push({ kind: 'string' });
         return this.readStringChunk(start);
       case '.': return this.token('DOT', start);
