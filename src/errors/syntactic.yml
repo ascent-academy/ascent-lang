@@ -143,3 +143,13 @@
     A '.' calls a method, and a call always has '( )' after the name — even
     when the method takes no inputs, as in 'items.length()'. This is where that
     opening '(' should be.
+
+- code: S0015
+  name: extra-interpolation-content
+  category: syntactic
+  summary: "A '${ }' hole in a String holds more than one value."
+  message: "I expected this '${ }' hole to end here."
+  explanation: >-
+    A '${ }' hole inside a String holds exactly one value, like '${name}' or
+    '${price.toStr()}'. This one has extra content after a complete value, so
+    it isn't clear what to do with it.

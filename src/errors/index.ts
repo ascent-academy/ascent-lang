@@ -70,6 +70,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A block comment begins with #[ and ends with ]#, and a #[ ... ]# comment can sit inside another one. This one has an opening #[ but the program ends before a matching ]# appears."
   },
   {
+    "code": "L0006",
+    "name": "unterminated-interpolation",
+    "category": "lexical",
+    "summary": "A ${ hole inside a String has no closing }.",
+    "message": "This ${ is missing its closing }.",
+    "explanation": "Inside a String, ${ starts a hole that puts a value into the text, and it needs a matching } to close it, like \"Hi ${name}\". This one has an opening ${ but the program ends before a matching } appears."
+  },
+  {
     "code": "N0001",
     "name": "undefined-slot",
     "category": "name",
@@ -278,6 +286,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A '.' calls a method, and a call always has '( )' after the name — even when the method takes no inputs, as in 'items.length()'. This is where that opening '(' should be."
   },
   {
+    "code": "S0015",
+    "name": "extra-interpolation-content",
+    "category": "syntactic",
+    "summary": "A '${ }' hole in a String holds more than one value.",
+    "message": "I expected this '${ }' hole to end here.",
+    "explanation": "A '${ }' hole inside a String holds exactly one value, like '${name}' or '${price.toStr()}'. This one has extra content after a complete value, so it isn't clear what to do with it."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",
@@ -406,6 +422,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A call names a function that doesn't exist.",
     "message": "There's no function called '{name}'.",
     "explanation": "Ascent has just one built-in function right now — 'floor(x)', which rounds a Float down to a whole number. Everything else is a method, called on a value with '.', like 'x.toStr()'."
+  },
+  {
+    "code": "T0014",
+    "name": "interpolation-not-scalar",
+    "category": "type",
+    "summary": "A '${ }' hole's value isn't an Int, Float, Bool, or String.",
+    "message": "This '${ }' hole has type {actual}, which can't go straight into text.",
+    "explanation": "A '${ }' hole puts its value straight into the surrounding text. Int, Float, Bool, and String all have one obvious way to show as text, so they're accepted directly. {actual} isn't one of those."
   }
 ];
 

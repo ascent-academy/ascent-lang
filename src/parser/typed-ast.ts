@@ -15,8 +15,12 @@ export type TypedLiteral = (
   | { kind: 'literal'; valueType: 'Done'; type: AscentType; span: Span }
 );
 
+export type TypedTemplatePart = { kind: 'text'; value: string } | { kind: 'hole'; expr: TypedExpr };
+export type TypedTemplate = { kind: 'template'; parts: TypedTemplatePart[]; type: AscentType; span: Span };
+
 export type TypedExpr = (
   | TypedLiteral
+  | TypedTemplate
   | { kind: 'slot'; name: string; type: AscentType; span: Span }
   | { kind: 'call'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }

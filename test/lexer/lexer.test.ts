@@ -15,9 +15,9 @@ describe('Lexer', () => {
     assert.deepEqual(kinds('42 3.14'), ['INT_LIT', 'FLOAT_LIT', 'EOF']);
   });
 
-  it('tokenizes a string literal', () => {
+  it('tokenizes a string literal with no interpolation as one STR_PART_END', () => {
     const [tok] = new Lexer('"hello"').tokenize().tokens;
-    assert.equal(tok?.kind, 'STR_LIT');
+    assert.equal(tok?.kind, 'STR_PART_END');
     assert.equal(tok?.value, 'hello');
   });
 
@@ -61,7 +61,7 @@ describe('Lexer', () => {
 
   it('resolves escape sequences in a string literal', () => {
     const [tok] = new Lexer(String.raw`"a\nb\tc\\d\"e"`).tokenize().tokens;
-    assert.equal(tok?.kind, 'STR_LIT');
+    assert.equal(tok?.kind, 'STR_PART_END');
     assert.equal(tok?.value, 'a\nb\tc\\d"e');
   });
 
@@ -131,5 +131,60 @@ describe('Lexer', () => {
   it('reports L0005 for a nested block comment missing its outer close', () => {
     const { errorMarkers } = new Lexer('#[ outer #[ inner ]# unclosed').tokenize();
     assert.equal(errorMarkers[0]?.code, 'L0005');
+  });
+});
+
+describe('Interpolation', () => {
+  it('tokenizes a single hole as STR_PART, the hole tokens, then STR_PART_END', () => {
+    assert.deepEqual(kinds('"Hi ${name}"'), [
+      'STR_PART', 'SLOT', 'STR_PART_END', 'EOF',
+    ]);
+  });
+
+  it('carries the right text in each chunk around a hole', () => {
+    const { tokens } = new Lexer('"Hi ${name}!"').tokenize();
+    assert.equal(tokens[0]?.value, 'Hi ');
+    assert.equal(tokens[2]?.value, '!');
+  });
+
+  it('tokenizes multiple holes in one string', () => {
+    assert.deepEqual(kinds('"${a} and ${b}"'), [
+      'STR_PART', 'SLOT', 'STR_PART', 'SLOT', 'STR_PART_END', 'EOF',
+    ]);
+  });
+
+  it('does not close the hole on a brace that belongs to a nested block', () => {
+    assert.deepEqual(kinds('"${ if (x) { 1 } else { 2 } }"'), [
+      'STR_PART',
+      'KW_IF', 'LPAREN', 'SLOT', 'RPAREN', 'LBRACE', 'INT_LIT', 'RBRACE',
+      'KW_ELSE', 'LBRACE', 'INT_LIT', 'RBRACE',
+      'STR_PART_END', 'EOF',
+    ]);
+  });
+
+  it('tokenizes a string nested inside a hole', () => {
+    assert.deepEqual(kinds('"outer ${ "inner" } end"'), [
+      'STR_PART', 'STR_PART_END', 'STR_PART_END', 'EOF',
+    ]);
+  });
+
+  it('treats a lone $ as a literal character', () => {
+    const [tok] = new Lexer('"$5"').tokenize().tokens;
+    assert.equal(tok?.kind, 'STR_PART_END');
+    assert.equal(tok?.value, '$5');
+  });
+
+  it('resolves \\$ to a literal $ so it does not start a hole', () => {
+    const [tok] = new Lexer(String.raw`"\${literal}"`).tokenize().tokens;
+    assert.equal(tok?.kind, 'STR_PART_END');
+    assert.equal(tok?.value, '${literal}');
+  });
+
+  it('reports L0006 for an interpolation unterminated at EOF', () => {
+    const { tokens, errorMarkers } = new Lexer('"hi ${name').tokenize();
+    assert.equal(tokens[0]?.kind, 'STR_PART');
+    assert.equal(tokens[1]?.kind, 'SLOT');
+    assert.equal(tokens[2]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0006');
   });
 });

@@ -28,6 +28,17 @@ const exprLines = (expr: Expr): string[] => {
         case 'Done':
           return [`${chalk.cyan('Lit')} ${chalk.yellow('Done')}`];
       }
+    case 'template': {
+      const partLines = expr.parts.flatMap((part, i) =>
+        branch(
+          part.kind === 'text'
+            ? [`${chalk.cyan('Text')} ${chalk.green(JSON.stringify(part.value))}`]
+            : exprLines(part.expr),
+          i === expr.parts.length - 1
+        )
+      );
+      return [`${chalk.cyan('Template')}`, ...partLines];
+    }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}`];
     case 'call': {

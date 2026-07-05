@@ -1,5 +1,5 @@
 import type { Token, TokenKind } from '../lexer/token.js';
-import type { Expr, BinaryOp, UnaryOp } from './ast.js';
+import type { Expr, BinaryOp, UnaryOp, TemplatePart } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf } from './stmt.js';
 
@@ -246,9 +246,8 @@ function parseAtom(ts: TokenStream): Expr | null {
     };
   }
 
-  if (tok.kind === 'STR_LIT') {
-    ts.advance();
-    return { kind: 'literal', valueType: 'String', value: tok.value, span: tok.span };
+  if (tok.kind === 'STR_PART' || tok.kind === 'STR_PART_END') {
+    return parseStringTemplate(ts);
   }
 
   if (tok.kind === 'BOOL_LIT') {
@@ -319,6 +318,46 @@ function parseAtom(ts: TokenStream): Expr | null {
 
   ts.report('S0002', tok.span);
   return null;
+}
+
+// A String's chunks and holes: 'STR_PART' text, then an expression, then the
+// next chunk, alternating until 'STR_PART_END' closes the string. The lexer
+// guarantees the token right after a hole's expression is always another
+// chunk token (it silently swallows the hole-closing '}' and resumes
+// chunk-scanning, mirroring how the closing '"' is swallowed) — so parsing a
+// hole is just an ordinary parseExpr call, no bespoke closing-token handling.
+// A String with no holes at all (a single STR_PART_END) collapses to the
+// plain literal node, unchanged from before this feature existed.
+function parseStringTemplate(ts: TokenStream): Expr | null {
+  const first = ts.advance(); // consume the opening chunk
+  if (first.kind === 'STR_PART_END') {
+    return { kind: 'literal', valueType: 'String', value: first.value, span: first.span };
+  }
+
+  const start = first.span.start;
+  const parts: TemplatePart[] = [{ kind: 'text', value: first.value }];
+  let end = first.span.end;
+
+  while (true) {
+    const hole = parseExpr(ts);
+    if (hole === null) return null;
+    parts.push({ kind: 'hole', expr: hole });
+
+    const chunk = ts.peek();
+    if (chunk.kind !== 'STR_PART' && chunk.kind !== 'STR_PART_END') {
+      // The hole's expression stopped before the lexer's forced closing
+      // point (e.g. '${ 1 2 }' — two atoms, no operator between them) —
+      // there's leftover content the hole can't hold.
+      ts.report('S0015', chunk.span);
+      return null;
+    }
+    ts.advance();
+    parts.push({ kind: 'text', value: chunk.value });
+    end = chunk.span.end;
+    if (chunk.kind === 'STR_PART_END') break;
+  }
+
+  return { kind: 'template', parts, span: { start, end } };
 }
 
 // 'name(arg, arg, …)' — callee token already consumed by parseAtom.

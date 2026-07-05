@@ -59,3 +59,13 @@
     A block comment begins with #[ and ends with ]#, and a #[ ... ]# comment
     can sit inside another one. This one has an opening #[ but the program
     ends before a matching ]# appears.
+
+- code: L0006
+  name: unterminated-interpolation
+  category: lexical
+  summary: "A ${ hole inside a String has no closing }."
+  message: "This ${ is missing its closing }."
+  explanation: >-
+    Inside a String, ${ starts a hole that puts a value into the text, and
+    it needs a matching } to close it, like "Hi ${name}". This one has an
+    opening ${ but the program ends before a matching } appears.

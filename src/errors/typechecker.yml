@@ -146,3 +146,13 @@
     Ascent has just one built-in function right now — 'floor(x)', which rounds a
     Float down to a whole number. Everything else is a method, called on a value
     with '.', like 'x.toStr()'.
+
+- code: T0014
+  name: interpolation-not-scalar
+  category: type
+  summary: "A '${ }' hole's value isn't an Int, Float, Bool, or String."
+  message: "This '${ }' hole has type {actual}, which can't go straight into text."
+  explanation: >-
+    A '${ }' hole puts its value straight into the surrounding text. Int,
+    Float, Bool, and String all have one obvious way to show as text, so
+    they're accepted directly. {actual} isn't one of those.

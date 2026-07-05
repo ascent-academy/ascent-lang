@@ -1,9 +1,9 @@
 import type { Expr, Statement, Program, Block, If, TypeExpr, TypeName, ArgType } from './ast.js';
 import type { Marker, Span } from '../lexer/token.js';
-import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram } from './typed-ast.js';
+import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram, TypedTemplatePart } from './typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType,
-  leastCommonType, isAssignableTo, typeToString, typesEqual,
+  leastCommonType, isAssignableTo, typeToString, typesEqual, isScalarType,
 } from '../types/types.js';
 
 export interface TypedResult {
@@ -221,6 +221,33 @@ const inferExpr = (
         case 'None': return { ...expr, type: NONE_TYPE };
         case 'Done': return { ...expr, type: DONE_TYPE };
       }
+    }
+
+    // A '${ }' hole splices its value straight into the surrounding text. Any
+    // scalar (Int/Float/Bool/String, design.md §4) is accepted as-is — a
+    // hardcoded rule standing in for a Show-style trait until traits exist
+    // (§7); anything else (None, Done, List) has no obvious text form and
+    // must be converted explicitly first. A String with no holes never
+    // reaches here — it stays the plain 'literal' case above.
+    case 'template': {
+      const typedParts: TypedTemplatePart[] = [];
+      let failed = false;
+      for (const part of expr.parts) {
+        if (part.kind === 'text') {
+          typedParts.push(part);
+          continue;
+        }
+        const typedHole = inferExpr(part.expr, env, markers);
+        if (typedHole === null) { failed = true; continue; }
+        if (!isScalarType(typedHole.type)) {
+          markers.push({ code: 'T0014', span: part.expr.span, data: { actual: typeToString(typedHole.type) } });
+          failed = true;
+          continue;
+        }
+        typedParts.push({ kind: 'hole', expr: typedHole });
+      }
+      if (failed) return null;
+      return { kind: 'template', parts: typedParts, type: STRING_TYPE, span: expr.span };
     }
 
     case 'slot': {

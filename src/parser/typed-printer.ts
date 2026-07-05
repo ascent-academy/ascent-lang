@@ -19,6 +19,17 @@ const typedExprLines = (expr: TypedExpr): string[] => {
         case 'None': return [`${chalk.cyan('Lit')} ${chalk.yellow('None')}${t}`];
         case 'Done': return [`${chalk.cyan('Lit')} ${chalk.yellow('Done')}${t}`];
       }
+    case 'template': {
+      const partLines = expr.parts.flatMap((part, i) =>
+        branch(
+          part.kind === 'text'
+            ? [`${chalk.cyan('Text')} ${chalk.green(JSON.stringify(part.value))}`]
+            : typedExprLines(part.expr),
+          i === expr.parts.length - 1
+        )
+      );
+      return [`${chalk.cyan('Template')}${t}`, ...partLines];
+    }
     case 'slot':
       return [`${chalk.cyan('Slot')} ${chalk.green(expr.name)}${t}`];
     case 'call': {

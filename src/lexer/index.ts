@@ -9,9 +9,21 @@ export interface LexResult {
   errorMarkers: Marker[];
 }
 
+// A 'string' frame is active while scanning the text of a "..." literal; an
+// 'interp' frame is active while scanning the expression inside a '${ }'
+// hole. Both stack, so a hole may itself contain a string (which may itself
+// interpolate) — nesting is just deeper frames, not a special case.
+// 'interp.depth' counts '{'/'}' opened *inside* the hole (an 'if' body, a
+// block, …) so the '}' that actually closes the hole is the one seen at
+// depth 0, never a nested one.
+type LexMode =
+  | { kind: 'string' }
+  | { kind: 'interp'; depth: number; start: Position };
+
 export class Lexer {
   private c: Cursor;
   private errorMarkers: Marker[] = [];
+  private modeStack: LexMode[] = [];
 
   public constructor(src: string) {
     this.c = new Cursor(src);
@@ -87,16 +99,34 @@ export class Lexer {
     return kind !== null ? this.token(kind, start) : this.error('L0001', this.c.spanFrom(start));
   }
 
-  private readString(start: Position): Token {
+  // Scans one chunk of string text: from just after the opening '"' (or just
+  // after a hole's swallowed closing '}') up to whichever comes first — the
+  // closing '"' (the string ends here, STR_PART_END), an unescaped '${' (a
+  // hole starts — pushes an 'interp' frame so nextToken() resumes ordinary
+  // tokenization, STR_PART), or EOF/newline (unterminated, L0003, same as a
+  // plain string). `startOverride` lets the very first chunk's span begin at
+  // the opening '"' — matching the old STR_LIT span exactly — while later
+  // chunks (resumed after a hole) start fresh at the current position.
+  private readStringChunk(startOverride?: Position): Token {
+    const start = startOverride ?? this.c.mark();
     let value = '';
     while (true) {
       const ch = this.c.peek();
       if (ch === '\0' || ch === '\n') {
+        this.modeStack.pop();
         return this.error('L0003', this.c.spanFrom(start));
       }
       if (ch === '"') {
         this.c.advance(); // consume closing '"'
-        return { kind: 'STR_LIT', value, span: this.c.spanFrom(start) };
+        this.modeStack.pop();
+        return { kind: 'STR_PART_END', value, span: this.c.spanFrom(start) };
+      }
+      if (ch === '$' && this.c.peek(1) === '{') {
+        const interpStart = this.c.mark();
+        this.c.advance(); // '$'
+        this.c.advance(); // '{'
+        this.modeStack.push({ kind: 'interp', depth: 0, start: interpStart });
+        return { kind: 'STR_PART', value, span: this.c.spanFrom(start) };
       }
       if (ch === '\\') {
         this.c.advance(); // consume '\'
@@ -108,7 +138,12 @@ export class Lexer {
           case 'r': value += '\r'; break;
           case '"': value += '"'; break;
           case '\\': value += '\\'; break;
-          default: return this.error('L0001', this.c.spanFrom(start));
+          // '\$' escapes a literal '${' — without it the '$' would combine
+          // with a following '{' to start a hole (design.md §4).
+          case '$': value += '$'; break;
+          default:
+            this.modeStack.pop();
+            return this.error('L0001', this.c.spanFrom(start));
         }
       } else {
         value += ch;
@@ -141,9 +176,28 @@ export class Lexer {
   }
 
   private nextToken(): Token {
+    // While a 'string' frame is on top, we're mid-way through a "..." literal's
+    // text — scan its next chunk instead of running the ordinary dispatch
+    // below (which would wrongly skip whitespace/comments as trivia).
+    const top = this.modeStack[this.modeStack.length - 1];
+    if (top !== undefined && top.kind === 'string') {
+      return this.readStringChunk();
+    }
+
     this.skipTrivia();
 
     if (this.c.atEnd()) {
+      // top, if present here, must be an 'interp' frame (a 'string' frame
+      // would have returned above) whose '${' was never closed. Clear the
+      // whole stack rather than popping just this frame: at true EOF there's
+      // no more source left to legitimately re-tokenize, so any other frame
+      // still underneath would only ever produce more of the same "also
+      // reached EOF" noise, never a new fact worth a separate diagnostic.
+      if (top !== undefined) {
+        const span = this.c.spanFrom(top.start);
+        this.modeStack = [];
+        return this.error('L0006', span);
+      }
       const start = this.c.mark();
       return this.token('EOF', start);
     }
@@ -191,15 +245,38 @@ export class Lexer {
       case '>':
         if (this.c.match('=')) return this.token('GT_EQ', start);
         return this.token('GT', start);
-      case '"': return this.readString(start);
+      case '"':
+        this.modeStack.push({ kind: 'string' });
+        return this.readStringChunk(start);
       case '.': return this.token('DOT', start);
       case ':': return this.token('COLON', start);
       case ',': return this.token('COMMA', start);
       case ';': return this.token('SEMICOLON', start);
       case '(': return this.token('LPAREN', start);
       case ')': return this.token('RPAREN', start);
-      case '{': return this.token('LBRACE', start);
-      case '}': return this.token('RBRACE', start);
+      case '{': {
+        // Braces inside a '${ }' hole (an 'if' body, a block, …) nest one
+        // level deeper than the hole itself, so the depth counter tracks
+        // them — only the '}' back at depth 0 closes the hole (see '}' below).
+        const cur = this.modeStack[this.modeStack.length - 1];
+        if (cur !== undefined && cur.kind === 'interp') cur.depth++;
+        return this.token('LBRACE', start);
+      }
+      case '}': {
+        const cur = this.modeStack[this.modeStack.length - 1];
+        if (cur !== undefined && cur.kind === 'interp') {
+          if (cur.depth > 0) {
+            cur.depth--;
+            return this.token('RBRACE', start);
+          }
+          // This '}' closes the hole itself, not a nested block — swallow it
+          // (same as the closing '"' is swallowed) and resume chunk-scanning
+          // the string frame now back on top, without emitting a token for it.
+          this.modeStack.pop();
+          return this.nextToken();
+        }
+        return this.token('RBRACE', start);
+      }
       case '[': return this.token('LBRACKET', start);
       case ']': return this.token('RBRACKET', start);
       default: return this.error('L0001', this.c.spanFrom(start));

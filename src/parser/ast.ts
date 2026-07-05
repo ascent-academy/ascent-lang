@@ -15,6 +15,15 @@ export type Literal = (
   | { kind: 'literal'; valueType: 'Done'; span: Span }
 );
 
+// A String literal with at least one '${expr}' hole. A text part is the raw
+// (already-unescaped) source between holes; a hole part is an arbitrary
+// expression whose value the typechecker requires to already be a String
+// (design.md §4/§6: no auto-stringification — call '.toStr()' first). A
+// String with zero holes is never a Template — it stays the plain
+// { kind: 'literal', valueType: 'String' } node (see parseStringTemplate).
+export type TemplatePart = { kind: 'text'; value: string } | { kind: 'hole'; expr: Expr };
+export type Template = { kind: 'template'; parts: TemplatePart[]; span: Span };
+
 export type UnaryOp = '-' | 'not';
 export type ArithmeticOp = '+' | '-' | '*' | '/' | 'div' | 'mod' | '**';
 export type ComparisonOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
@@ -37,6 +46,7 @@ export type If = {
 
 export type Expr = (
   | Literal
+  | Template
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }

@@ -91,6 +91,21 @@ const coerce = (v: RuntimeValue, targetType: AscentType): RuntimeValue => {
   return v;
 };
 
+// How a scalar shows as text inside a '${ }' hole — hardcoded until a
+// Show-style trait exists (see isScalarType in types/types.ts, which the
+// typechecker uses to guarantee `v` is one of these four cases here). Mirrors
+// Int/Float's own '.toStr()' method exactly, so writing it explicitly in a
+// hole is redundant, never different.
+const scalarToStr = (v: RuntimeValue): string => {
+  switch (v.type) {
+    case 'Int': return String(v.value);
+    case 'Float': return String(v.value);
+    case 'Bool': return v.value ? 'True' : 'False';
+    case 'String': return v.value;
+    default: throw new Error(`internal: ${v.type} in an interpolation hole (typechecker should have rejected it)`);
+  }
+};
+
 export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
     case 'literal': {
@@ -102,6 +117,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         case 'None': return { type: 'None' };
         case 'Done': return { type: 'Done' };
       }
+    }
+    case 'template': {
+      let result = '';
+      for (const part of expr.parts) {
+        if (part.kind === 'text') { result += part.value; continue; }
+        result += scalarToStr(evaluateExpr(part.expr, env));
+      }
+      return { type: 'String', value: result };
     }
     case 'slot': {
       // Name-binding errors (N0001–N0003) are caught at type-check time; this

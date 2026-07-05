@@ -1,7 +1,8 @@
 export type TokenKind =
   | 'INT_LIT'    // a sequence of decimal digits: 0, 42, 1000
   | 'FLOAT_LIT'  // a decimal number with a dot: 0.5, 3.14, 1.0
-  | 'STR_LIT'    // a double-quoted string: "hello"
+  | 'STR_PART'     // a chunk of string text immediately followed by '${' — an interpolation hole comes next
+  | 'STR_PART_END' // a chunk of string text that runs to the closing '"' — the string ends here
   | 'BOOL_LIT'   // True or False
   | 'NONE_LIT'   // None
   | 'DONE_LIT'   // Done — the unit constructor

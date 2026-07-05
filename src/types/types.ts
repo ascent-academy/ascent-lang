@@ -22,6 +22,14 @@ export const typeToString = (t: AscentType): string => {
   return t.kind;
 };
 
+// design.md §4's "Scalars" heading: Int, Float, Bool, String — every type
+// with one obvious, total way to show as text. Used to let a '${ }'
+// interpolation hole (§4/§6) accept these without an explicit '.toStr()'
+// call; a hardcoded rule until a Show-style trait (§7) can express it as
+// ordinary dispatch instead.
+export const isScalarType = (t: AscentType): boolean =>
+  t.kind === 'Int' || t.kind === 'Float' || t.kind === 'Bool' || t.kind === 'String';
+
 export const typesEqual = (a: AscentType, b: AscentType): boolean => {
   if (a.kind !== b.kind) {
     return false;
