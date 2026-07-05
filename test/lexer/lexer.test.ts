@@ -94,4 +94,42 @@ describe('Lexer', () => {
     assert.equal(tokens[0]?.kind, 'ERROR');
     assert.equal(errorMarkers[0]?.code, 'L0004');
   });
+
+  it('skips a line comment running to end of line', () => {
+    assert.deepEqual(kinds('1 # this is a comment\n2'), ['INT_LIT', 'INT_LIT', 'EOF']);
+  });
+
+  it('skips a line comment with nothing after it', () => {
+    assert.deepEqual(kinds('1 # trailing comment'), ['INT_LIT', 'EOF']);
+  });
+
+  it('skips a whole-line comment', () => {
+    assert.deepEqual(kinds('# a whole line\n1'), ['INT_LIT', 'EOF']);
+  });
+
+  it('skips a mid-line block comment', () => {
+    assert.deepEqual(kinds('1 #[ comment ]# + 2'), ['INT_LIT', 'PLUS', 'INT_LIT', 'EOF']);
+  });
+
+  it('skips a block comment spanning multiple lines', () => {
+    assert.deepEqual(kinds('1 #[ line one\nline two ]# + 2'), ['INT_LIT', 'PLUS', 'INT_LIT', 'EOF']);
+  });
+
+  it('skips a nested block comment', () => {
+    assert.deepEqual(kinds('1 #[ outer #[ inner ]# still outer ]# + 2'), [
+      'INT_LIT', 'PLUS', 'INT_LIT', 'EOF',
+    ]);
+  });
+
+  it('reports L0005 for a block comment unterminated at EOF', () => {
+    const { tokens, errorMarkers } = new Lexer('1 #[ never closed').tokenize();
+    assert.equal(tokens[0]?.kind, 'INT_LIT');
+    assert.equal(tokens[1]?.kind, 'EOF');
+    assert.equal(errorMarkers[0]?.code, 'L0005');
+  });
+
+  it('reports L0005 for a nested block comment missing its outer close', () => {
+    const { errorMarkers } = new Lexer('#[ outer #[ inner ]# unclosed').tokenize();
+    assert.equal(errorMarkers[0]?.code, 'L0005');
+  });
 });

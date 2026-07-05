@@ -62,6 +62,14 @@ export const ERRORS: ErrorEntry[] = [
     }
   },
   {
+    "code": "L0005",
+    "name": "unterminated-block-comment",
+    "category": "lexical",
+    "summary": "A #[ block comment with no matching ]#.",
+    "message": "This comment is missing its closing ]#.",
+    "explanation": "A block comment begins with #[ and ends with ]#, and a #[ ... ]# comment can sit inside another one. This one has an opening #[ but the program ends before a matching ]# appears."
+  },
+  {
     "code": "N0001",
     "name": "undefined-slot",
     "category": "name",

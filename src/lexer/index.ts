@@ -36,6 +36,49 @@ export class Lexer {
     this.consumeWhile(isWhitespace);
   }
 
+  private skipLineComment(): void {
+    this.consumeWhile((ch) => ch !== '\n' && ch !== '\0');
+  }
+
+  // '#[ ... ]#' nests: an inner '#[' bumps the depth, and only the ']#' that
+  // brings it back to 0 closes the comment.
+  private skipBlockComment(start: Position): void {
+    let depth = 1;
+    while (!this.c.atEnd()) {
+      if (this.c.peek() === '#' && this.c.peek(1) === '[') {
+        this.c.advance();
+        this.c.advance();
+        depth++;
+      } else if (this.c.peek() === ']' && this.c.peek(1) === '#') {
+        this.c.advance();
+        this.c.advance();
+        depth--;
+        if (depth === 0) return;
+      } else {
+        this.c.advance();
+      }
+    }
+    this.error('L0005', this.c.spanFrom(start));
+  }
+
+  private skipTrivia(): void {
+    while (true) {
+      this.skipWhitespace();
+      if (this.c.peek() === '#' && this.c.peek(1) === '[') {
+        const start = this.c.mark();
+        this.c.advance();
+        this.c.advance();
+        this.skipBlockComment(start);
+        continue;
+      }
+      if (this.c.peek() === '#') {
+        this.skipLineComment();
+        continue;
+      }
+      break;
+    }
+  }
+
   private readWord(): Token {
     const start = this.c.mark();
     const firstCh = this.c.peek();
@@ -98,7 +141,7 @@ export class Lexer {
   }
 
   private nextToken(): Token {
-    this.skipWhitespace();
+    this.skipTrivia();
 
     if (this.c.atEnd()) {
       const start = this.c.mark();
