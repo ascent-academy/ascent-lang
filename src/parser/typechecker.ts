@@ -175,6 +175,9 @@ const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
     last: { params: [], result: optionalOf(STRING_TYPE) },
     chars: { params: [], result: listOfType(STRING_TYPE) },
     slice: { params: [INT_TYPE, INT_TYPE], result: STRING_TYPE },
+    repeat: { params: [INT_TYPE], result: STRING_TYPE },
+    trim: { params: [], result: STRING_TYPE },
+    padLeft: { params: [INT_TYPE], result: STRING_TYPE },
   },
   List: {
     length: { params: [], result: INT_TYPE },

@@ -357,6 +357,20 @@ const evalStringMethod = (
       }
       return { type: 'String', value: chars.slice(start, end).join('') };
     }
+    case 'repeat': {
+      const count = (args[0] as Extract<RuntimeValue, { type: 'Int' }>).value;
+      if (count < 0n) {
+        throw new RuntimeError({ code: 'R0008', span, data: { count: String(count) } });
+      }
+      return { type: 'String', value: receiver.value.repeat(Number(count)) };
+    }
+    case 'trim':
+      return { type: 'String', value: receiver.value.trim() };
+    case 'padLeft': {
+      const target = Number((args[0] as Extract<RuntimeValue, { type: 'Int' }>).value);
+      const padCount = Math.max(0, target - graphemesOf(receiver.value).length);
+      return { type: 'String', value: ' '.repeat(padCount) + receiver.value };
+    }
     default: throw new Error(`internal: String has no method '${method}'`);
   }
 };

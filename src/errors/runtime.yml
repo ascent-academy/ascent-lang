@@ -77,3 +77,13 @@
     a String with {length} character(s) only accepts a start and end between 0
     and {length}, with start no greater than end. '{start}' and '{end}' don't
     fit that rule here.
+
+- code: R0008
+  name: negative-repeat-count
+  category: runtime
+  summary: "'.repeat(n)' was called with a negative n."
+  message: "'.repeat({count})' can't repeat a String a negative number of times."
+  explanation: >-
+    '.repeat(n)' builds a new String out of n copies of this one, so n has to
+    be 0 or more — there's no such thing as repeating something a negative
+    number of times. Use 0 if you want an empty String back.

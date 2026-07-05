@@ -112,6 +112,48 @@ describe('String methods (end-to-end)', () => {
     });
   });
 
+  describe('.repeat(n)', () => {
+    it('concatenates n copies of the String', () => {
+      assert.deepEqual(evalOk('"ab".repeat(3);'), { type: 'String', value: 'ababab' });
+    });
+
+    it('returns an empty String for a count of 0', () => {
+      assert.deepEqual(evalOk('"ab".repeat(0);'), { type: 'String', value: '' });
+    });
+
+    it('crashes with R0008 for a negative count', () => {
+      assert.equal(evalCrash('"ab".repeat(-1);'), 'R0008');
+    });
+  });
+
+  describe('.trim()', () => {
+    it('removes leading and trailing whitespace', () => {
+      assert.deepEqual(evalOk('"  hi there  ".trim();'), { type: 'String', value: 'hi there' });
+    });
+
+    it('leaves internal whitespace untouched', () => {
+      assert.deepEqual(evalOk('"  a  b  ".trim();'), { type: 'String', value: 'a  b' });
+    });
+
+    it('is unchanged for a String with no surrounding whitespace', () => {
+      assert.deepEqual(evalOk('"hi".trim();'), { type: 'String', value: 'hi' });
+    });
+  });
+
+  describe('.padLeft(n)', () => {
+    it('pads with spaces on the left up to length n', () => {
+      assert.deepEqual(evalOk('"7".padLeft(3);'), { type: 'String', value: '  7' });
+    });
+
+    it('returns the String unchanged when it is already at least n characters', () => {
+      assert.deepEqual(evalOk('"hello".padLeft(3);'), { type: 'String', value: 'hello' });
+    });
+
+    it('counts characters (graphemes), not bytes or code units', () => {
+      assert.deepEqual(evalOk('"é".padLeft(3);'), { type: 'String', value: '  é' });
+    });
+  });
+
   describe('.toString() (renamed from .toStr())', () => {
     it('converts an Int to its decimal digits', () => {
       assert.deepEqual(evalOk('42.toString();'), { type: 'String', value: '42' });
