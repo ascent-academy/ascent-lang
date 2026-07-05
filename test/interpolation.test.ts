@@ -43,6 +43,11 @@ describe('String interpolation (end-to-end)', () => {
     assert.equal(evalStr('"Pi is about ${3.14}.";'), 'Pi is about 3.14.');
   });
 
+  it('keeps the decimal point on a whole-number Float, via a hole and via .toStr()', () => {
+    assert.equal(evalStr('"total: ${3.0}";'), 'total: 3.0');
+    assert.equal(evalStr('"total: ${3.0.toStr()}";'), 'total: 3.0');
+  });
+
   it('accepts a Bool hole directly, with no .toStr() needed', () => {
     assert.equal(evalStr('fix ok = True; "ok = ${ok}.";'), 'ok = True.');
   });

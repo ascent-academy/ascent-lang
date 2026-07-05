@@ -91,6 +91,13 @@ const coerce = (v: RuntimeValue, targetType: AscentType): RuntimeValue => {
   return v;
 };
 
+// Float's canonical string form always shows the decimal point, so a whole
+// number stays visibly a Float (`3.0`, never collapsed to `3` like an Int).
+const formatFloat = (value: number): string => {
+  const s = String(value);
+  return /[.e]/i.test(s) ? s : `${s}.0`;
+};
+
 // How a scalar shows as text inside a '${ }' hole — hardcoded until a
 // Show-style trait exists (see isScalarType in types/types.ts, which the
 // typechecker uses to guarantee `v` is one of these four cases here). Mirrors
@@ -99,7 +106,7 @@ const coerce = (v: RuntimeValue, targetType: AscentType): RuntimeValue => {
 const scalarToStr = (v: RuntimeValue): string => {
   switch (v.type) {
     case 'Int': return String(v.value);
-    case 'Float': return String(v.value);
+    case 'Float': return formatFloat(v.value);
     case 'Bool': return v.value ? 'True' : 'False';
     case 'String': return v.value;
     default: throw new Error(`internal: ${v.type} in an interpolation hole (typechecker should have rejected it)`);
@@ -270,7 +277,7 @@ const evalFloatMethod = (
   receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[], span: Span,
 ): RuntimeValue => {
   switch (method) {
-    case 'toStr': return { type: 'String', value: String(receiver.value) };
+    case 'toStr': return { type: 'String', value: formatFloat(receiver.value) };
     case 'toInt': return { type: 'Int', value: checkIntOverflow(BigInt(Math.trunc(receiver.value)), span) };
     case 'abs': return { type: 'Float', value: Math.abs(receiver.value) };
     case 'min': {
