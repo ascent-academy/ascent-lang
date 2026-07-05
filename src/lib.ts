@@ -42,3 +42,4 @@ export * from './types/types.js';
 
 export { ERRORS, byCode } from './errors/index.js';
 export type { ErrorEntry, Category } from './errors/types.js';
+export type { Diagnostic } from './errors/elaborate.js';
