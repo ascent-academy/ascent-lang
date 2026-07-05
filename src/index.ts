@@ -7,7 +7,7 @@ import { parse, parseTokens } from './parser/index.js';
 import { typecheck } from './parser/typechecker.js';
 import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
-import { executeStmt, executeProgram, Environment, RuntimeValue } from './interpreter.js';
+import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue } from './interpreter.js';
 import { elaborate } from './errors/elaborate.js';
 import { renderTerminal } from './errors/render.js';
 import type { ArgDef } from './parser/ast.js';
@@ -35,9 +35,10 @@ const parseCliFlags = (argv: string[]): Map<string, string> => {
   return flags;
 };
 
-// Converts raw CLI strings to RuntimeValues according to each ArgDef,
-// then declares them as fixed slots. Exits on missing or ill-typed args.
-const bindArgs = (argDefs: ArgDef[], cliFlags: Map<string, string>, env: Environment): void => {
+// Converts raw CLI strings to RuntimeValues according to each ArgDef.
+// Exits on missing or ill-typed args.
+const bindArgs = (argDefs: ArgDef[], cliFlags: Map<string, string>): ProgramInputs => {
+  const inputs = new ProgramInputs(argDefs);
   for (const def of argDefs) {
     const raw = cliFlags.get(def.name);
     if (raw === undefined) {
@@ -78,8 +79,9 @@ const bindArgs = (argDefs: ArgDef[], cliFlags: Map<string, string>, env: Environ
       }
     }
 
-    env.declare(def.name, value, false);
+    inputs.set(def.name, value);
   }
+  return inputs;
 };
 
 const runFile = async (filePath: string): Promise<void> => {
@@ -105,13 +107,10 @@ const runFile = async (filePath: string): Promise<void> => {
   }
 
   const typedProgram = parseResult.program!;
-  const env = new Environment();
-  if (typedProgram.args.length > 0) {
-    bindArgs(typedProgram.args, parseCliFlags(process.argv.slice(3)), env);
-  }
+  const inputs = bindArgs(typedProgram.args, parseCliFlags(process.argv.slice(3)));
 
   try {
-    const result = executeProgram(typedProgram, env);
+    const result = executeProgram(typedProgram, inputs);
     if (result.type !== 'Done') {
       process.stdout.write(formatValue(result) + '\n');
     }

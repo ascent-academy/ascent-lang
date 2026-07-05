@@ -1,12 +1,16 @@
-import type { BinaryOp } from './parser/ast.js';
+import type { BinaryOp, ArgDef } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
 import { INT_TYPE, subtype, type AscentType } from './types/types.js';
 
-export type RuntimeValue = (
+export type PrimitiveValue = (
   | { type: 'Int'; value: bigint }
   | { type: 'Float'; value: number }
   | { type: 'Bool'; value: boolean }
   | { type: 'String'; value: string }
+);
+
+export type RuntimeValue = (
+  | PrimitiveValue
   | { type: 'List'; elements: RuntimeValue[] }
   | { type: 'None' }
   | { type: 'Done' }
@@ -341,7 +345,48 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
   return { type: 'Float', value: v };
 };
 
-export const executeProgram = (program: TypedProgram, env: Environment): RuntimeValue => {
+// Bound to one program's `args`: `set` rejects a name that isn't one of
+// those args (which, coming from a parsed program, are already legal slot
+// names — no separate syntax check needed), and a value whose type doesn't
+// match the arg's declared type.
+export class ProgramInputs {
+  private readonly argDefs: Map<string, ArgDef>;
+  private readonly values = new Map<string, PrimitiveValue>();
+
+  public constructor(argDefs: ArgDef[]) {
+    this.argDefs = new Map(argDefs.map(def => [def.name, def]));
+  }
+
+  public set(name: string, value: PrimitiveValue): this {
+    const argDef = this.argDefs.get(name);
+    if (argDef === undefined) {
+      throw new Error(`'${name}' is not a declared program input`);
+    }
+    if (argDef.type !== value.type) {
+      throw new Error(`'${name}': expected ${argDef.type}, got ${value.type}`);
+    }
+    this.values.set(name, value);
+    return this;
+  }
+
+  public get(name: string): PrimitiveValue | undefined {
+    return this.values.get(name);
+  }
+}
+
+// Creates the top-level Environment itself, declaring each of the program's
+// `args` as a fixed slot from `inputs` — callers provide values, not scopes.
+export const executeProgram = (
+  program: TypedProgram,
+  inputs: ProgramInputs = new ProgramInputs(program.args),
+): RuntimeValue => {
+  const env = new Environment();
+  for (const arg of program.args) {
+    const value = inputs.get(arg.name);
+    if (value === undefined) throw new Error(`missing input '${arg.name}'`);
+    env.declare(arg.name, value, false);
+  }
+
   let result: RuntimeValue = { type: 'Done' };
   for (const stmt of program.stmts) {
     result = executeStmt(stmt, env);

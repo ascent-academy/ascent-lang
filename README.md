@@ -56,13 +56,24 @@ so you can lex, parse, type-check, and interpret Ascent source from your own
 tooling:
 
 ```js
-import { Lexer, Parser, typecheck, executeProgram, Environment } from '@ascent-lang/dev';
+import { parse, executeProgram } from '@ascent-lang/dev';
 
-const source = '1 + 2';
-const { tokens } = new Lexer(source).tokenize();
-const { program } = new Parser(tokens).parse();
-const { typedProgram } = typecheck(program);
-const result = executeProgram(typedProgram, new Environment());
+const { program } = parse('1 + 2');
+const result = executeProgram(program);
 
 console.log(result); // { type: 'Int', value: 3n }
+```
+
+`executeProgram` creates its own `Environment`. If the program declares
+`args`, build a `ProgramInputs` from that program's `args` and pass it as
+the second argument. `ProgramInputs.set` rejects a name that isn't one of
+the program's declared args, or a value that doesn't match that arg's
+declared type:
+
+```js
+import { parse, executeProgram, ProgramInputs } from '@ascent-lang/dev';
+
+const { program } = parse('args (name: String); name');
+const inputs = new ProgramInputs(program.args).set('name', { type: 'String', value: 'Ada' });
+const result = executeProgram(program, inputs);
 ```

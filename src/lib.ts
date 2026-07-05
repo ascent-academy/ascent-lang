@@ -2,15 +2,16 @@
 // The `ascent` CLI (see index.ts) is the primary entry point. Embedders
 // wanting source-to-typed-AST in one call should use parse():
 //
-//   const { typedProgram, errorMarkers } = parse(src);
-//   const result = executeProgram(typedProgram!, new Environment());
+//   const { program, errorMarkers } = parse(src);
+//   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
+//   const result = executeProgram(program!, inputs);
 //
 // The individual stages are also re-exported for tools that need
 // intermediate results (e.g. tokens, or the untyped AST):
 //
 //   const { tokens, errorMarkers } = new Lexer(src).tokenize();
 //   const { program } = parseTokens(tokens);
-//   const { typedProgram } = typecheck(program!);
+//   const { program: typedProgram } = typecheck(program!);
 
 export { Lexer } from './lexer/index.js';
 export type { LexResult } from './lexer/index.js';
@@ -26,8 +27,9 @@ export {
   evaluateExpr,
   executeStmt,
   executeProgram,
+  ProgramInputs,
 } from './interpreter.js';
-export type { RuntimeValue, AssignResult } from './interpreter.js';
+export type { RuntimeValue, AssignResult, PrimitiveValue } from './interpreter.js';
 
 export { formatExpr, formatStmt, formatValue, valueToString } from './parser/printer.js';
 export { formatTypedStmt } from './parser/typed-printer.js';
