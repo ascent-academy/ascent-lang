@@ -40,4 +40,50 @@ describe('Lexer', () => {
     assert.equal(tokens[0]?.kind, 'ERROR');
     assert.equal(errorMarkers[0]?.code, 'L0001');
   });
+
+  it('resolves an identifier starting with a keyword to a SLOT', () => {
+    assert.deepEqual(kinds('divide'), ['SLOT', 'EOF']);
+  });
+
+  it('does not consume a dot into a number when no digit follows', () => {
+    assert.deepEqual(kinds('3.method()'), [
+      'INT_LIT', 'DOT', 'SLOT', 'LPAREN', 'RPAREN', 'EOF',
+    ]);
+  });
+
+  it('resolves escape sequences in a string literal', () => {
+    const [tok] = new Lexer(String.raw`"a\nb\tc\\d\"e"`).tokenize().tokens;
+    assert.equal(tok?.kind, 'STR_LIT');
+    assert.equal(tok?.value, 'a\nb\tc\\d"e');
+  });
+
+  it('reports L0001 for an unknown escape sequence in a string', () => {
+    const { tokens, errorMarkers } = new Lexer(String.raw`"\q"`).tokenize();
+    assert.equal(tokens[0]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0001');
+  });
+
+  it('reports L0003 for a string unterminated at EOF', () => {
+    const { tokens, errorMarkers } = new Lexer('"abc').tokenize();
+    assert.equal(tokens[0]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0003');
+  });
+
+  it('reports L0003 for a string unterminated at a newline', () => {
+    const { tokens, errorMarkers } = new Lexer('"abc\ndef"').tokenize();
+    assert.equal(tokens[0]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0003');
+  });
+
+  it('reports L0002 for a number glued to a letter', () => {
+    const { tokens, errorMarkers } = new Lexer('123abc').tokenize();
+    assert.equal(tokens[0]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0002');
+  });
+
+  it('reports L0004 for a leading-dot float', () => {
+    const { tokens, errorMarkers } = new Lexer('.5').tokenize();
+    assert.equal(tokens[0]?.kind, 'ERROR');
+    assert.equal(errorMarkers[0]?.code, 'L0004');
+  });
 });
