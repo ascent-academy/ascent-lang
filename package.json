@@ -34,7 +34,7 @@
     "prestart": "tsx scripts/gen-errors.ts",
     "start": "tsx src/index.ts",
     "prepublishOnly": "npm run clean && npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "repository": {
     "type": "git",
@@ -58,7 +58,9 @@
     "access": "public"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^26.0.1",
+    "mocha": "^11.7.6",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "typescript-yaml-plugin": "^1.0.11",
