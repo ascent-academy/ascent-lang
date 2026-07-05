@@ -7,7 +7,7 @@ import {
 } from '../types/types.js';
 
 export interface TypedResult {
-  typedProgram: TypedProgram | null;
+  program: TypedProgram | null;
   errorMarkers: Marker[];
 }
 
@@ -488,7 +488,7 @@ export const typecheck = (program: Program): TypedResult => {
   }
 
   if (failed || markers.length > 0) {
-    return { typedProgram: null, errorMarkers: markers };
+    return { program: null, errorMarkers: markers };
   }
-  return { typedProgram: { args: program.args, stmts: typedStmts }, errorMarkers: [] };
+  return { program: { args: program.args, stmts: typedStmts }, errorMarkers: [] };
 };

@@ -38,12 +38,12 @@ export const parseTokens = (tokens: Token[]): ParseResult => {
 export const parse = (src: string): TypedResult => {
   const lexResult = new Lexer(src).tokenize();
   if (lexResult.errorMarkers.length > 0) {
-    return { typedProgram: null, errorMarkers: lexResult.errorMarkers };
+    return { program: null, errorMarkers: lexResult.errorMarkers };
   }
 
   const parseResult = parseTokens(lexResult.tokens);
   if (parseResult.program === null || parseResult.errorMarkers.length > 0) {
-    return { typedProgram: null, errorMarkers: parseResult.errorMarkers };
+    return { program: null, errorMarkers: parseResult.errorMarkers };
   }
 
   return typecheck(parseResult.program);

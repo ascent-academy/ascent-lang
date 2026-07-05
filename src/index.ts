@@ -104,7 +104,7 @@ const runFile = async (filePath: string): Promise<void> => {
     process.exit(1);
   }
 
-  const typedProgram = parseResult.typedProgram!;
+  const typedProgram = parseResult.program!;
   const env = new Environment();
   if (typedProgram.args.length > 0) {
     bindArgs(typedProgram.args, parseCliFlags(process.argv.slice(3)), env);
@@ -171,7 +171,7 @@ const runRepl = async (): Promise<void> => {
           // Print the untyped parse tree; execute the typed AST.
           // The two arrays are guaranteed to be the same length when
           // typedProgram is non-null (every statement type-checked).
-          const typedStmts = typeResult.typedProgram!.stmts;
+          const typedStmts = typeResult.program!.stmts;
           for (let i = 0; i < typedStmts.length; i++) {
             process.stdout.write(formatTypedStmt(typedStmts[i]!) + '\n');
             try {
