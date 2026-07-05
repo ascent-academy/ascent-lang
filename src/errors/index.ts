@@ -171,7 +171,8 @@ export const ERRORS: ErrorEntry[] = [
     "category": "runtime",
     "summary": "'.first()' or '.last()' was called on a String with no characters.",
     "message": "'.{method}()' has nothing to return: this String is empty.",
-    "explanation": "'.first()' returns a String's first character and '.last()' its last, but an empty String (\"\") has neither. Check the String's '.length()' before calling '.{method}()' if it might be empty."
+    "explanation": "'.first()' returns a String's first character and '.last()' its last, but an empty String (\"\") has neither. Check the String's '.length()' before calling '.{method}()' if it might be empty.",
+    "retired": true
   },
   {
     "code": "R0007",

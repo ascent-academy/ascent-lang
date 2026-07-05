@@ -336,8 +336,10 @@ const evalStringMethod = (
     case 'length': return { type: 'Int', value: BigInt(graphemesOf(receiver.value).length) };
     case 'first':
     case 'last': {
+      // design.md §4: returns String? — None on an empty String, never a
+      // crash, since an empty receiver is an expected case here, not a bug.
       const chars = graphemesOf(receiver.value);
-      if (chars.length === 0) throw new RuntimeError({ code: 'R0006', span, data: { method } });
+      if (chars.length === 0) return { type: 'None' };
       return { type: 'String', value: method === 'first' ? chars[0]! : chars[chars.length - 1]! };
     }
     case 'chars':

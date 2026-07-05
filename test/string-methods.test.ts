@@ -57,9 +57,15 @@ describe('String methods (end-to-end)', () => {
       assert.deepEqual(evalOk('"x".last();'), { type: 'String', value: 'x' });
     });
 
-    it('crashes with R0006 on an empty String', () => {
-      assert.equal(evalCrash('"".first();'), 'R0006');
-      assert.equal(evalCrash('"".last();'), 'R0006');
+    it('returns None instead of crashing on an empty String', () => {
+      assert.deepEqual(evalOk('"".first();'), { type: 'None' });
+      assert.deepEqual(evalOk('"".last();'), { type: 'None' });
+    });
+
+    it('type-checks as String? — assignable to a String? slot and comparable to None', () => {
+      assert.deepEqual(evalOk('fix c: String? = "hi".first(); c;'), { type: 'String', value: 'h' });
+      assert.deepEqual(evalOk('"".first() == None;'), { type: 'Bool', value: true });
+      assert.deepEqual(evalOk('"hi".first() == None;'), { type: 'Bool', value: false });
     });
   });
 

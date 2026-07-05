@@ -63,6 +63,9 @@
     '.first()' returns a String's first character and '.last()' its last, but
     an empty String ("") has neither. Check the String's '.length()' before
     calling '.{method}()' if it might be empty.
+  # Retired: '.first()'/'.last()' now return String? (None on an empty
+  # String) instead of crashing, now that Optional exists (design.md §4).
+  retired: true
 
 - code: R0007
   name: string-slice-out-of-bounds

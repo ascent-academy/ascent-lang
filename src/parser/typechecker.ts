@@ -166,11 +166,13 @@ const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
   },
   // design.md §4: no integer indexing on String — these named, grapheme-aware
   // methods replace it. length/first/last/chars/slice all count and cut on
-  // characters (Unicode graphemes), never bytes or code units.
+  // characters (Unicode graphemes), never bytes or code units. first/last
+  // return String? (None on an empty String) rather than crashing — the
+  // "expected maybe-absent" tier, now that Optional exists.
   String: {
     length: { params: [], result: INT_TYPE },
-    first: { params: [], result: STRING_TYPE },
-    last: { params: [], result: STRING_TYPE },
+    first: { params: [], result: optionalOf(STRING_TYPE) },
+    last: { params: [], result: optionalOf(STRING_TYPE) },
     chars: { params: [], result: listOfType(STRING_TYPE) },
     slice: { params: [INT_TYPE, INT_TYPE], result: STRING_TYPE },
   },
