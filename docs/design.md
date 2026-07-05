@@ -128,7 +128,8 @@ Tuples (use a named type), `Set`, `Bytes`, sized/unsigned ints, `Char`.
 - **Function bodies are just blocks.** `fn(...) -> T { … }` yields the value of its last statement (§2) — no `return` needed. The single-expression form `fn(...) -> T => e` is sugar for `{ e }`; `=>` reads as "the result is this expression." Use whichever fits — they mean the same thing (so `=> {` is merely redundant, a style nit, not an error).
 - **`return`** is an **early exit** from the enclosing function, used only to leave *before* the last statement. Reaching the end is the normal path, and the body's value is that last statement (§2).
 - **Closures capture by value.** A function may use names from the scope where it was defined (`fn(x) -> Int => x + base` uses `base`), and it **snapshots their values at the moment it is created** — later changes to the outer slot do not affect it. This is not an arbitrary pick: it is value semantics (§3) extended to closures, so the whole language obeys one rule — names hold values, and what a closure remembers is a value too, never a live reference to someone else's slot. The famous loop footgun therefore cannot occur — building `fn() => i` three times in a `while` loop captures `0`, `1`, `2` (the snapshots), not three views of a single mutated `i` that all read `3` (the capture-by-reference result JS shipped, then patched with per-iteration `let`). A closure captures **only the outer names it actually uses**, keeping it cheap and its dependencies legible. The rare case where a closure *should* track later mutation — shared evolving state — is exactly `Ref<T>` (§4): captured by value like everything else, but it *holds* a shared slot, so the sharing is opt-in and visible in the type rather than the silent default of every closure.
-- **Recursion is self-reference, not capture — a named function's own name is in scope in its body.** Capture-by-value creates a chicken-and-egg for recursion: `fix f = fn(n: Int) -> Int => ... f(n - 1) ...` would try to *snapshot* `f` while `f`'s slot is still being computed, capturing a hole. The resolution is that a function referring to *itself* is not capturing an outer value — it is self-reference, a different relationship. So a **named function declaration** — `fn factorial(n: Int) -> Int { ... factorial(n - 1) ... }` — **binds its name before its body is built**, and the body's reference to that name resolves to the (recursive) binding, not to a captured value. Capture-by-value is untouched: it governs the *outer* names a closure closes over, never the function's own name. An **anonymous lambda** (`fn(x) => ...`) captures outer names by value and has *no* self-name; anyone wanting recursion uses the named form (there is no need for anonymous self-reference once named declarations exist). This is safe despite the "slot is filled only after the closure is built" window, because a function's **body runs at call time, not definition time** — by the time `factorial` calls itself, its slot is filled. *Eager* self-reference in a value's own initializer (`fix x = x + 1`, evaluated immediately) is instead a caught **"used before initialized"** error, since there the slot really is read before it holds anything.
+- **Recursion — a `fix` binding is in scope within its own initializer.** Functions are ordinary values, made *only* by `fix f = fn(...)` — there is no separate `fn name(...)` declaration form. That creates a chicken-and-egg with recursion: `fix f = fn(n: Int) -> Int => ... f(n - 1) ...` references `f` while `f`'s slot is still being computed. The resolution is a *recursive `let`*: **`fix name = <init>` binds `name` in scope for `<init>`**. When `<init>` is a lambda, self-reference works — the closure captures the *slot* `f`, and because a function's **body runs at call time, not definition time**, the slot is filled by the time `f` calls itself. *Eager* self-reference, where the initializer runs immediately (`fix x = x + 1`), is instead a caught **"used before initialized"** error — there the slot really is read before it holds a value. (Capture-by-value is untouched: it governs the *outer* names a closure closes over; a binding's reference to *its own* name is self-reference, resolved to the slot, not a snapshot.)
+- **Mutual recursion is deferred.** Value bindings are otherwise *sequential* — each `fix` sees only what precedes it — so two functions that call each other cannot see each other under plain `fix`: the reference is circular, and no ordering resolves it. Self-reference is handled (above); mutual recursion is **not yet**, and will be served — when a real need appears — by an explicit grouping form (a `rec { … }` block whose bindings are all mutually visible, the honest `let rec … and …`), **never** by silently hoisting lambda-valued bindings, which would make a `fix`'s scope depend invisibly on whether its neighbours happen to be lambdas — the hidden magic the language rejects. Until that form lands, mutual recursion is simply unavailable, which is acceptable because it is rare and never appears in early lessons.
 
 ---
 
@@ -263,7 +264,7 @@ The governing move: the checker mainly answers one question — *"are these two 
 **Colored `async` / `await` — the convergent mainstream surface.** An `async` function is marked at its definition, and async-ness *propagates*: a function that `await`s is itself `async`, and its caller awaits its result. This is deliberately the **colored** model that JS, TypeScript, Python, Rust, and Swift all share — not a "colorless" scheme — because the color is *true, transferable knowledge*: a graduate meets exactly this everywhere. I/O is async, with **one** version of each operation (no `readLine` / `readLineSync` pair — pretending I/O is instant is the lie).
 
 ```ascent
-async fn fetchUser(id: Int) -> User {
+fix fetchUser = async fn(id: Int) -> User {
     fix response = await httpGet!("/users/${id}");
     parseUser(response)
 }
@@ -338,7 +339,7 @@ These are the *same loop* with different policies — which is the proof of comp
 ## 9. Error handling & diagnostics
 
 - **Two tiers of failure.** A **bug** crashes loudly and uncatchably — index out of bounds, overflow, divide-by-zero — with a precise message, location, and locals; you *fix* it, you don't handle it (the right first model of failure). An **expected failure** is a **value**: its possibility sits in the return type, so it can never tunnel invisibly up the stack the way an exception can. Indexing shows both tiers on *one* operation: `xs[i]` returns `T` and **crashes** on an out-of-range index (you asserted it was valid — so a bad one is a bug), while `xs.at(i)` returns `T?` — the same lookup treated as an *expected* maybe-absent value. You pick the accessor that matches whether an out-of-range index would be a mistake to fix or a real possibility to handle.
-- **Absence is `Optional<T>`, spelled `T?`** (§4). **Failure-with-a-reason is `Result<T, E>`** — a two-case union `Ok{ value: T } | Err{ error: E }` — with the surface spelling **`T orelse E`** (`fn parse(s: String) -> Int orelse ParseError`). Both `T?` and `T orelse E` are sugar for one underlying union; `Result<T, E>` stays writable for generic code and aliases (`type IOResult<T> = Result<T, IOError>`). `orelse` reads "a T, or else an E" — a *returned value*, never a thrown, stack-unwinding exception.
+- **Absence is `Optional<T>`, spelled `T?`** (§4). **Failure-with-a-reason is `Result<T, E>`** — a two-case union `Ok{ value: T } | Err{ error: E }` — with the surface spelling **`T orelse E`** (`fix parse = fn(s: String) -> Int orelse ParseError`). Both `T?` and `T orelse E` are sugar for one underlying union; `Result<T, E>` stays writable for generic code and aliases (`type IOResult<T> = Result<T, IOError>`). `orelse` reads "a T, or else an E" — a *returned value*, never a thrown, stack-unwinding exception.
 - **`match` is the full handler.** A `Result`/`Optional` is just a union, so you open it with the exhaustive `match` you already have, both cases handled, the `Err`'s reason in hand. No new construct.
 - **`try` is the propagation shorthand**, spanning both `Optional` and `Result`: `try expr` unwraps the good case and continues, or **early-returns the bad case from the enclosing function**. It desugars to exactly that match — `fix lines = try readLines(path);` ≡ `match (readLines(path)) { Err{ error } -> return Err{ error }; Ok{ value } -> value; }`. Because it early-returns the bad case, **a function that uses `try` must itself return a compatible `Optional`/`Result`** — the compiler enforces it, so fallibility is forced into the signature and cannot hide. Every propagation point is *visible* (you see each `try`) and *typed* (the enclosing function admits it can fail) — the exact opposite of exceptions.
 - **`??` is the gentle Optional default — Optional only.** `opt ?? fallback` takes the value or, on `None`, the default. It is *not* allowed on `Result`: a `None` carries no information so defaulting it discards nothing, but a `Result`'s `Err` carries a reason, and silently dropping that reason is exactly the dishonesty Ascent refuses. So seeing `??` tells you the left side is an Optional. `Result` errors must be *acknowledged* — handled (`match` / `try` / `try…else`) or surfaced (`.orAbort()`, below) — never silently defaulted away.
@@ -351,7 +352,7 @@ These are the *same loop* with different policies — which is the proof of comp
   ```ascent
   type SolveError = Read{ cause: ReadError } | Parse{ cause: ParseError };
 
-  fn solve(path: String) -> Int orelse SolveError {
+  fix solve = fn(path: String) -> Int orelse SolveError {
       fix lines = try readLines(path)     else e -> SolveError.Read{ cause: e };
       fix nums  = try parseNumbers(lines) else e -> SolveError.Parse{ cause: e };
       Ok{ value: sum(nums) }
@@ -394,9 +395,9 @@ Because Ascent is a teaching language, a diagnostic is a *lesson*, not a scoldin
 ```ascent
 # geometry.ascent
 export type Point = { x: Int, y: Int };
-export fn distance(a: Point, b: Point) -> Float => ... ;
+export fix distance = fn(a: Point, b: Point) -> Float => ... ;
 
-fn helper() -> Int => ... ;     # no export → file-private
+fix helper = fn() -> Int => ... ;     # no export → file-private
 ```
 
 **Imports come in two forms, chosen by intent — not two spellings of one thing.**
@@ -537,7 +538,7 @@ The conceptual core is closed — values, slots, the numeric model, expressions,
 ### Deferred by design — parked, correctly late
 
 - **`Ref` surface** — `get`/`set` vs a `.value` field; identity vs structural equality once `Ref` exists. For cyclic data.
-- **Construction-site type inference** — an expected type supplies the constructor name (`fn f() -> Person => { name: "A", age: 1 }`); downward propagation through the bidirectional checker (§7), nominal, *no* anonymous records; interacts with the generics slot.
+- **Construction-site type inference** — an expected type supplies the constructor name (`fix f = fn() -> Person => Person{ name: "A", age: 1 }`); downward propagation through the bidirectional checker (§7), nominal, *no* anonymous records; interacts with the generics slot.
 - **Automatic error conversion (candidate, not committed)** — `From`-style hidden adaptation for bare `try`, weighed against honesty; revisit only if `try … else` proves noisy in real code (§9).
 - **Supervised crash-recovery boundary** — isolate and restart/report a task that hits a bug, without making crashes catchable inline; preserves the two-tier model (§9).
 - **`args` empty field** — does an empty text field mean `None` or `""` (§11)?
@@ -587,6 +588,8 @@ fn announce<T: Equatable>(a: T, b: T) -> String =>
 **What it unlocks** (each parked elsewhere, all the same door): extensible collections without ambient monkey-patching — a user *implements a trait* rather than bolting a method onto your `List`, gated by an **orphan rule** (an impl is allowed only if you own the trait *or* the type, which prevents collisions and spooky-action); automatic error conversion (the §15 candidate, i.e. `implement From<ReadError> for AppError`); and the hidden "value-or-not" abstraction behind `try` (§9), which stays hidden — recognizing it *as* a trait is exactly what confirms you have chosen not to surface it.
 
 **v1's only obligation: don't block this.** Keep intrinsic behavior in the type's `methods {}` (so the later `implement` block reads as distinct); keep generics *consumable, not definable* (§7), since a user-defined generic is only useful with a bound and a bound *is* a trait — so generics and traits arrive together; and `trait`, `implement`, `requires`, and `Self` are reserved now (§2) so no future program breaks when the feature lands, even though they are unusable until then. Designed as one feature, this is the generics / traits slot of §15.
+
+**Full open-questions inventory:** the trait system is a large, deferred design with retrofit-expensive hard parts (the orphan rule, static-vs-dynamic dispatch, associated types). Every concern — tiered by dependency, with the entry point and the *grow-don't-design* prerequisite (build concrete `List`/`Map`/`Set` first, extract the hierarchy from them) — is collected in the companion document **`traits-open-questions.md`**, to be picked up cold when the concrete collections are in hand.
 
 ---
 
