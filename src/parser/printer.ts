@@ -144,3 +144,25 @@ export const formatValue = (value: RuntimeValue): string => {
       return chalk.yellow('Done');
   }
 };
+
+export const valueToString = (value: RuntimeValue): string => {
+  switch (value.type) {
+    case 'Int':
+      return String(value.value);
+    case 'Float':
+      const floatStr = String(value.value);
+      return floatStr.includes('.') ? floatStr : floatStr + '.0';
+    case 'Bool':
+      return value.value ? 'True' : 'False';
+    case 'String':
+      return value.value;
+    case 'List': {
+      const items = value.elements.map(valueToString).join(', ');
+      return `[${items}]`;
+    }
+    case 'None':
+      return 'None';
+    case 'Done':
+      return 'Done';
+  }
+};

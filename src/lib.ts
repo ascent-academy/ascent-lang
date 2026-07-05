@@ -29,7 +29,7 @@ export {
 } from './interpreter.js';
 export type { RuntimeValue, AssignResult } from './interpreter.js';
 
-export { formatExpr, formatStmt, formatValue } from './parser/printer.js';
+export { formatExpr, formatStmt, formatValue, valueToString } from './parser/printer.js';
 export { formatTypedStmt } from './parser/typed-printer.js';
 
 export * from './types/types.js';
