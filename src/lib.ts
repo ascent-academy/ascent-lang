@@ -2,7 +2,7 @@
 // The `ascent` CLI (see index.ts) is the primary entry point. Embedders
 // wanting source-to-typed-AST in one call should use parse():
 //
-//   const { program, errorMarkers } = parse(src);
+//   const { program, diagnostics } = parse(src);
 //   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
 //   const result = executeProgram(program!, inputs);
 //

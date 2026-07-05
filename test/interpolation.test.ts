@@ -5,8 +5,8 @@ import { executeProgram } from '../src/interpreter.js';
 // Runs a program expected to typecheck and evaluate cleanly, returning the
 // String value of its last statement.
 function evalStr(src: string): string {
-  const { program, errorMarkers } = parse(src);
-  assert.deepEqual(errorMarkers, [], `unexpected errors: ${errorMarkers.map(m => m.code).join(', ')}`);
+  const { program, diagnostics } = parse(src);
+  assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = executeProgram(program);
   assert.equal(result.kind, 'ok');
@@ -16,7 +16,7 @@ function evalStr(src: string): string {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).errorMarkers.map(m => m.code);
+  return parse(src).diagnostics.map(d => d.code);
 }
 
 describe('String interpolation (end-to-end)', () => {

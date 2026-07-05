@@ -6,8 +6,8 @@ import type { RuntimeValue } from '../src/interpreter.js';
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue.
 function evalOk(src: string): RuntimeValue {
-  const { program, errorMarkers } = parse(src);
-  assert.deepEqual(errorMarkers, [], `unexpected errors: ${errorMarkers.map(m => m.code).join(', ')}`);
+  const { program, diagnostics } = parse(src);
+  assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = executeProgram(program);
   assert.equal(result.kind, 'ok');
@@ -18,8 +18,8 @@ function evalOk(src: string): RuntimeValue {
 // Runs a program expected to typecheck but crash at runtime, returning the
 // RuntimeError's code.
 function evalCrash(src: string): string {
-  const { program, errorMarkers } = parse(src);
-  assert.deepEqual(errorMarkers, [], `unexpected errors: ${errorMarkers.map(m => m.code).join(', ')}`);
+  const { program, diagnostics } = parse(src);
+  assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = executeProgram(program);
   assert.equal(result.kind, 'error');
@@ -28,7 +28,7 @@ function evalCrash(src: string): string {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).errorMarkers.map(m => m.code);
+  return parse(src).diagnostics.map(d => d.code);
 }
 
 describe('String methods (end-to-end)', () => {
