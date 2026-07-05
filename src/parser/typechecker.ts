@@ -199,7 +199,7 @@ const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
 };
 
 // Ascent's one built-in function, folded in as an ordinary signature
-// instead of a special case in inferExpr's 'call' branch.
+// instead of a special case in synth's 'call' branch.
 const FUNCTIONS: Record<string, MonoSig> = {
   floor: { params: [FLOAT_TYPE], result: FLOAT_TYPE },
 };
@@ -223,15 +223,35 @@ const methodCallType = (
   return applySig(sig, recv, args, markers, span);
 };
 
-// ---- Expression inference -------------------------------------------
+// ---- Expression synthesis:  Γ ⊢ e ⇒ T --------------------------------
 //
+// No expectation flows in; produce a type from the expression alone.
 // Returns a TypedExpr with the inferred type embedded, or null when
 // inference fails (error already recorded in markers). Callers that
 // get null should still continue checking siblings to surface more errors.
 
-const inferExpr = (
-  expr: Expr, env: TypeEnv, markers: Marker[], contextType: AscentType | null = null,
-): TypedExpr | null => {
+// The join of a non-empty list literal's typed elements, pairwise against
+// the first — T0002 when two elements share no common supertype. Shared by
+// synth (the result is the list's type, as-is) and check (which may still
+// widen the result further toward an expected element type).
+const joinElementTypes = (typedElements: TypedExpr[], span: Span, markers: Marker[]): AscentType | null => {
+  let elemType: AscentType = typedElements[0]!.type;
+  for (const te of typedElements.slice(1)) {
+    const ct = leastCommonType(elemType, te.type);
+    if (ct === null) {
+      markers.push({
+        code: 'T0002', span,
+        data: { first: typeToString(elemType), other: typeToString(te.type) },
+        related: [{ key: 'element', span: te.span }],
+      });
+      return null;
+    }
+    elemType = ct;
+  }
+  return elemType;
+};
+
+const synth = (expr: Expr, env: TypeEnv, markers: Marker[]): TypedExpr | null => {
   switch (expr.kind) {
     case 'literal': {
       switch (expr.valueType) {
@@ -258,7 +278,7 @@ const inferExpr = (
           typedParts.push(part);
           continue;
         }
-        const typedHole = inferExpr(part.expr, env, markers);
+        const typedHole = synth(part.expr, env, markers);
         if (typedHole === null) { failed = true; continue; }
         if (!isScalarType(typedHole.type)) {
           markers.push({ code: 'T0014', span: part.expr.span, data: { actual: typeToString(typedHole.type) } });
@@ -285,7 +305,7 @@ const inferExpr = (
       const typedArgs: TypedExpr[] = [];
       let failed = false;
       for (const arg of expr.args) {
-        const ta = inferExpr(arg, env, markers);
+        const ta = synth(arg, env, markers);
         if (ta === null) { failed = true; } else { typedArgs.push(ta); }
       }
       if (failed) return null;
@@ -299,7 +319,7 @@ const inferExpr = (
     }
 
     case 'unary': {
-      const typedOperand = inferExpr(expr.operand, env, markers);
+      const typedOperand = synth(expr.operand, env, markers);
       if (typedOperand === null) return null;
       if (expr.op === 'not') {
         if (typedOperand.type.kind !== 'Bool') {
@@ -314,8 +334,8 @@ const inferExpr = (
     }
 
     case 'binary': {
-      const typedLeft = inferExpr(expr.left, env, markers);
-      const typedRight = inferExpr(expr.right, env, markers);
+      const typedLeft = synth(expr.left, env, markers);
+      const typedRight = synth(expr.right, env, markers);
       if (typedLeft === null || typedRight === null) return null;
       const lt = typedLeft.type;
       const rt = typedRight.type;
@@ -371,52 +391,33 @@ const inferExpr = (
 
     case 'list': {
       if (expr.elements.length === 0) {
-        if (contextType !== null && contextType.kind === 'List') {
-          return { kind: 'list', elements: [], type: contextType, span: expr.span };
-        }
         // No context to take a type from — design.md §7: an empty list has
         // no elements to infer T from, so it's List<Never> (Never widens to
         // any T), not an error. This is what lets '[].append(1)' infer
         // List<Int> on its own, and a slot declared from a bare '[]' still
         // needs an annotation (checked below in the fix/mut case) since
         // otherwise its type would freeze at the un-widenable List<Never>.
+        // An expectation to adopt instead (e.g. 'fix xs: List<Int> = []')
+        // is `check`'s job, not synth's.
         return { kind: 'list', elements: [], type: listOfType(NEVER_TYPE), span: expr.span };
       }
 
       const typedElements: TypedExpr[] = [];
       let failed = false;
       for (const el of expr.elements) {
-        const te = inferExpr(el, env, markers);
+        const te = synth(el, env, markers);
         if (te === null) { failed = true; } else { typedElements.push(te); }
       }
       if (failed) return null;
 
-      let elemType: AscentType = typedElements[0]!.type;
-      for (const te of typedElements.slice(1)) {
-        const ct = leastCommonType(elemType, te.type);
-        if (ct === null) {
-          markers.push({
-            code: 'T0002', span: expr.span,
-            data: { first: typeToString(elemType), other: typeToString(te.type) },
-            related: [{ key: 'element', span: te.span }],
-          });
-          return null;
-        }
-        elemType = ct;
-      }
-      // If the surrounding context expects a List with a wider element type
-      // (e.g. List<Float> when elements are all Int), widen to match so that
-      // the interpreter can coerce elements using expr.type.elem.
-      if (contextType !== null && contextType.kind === 'List') {
-        const ct = leastCommonType(elemType, contextType.elem);
-        if (ct !== null) elemType = ct;
-      }
+      const elemType = joinElementTypes(typedElements, expr.span, markers);
+      if (elemType === null) return null;
       return { kind: 'list', elements: typedElements, type: listOfType(elemType), span: expr.span };
     }
 
     case 'index': {
-      const typedList = inferExpr(expr.list, env, markers);
-      const typedIndex = inferExpr(expr.index, env, markers);
+      const typedList = synth(expr.list, env, markers);
+      const typedIndex = synth(expr.index, env, markers);
       if (typedList === null || typedIndex === null) return null;
       if (typedList.type.kind !== 'List') {
         markers.push({ code: 'T0010', span: expr.list.span, data: { actual: typeToString(typedList.type) } });
@@ -430,13 +431,13 @@ const inferExpr = (
     }
 
     case 'methodCall': {
-      const typedReceiver = inferExpr(expr.receiver, env, markers);
+      const typedReceiver = synth(expr.receiver, env, markers);
       if (typedReceiver === null) return null;
 
       const typedArgs: TypedExpr[] = [];
       let failed = false;
       for (const arg of expr.args) {
-        const ta = inferExpr(arg, env, markers);
+        const ta = synth(arg, env, markers);
         if (ta === null) { failed = true; } else { typedArgs.push(ta); }
       }
       if (failed) return null;
@@ -456,6 +457,61 @@ const inferExpr = (
     case 'if':
       return inferIf(expr, env, markers);
   }
+};
+
+// ---- Expression checking:  Γ ⊢ e ⇐ T ---------------------------------
+//
+// An expected type flows in from the use site — today that's only a
+// fix/mut annotation, via `related`, the span(s) to attach to a mismatch
+// (e.g. "annotation" pointing back at the written type). The default rule
+// covers almost every form: synthesize, then require the result <:
+// expected, recording T0001 when it isn't. Two forms of a list literal
+// override the default because the expectation reshapes the synthesized
+// node instead of merely being compared against it (design.md §7):
+//   • empty list []  — adopts `expected` as its own type outright
+//   • non-empty list — its elements' joined type widens toward
+//     `expected`'s element type (e.g. Int elements under a List<Float>
+//     expectation), so the interpreter can coerce from the node's own
+//     `.type.elem` later
+// Returns null only when synthesis itself fails (already reported) — a
+// plain assignability mismatch still returns the (mistyped) node so
+// callers can keep going, exactly as a mismatched annotation does today.
+const check = (
+  expr: Expr, expected: AscentType, env: TypeEnv, markers: Marker[],
+  related: { key: string; span: Span }[] = [],
+): TypedExpr | null => {
+  if (expr.kind === 'list' && expr.elements.length === 0 && expected.kind === 'List') {
+    return { kind: 'list', elements: [], type: expected, span: expr.span };
+  }
+
+  if (expr.kind === 'list' && expr.elements.length > 0) {
+    const typedElements: TypedExpr[] = [];
+    let failed = false;
+    for (const el of expr.elements) {
+      const te = synth(el, env, markers);
+      if (te === null) { failed = true; } else { typedElements.push(te); }
+    }
+    if (failed) return null;
+
+    let elemType = joinElementTypes(typedElements, expr.span, markers);
+    if (elemType === null) return null;
+    if (expected.kind === 'List') {
+      const ct = leastCommonType(elemType, expected.elem);
+      if (ct !== null) elemType = ct;
+    }
+    const node: TypedExpr = { kind: 'list', elements: typedElements, type: listOfType(elemType), span: expr.span };
+    if (!isAssignableTo(node.type, expected)) {
+      typeMismatch('T0001', markers, node.span, expected, node.type, related);
+    }
+    return node;
+  }
+
+  const node = synth(expr, env, markers);
+  if (node === null) return null;
+  if (!isAssignableTo(node.type, expected)) {
+    typeMismatch('T0001', markers, node.span, expected, node.type, related);
+  }
+  return node;
 };
 
 const inferBlock = (block: Block, env: TypeEnv, markers: Marker[]): TypedBlock | null => {
@@ -479,7 +535,7 @@ const inferBlock = (block: Block, env: TypeEnv, markers: Marker[]): TypedBlock |
 };
 
 const inferIf = (expr: If, env: TypeEnv, markers: Marker[]): TypedIf | null => {
-  const typedCond = inferExpr(expr.cond, env, markers);
+  const typedCond = synth(expr.cond, env, markers);
   if (typedCond !== null && typedCond.type.kind !== 'Bool') {
     markers.push({ code: 'T0004', span: expr.cond.span, data: { actual: typeToString(typedCond.type) } });
   }
@@ -528,19 +584,14 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
     case 'fix':
     case 'mut': {
       const annotation = stmt.typeAnnotation !== null ? typeFromExpr(stmt.typeAnnotation) : null;
-      const typedInit = inferExpr(stmt.init, env, markers, annotation);
 
+      let typedInit: TypedExpr | null;
       let slotType: AscentType | null;
       if (annotation !== null) {
-        if (typedInit !== null && !isAssignableTo(typedInit.type, annotation)) {
-          markers.push({
-            code: 'T0001', span: stmt.init.span,
-            data: { expected: typeToString(annotation), actual: typeToString(typedInit.type) },
-            related: [{ key: 'annotation', span: stmt.typeAnnotation!.span }],
-          });
-        }
+        typedInit = check(stmt.init, annotation, env, markers, [{ key: 'annotation', span: stmt.typeAnnotation!.span }]);
         slotType = annotation;
       } else {
+        typedInit = synth(stmt.init, env, markers);
         // design.md §7's slot-inference wrinkle: a bare 'None' carries no
         // type information (there's nothing to widen it to) — so it needs a
         // written annotation too.
@@ -590,7 +641,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
           : [];
         markers.push({ code: 'N0002', span: stmt.nameSpan, related });
       }
-      const typedValue = inferExpr(stmt.value, env, markers);
+      const typedValue = synth(stmt.value, env, markers);
       if (binding !== null && typedValue !== null && !isAssignableTo(typedValue.type, binding.ty)) {
         const related = binding.declSpan !== null ? [{ key: 'declaration', span: binding.declSpan }] : [];
         markers.push({
@@ -610,7 +661,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
     }
 
     case 'while': {
-      const typedCond = inferExpr(stmt.cond, env, markers);
+      const typedCond = synth(stmt.cond, env, markers);
       if (typedCond !== null && typedCond.type.kind !== 'Bool') {
         markers.push({ code: 'T0004', span: stmt.cond.span, data: { actual: typeToString(typedCond.type) } });
       }
@@ -620,7 +671,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
     }
 
     case 'expr': {
-      const typedExpr = inferExpr(stmt.expr, env, markers);
+      const typedExpr = synth(stmt.expr, env, markers);
       if (typedExpr === null) return null;
       return { kind: 'expr', expr: typedExpr, span: stmt.span };
     }
