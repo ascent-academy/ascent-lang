@@ -3,7 +3,7 @@ import type { Marker, Span } from '../lexer/token.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram } from './typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType,
-  leastCommonType, isAssignableTo, typeToString,
+  leastCommonType, isAssignableTo, typeToString, typesEqual,
 } from '../types/types.js';
 
 export interface TypedResult {
@@ -93,48 +93,113 @@ const operandError = (markers: Marker[], op: string, span: Span, ...operands: As
   return null;
 };
 
-const intMethodType = (method: string, argTypes: AscentType[], markers: Marker[], span: Span): AscentType | null => {
-  switch (method) {
-    case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING_TYPE : null;
-    case 'toFloat': return requireArity(0, argTypes.length, markers, span) ? FLOAT_TYPE : null;
-    case 'abs': return requireArity(0, argTypes.length, markers, span) ? INT_TYPE : null;
-    default: markers.push({ code: 'T0006', span, data: { method, type: 'Int' } }); return null;
+// ---- Built-in signatures: data, not control flow ----------------------
+//
+// "What methods/functions exist" is data that grows whenever a builtin is
+// added; "how a call is checked against that data" is the one rule below
+// (methodCallType). Most signatures are monomorphic — fixed arity, fixed
+// result; the List methods whose result depends on the receiver's element
+// type keep a small resolver instead.
+
+interface MonoSig {
+  params: readonly AscentType[];
+  result: AscentType;
+}
+
+interface ResolvedSig {
+  arity: number;
+  resolve: (recv: AscentType, args: AscentType[], markers: Marker[], span: Span) => AscentType | null;
+}
+
+type MethodSig = MonoSig | ResolvedSig;
+type TypeKind = AscentType['kind'];
+
+// Arity, then each param checked against its argument in order — pushes
+// T0007 / T0008 and stops at the first mismatch, same as the old
+// hand-rolled dispatchers.
+const checkParams = (
+  params: readonly AscentType[], args: AscentType[], markers: Marker[], span: Span,
+): boolean => {
+  if (!requireArity(params.length, args.length, markers, span)) return false;
+  for (let i = 0; i < params.length; i++) {
+    if (!typesEqual(args[i]!, params[i]!)) {
+      typeMismatch('T0008', markers, span, params[i]!, args[i]!);
+      return false;
+    }
   }
+  return true;
 };
 
-const floatMethodType = (method: string, argTypes: AscentType[], markers: Marker[], span: Span): AscentType | null => {
-  switch (method) {
-    case 'toStr': return requireArity(0, argTypes.length, markers, span) ? STRING_TYPE : null;
-    case 'toInt': return requireArity(0, argTypes.length, markers, span) ? INT_TYPE : null;
-    case 'abs': return requireArity(0, argTypes.length, markers, span) ? FLOAT_TYPE : null;
-    default: markers.push({ code: 'T0006', span, data: { method, type: 'Float' } }); return null;
-  }
-};
-
-const listMethodType = (
-  elemType: AscentType, method: string, argTypes: AscentType[], markers: Marker[], span: Span,
+const applySig = (
+  sig: MethodSig, recv: AscentType, args: AscentType[], markers: Marker[], span: Span,
 ): AscentType | null => {
-  switch (method) {
-    case 'length': return requireArity(0, argTypes.length, markers, span) ? INT_TYPE : null;
-    case 'isEmpty': return requireArity(0, argTypes.length, markers, span) ? BOOL_TYPE : null;
-    case 'reverse': return requireArity(0, argTypes.length, markers, span) ? listOfType(elemType) : null;
-    case 'append':
-    case 'prepend': {
-      if (!requireArity(1, argTypes.length, markers, span)) return null;
-      const ct = leastCommonType(elemType, argTypes[0]!);
-      if (ct === null) return typeMismatch('T0008', markers, span, elemType, argTypes[0]!);
-      return listOfType(ct);
-    }
-    case 'concat': {
-      if (!requireArity(1, argTypes.length, markers, span)) return null;
-      const arg = argTypes[0]!;
-      if (arg.kind !== 'List') return typeMismatch('T0008', markers, span, listOfType(elemType), arg);
-      const ct = leastCommonType(elemType, arg.elem);
-      if (ct === null) return typeMismatch('T0008', markers, span, listOfType(elemType), arg);
-      return listOfType(ct);
-    }
-    default: markers.push({ code: 'T0006', span, data: { method, type: typeToString(listOfType(elemType)) } }); return null;
+  if ('result' in sig) return checkParams(sig.params, args, markers, span) ? sig.result : null;
+  if (!requireArity(sig.arity, args.length, markers, span)) return null;
+  return sig.resolve(recv, args, markers, span);
+};
+
+// append and prepend put the value on different ends at runtime, but share
+// one type rule: widen to the join of the element and argument types (e.g.
+// appending a Float to a List<Int> gives List<Float>).
+const appendLike = (recv: AscentType, args: AscentType[], markers: Marker[], span: Span): AscentType | null => {
+  if (recv.kind !== 'List') return null;
+  const ct = leastCommonType(recv.elem, args[0]!);
+  return ct === null ? typeMismatch('T0008', markers, span, recv.elem, args[0]!) : listOfType(ct);
+};
+
+const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
+  Int: {
+    toStr: { params: [], result: STRING_TYPE },
+    toFloat: { params: [], result: FLOAT_TYPE },
+    abs: { params: [], result: INT_TYPE },
+  },
+  Float: {
+    toStr: { params: [], result: STRING_TYPE },
+    toInt: { params: [], result: INT_TYPE },
+    abs: { params: [], result: FLOAT_TYPE },
+  },
+  List: {
+    length: { params: [], result: INT_TYPE },
+    isEmpty: { params: [], result: BOOL_TYPE },
+    reverse: { arity: 0, resolve: recv => recv.kind === 'List' ? listOfType(recv.elem) : null },
+    append: { arity: 1, resolve: appendLike },
+    prepend: { arity: 1, resolve: appendLike },
+    concat: {
+      arity: 1,
+      resolve: (recv, args, markers, span) => {
+        if (recv.kind !== 'List') return null;
+        const arg = args[0]!;
+        if (arg.kind !== 'List') return typeMismatch('T0008', markers, span, listOfType(recv.elem), arg);
+        const ct = leastCommonType(recv.elem, arg.elem);
+        return ct === null ? typeMismatch('T0008', markers, span, listOfType(recv.elem), arg) : listOfType(ct);
+      },
+    },
+  },
+};
+
+// Ascent's one built-in function, folded in as an ordinary signature
+// instead of a special case in inferExpr's 'call' branch.
+const FUNCTIONS: Record<string, MonoSig> = {
+  floor: { params: [FLOAT_TYPE], result: FLOAT_TYPE },
+};
+
+// The one place a method call's result type is looked up: T0012 when the
+// receiver's type has no methods at all, T0006 when it has methods but not
+// this one, otherwise dispatch to the signature.
+const methodCallType = (
+  recv: AscentType, method: string, args: AscentType[], markers: Marker[], span: Span,
+): AscentType | null => {
+  const table = METHODS[recv.kind];
+  if (table === undefined) {
+    markers.push({ code: 'T0012', span, data: { type: typeToString(recv) } });
+    return null;
   }
+  const sig = table[method];
+  if (sig === undefined) {
+    markers.push({ code: 'T0006', span, data: { method, type: typeToString(recv) } });
+    return null;
+  }
+  return applySig(sig, recv, args, markers, span);
 };
 
 // ---- Expression inference -------------------------------------------
@@ -165,13 +230,24 @@ const inferExpr = (
     }
 
     case 'call': {
-      // floor is the only built-in for now.
-      if (expr.callee !== 'floor') { markers.push({ code: 'T0013', span: expr.span, data: { name: expr.callee } }); return null; }
-      if (!requireArity(1, expr.args.length, markers, expr.span)) return null;
-      const typedArg = inferExpr(expr.args[0]!, env, markers);
-      if (typedArg === null) return null;
-      if (typedArg.type.kind !== 'Float') return typeMismatch('T0008', markers, expr.span, FLOAT_TYPE, typedArg.type);
-      return { kind: 'call', callee: expr.callee, args: [typedArg], type: FLOAT_TYPE, span: expr.span };
+      const sig = FUNCTIONS[expr.callee];
+      if (sig === undefined) { markers.push({ code: 'T0013', span: expr.span, data: { name: expr.callee } }); return null; }
+      if (!requireArity(sig.params.length, expr.args.length, markers, expr.span)) return null;
+
+      const typedArgs: TypedExpr[] = [];
+      let failed = false;
+      for (const arg of expr.args) {
+        const ta = inferExpr(arg, env, markers);
+        if (ta === null) { failed = true; } else { typedArgs.push(ta); }
+      }
+      if (failed) return null;
+
+      for (let i = 0; i < sig.params.length; i++) {
+        if (!typesEqual(typedArgs[i]!.type, sig.params[i]!)) {
+          return typeMismatch('T0008', markers, expr.span, sig.params[i]!, typedArgs[i]!.type);
+        }
+      }
+      return { kind: 'call', callee: expr.callee, args: typedArgs, type: sig.result, span: expr.span };
     }
 
     case 'unary': {
@@ -313,13 +389,7 @@ const inferExpr = (
       if (failed) return null;
 
       const argTypes = typedArgs.map(a => a.type);
-      let resultType: AscentType | null;
-      switch (typedReceiver.type.kind) {
-        case 'Int': resultType = intMethodType(expr.method, argTypes, markers, expr.span); break;
-        case 'Float': resultType = floatMethodType(expr.method, argTypes, markers, expr.span); break;
-        case 'List': resultType = listMethodType(typedReceiver.type.elem, expr.method, argTypes, markers, expr.span); break;
-        default: markers.push({ code: 'T0012', span: expr.span, data: { type: typeToString(typedReceiver.type) } }); return null;
-      }
+      const resultType = methodCallType(typedReceiver.type, expr.method, argTypes, markers, expr.span);
       if (resultType === null) return null;
       return {
         kind: 'methodCall', receiver: typedReceiver, method: expr.method,
