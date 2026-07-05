@@ -130,7 +130,9 @@ export class Lexer {
     switch (ch) {
       case '+': return this.token('PLUS', start);
       case '-': return this.token('MINUS', start);
-      case '*': return this.token('STAR', start);
+      case '*':
+        if (this.c.match('*')) return this.token('STAR_STAR', start);
+        return this.token('STAR', start);
       case '/': return this.token('SLASH', start);
       case '=':
         if (this.c.match('=')) return this.token('EQ_EQ', start);

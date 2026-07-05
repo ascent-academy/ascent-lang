@@ -9,6 +9,7 @@ export type TokenKind =
   | 'PLUS'       // '+'
   | 'MINUS'      // '-'
   | 'STAR'       // '*'
+  | 'STAR_STAR'  // '**' — raises the left operand to the right operand's power
   | 'SLASH'      // '/', always real division — yields a Float
   | 'KW_DIV'     // the keyword div — Int-only floor division
   | 'KW_MOD'     // the keyword mod — Int-only floored modulo

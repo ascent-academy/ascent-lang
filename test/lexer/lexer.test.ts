@@ -35,6 +35,14 @@ describe('Lexer', () => {
     ]);
   });
 
+  it('tokenizes ** as a single STAR_STAR token, not two STARs', () => {
+    assert.deepEqual(kinds('2 ** 3'), ['INT_LIT', 'STAR_STAR', 'INT_LIT', 'EOF']);
+  });
+
+  it('tokenizes a lone * as STAR', () => {
+    assert.deepEqual(kinds('2 * 3'), ['INT_LIT', 'STAR', 'INT_LIT', 'EOF']);
+  });
+
   it('reports an error marker for an unrecognised character', () => {
     const { tokens, errorMarkers } = new Lexer('$').tokenize();
     assert.equal(tokens[0]?.kind, 'ERROR');

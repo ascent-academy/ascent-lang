@@ -332,6 +332,19 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
     return { type: 'Float', value: asFloat(left) / divisor };
   }
 
+  if (op === '**') {
+    if (left.type === 'Int' && right.type === 'Int') {
+      // The result type is fixed at Int ** Int -> Int regardless of the
+      // exponent's runtime sign (§5), so a negative exponent — which would
+      // need a fractional result — can't be silently truncated; it crashes.
+      if (right.value < 0n) {
+        throw new Error('negative exponent on Int ** Int — use a Float base instead, e.g. 2.0 ** -1');
+      }
+      return { type: 'Int', value: left.value ** right.value };
+    }
+    return { type: 'Float', value: Math.pow(asFloat(left), asFloat(right)) };
+  }
+
   if (left.type === 'Int' && right.type === 'Int') {
     const v = op === '+' ? left.value + right.value
       : op === '-' ? left.value - right.value

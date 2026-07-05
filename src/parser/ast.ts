@@ -16,7 +16,7 @@ export type Literal = (
 );
 
 export type UnaryOp = '-' | 'not';
-export type ArithmeticOp = '+' | '-' | '*' | '/' | 'div' | 'mod';
+export type ArithmeticOp = '+' | '-' | '*' | '/' | 'div' | 'mod' | '**';
 export type ComparisonOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
 export type BooleanOp = 'and' | 'or';
 export type BinaryOp = ArithmeticOp | ComparisonOp | BooleanOp;

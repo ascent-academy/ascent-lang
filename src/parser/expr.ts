@@ -20,13 +20,23 @@ import { parseBlock, parseIf } from './stmt.js';
 // threshold passed down on each recursive call.
 //
 // This ladder is the single source of truth for what binds tighter
-// than what: postfix (`.method()`, `[index]`) binds tightest, then
-// unary '-', then '*'/'/'/'div'/'mod', then '+'/'-', then the
-// comparisons, then 'not', then 'and', then 'or', loosest —
+// than what: postfix (`.method()`, `[index]`) and '**' bind tightest
+// (tighter even than unary '-', per §5 of design.md — `-2 ** 2` is
+// `-(2 ** 2)`), then unary '-', then '*'/'/'/'div'/'mod', then '+'/'-',
+// then the comparisons, then 'not', then 'and', then 'or', loosest —
 // the word operators sit below the comparisons (§5 of design.md), so
 // `a == b and c == d` groups as `(a == b) and (c == d)`, never
 // `a == (b and c) == d`. Every table below is keyed off these numbers
 // instead of inlining its own.
+//
+// EXPONENT shares POSTFIX's tier rather than sitting strictly above it.
+// '**' is right-associative, so its right operand is parsed with
+// `minBp = infix.bp` (not `+ 1`, see the loop below) — if EXPONENT
+// outbid POSTFIX, that recursive parse would stop *before* absorbing a
+// trailing postfix chain (`2 ** a.b()` would parse `a` alone, leaving
+// `.b()` to wrongly attach to the whole `2 ** a` once control returned
+// to the caller). Equal tiers let the right-hand parse swallow both a
+// further '**' and any postfix chain in one pass.
 const BP = {
   OR: 1,
   AND: 2,
@@ -36,6 +46,7 @@ const BP = {
   MULTIPLICATIVE: 6,
   UNARY: 7,
   POSTFIX: 7,
+  EXPONENT: 7,
 } as const;
 
 // Every binary operator this parser knows about has one row in this
@@ -49,7 +60,7 @@ const BP = {
 // 'or' belongs to a tier below 'and' — the same "same precedence,
 // left-associative" shape as '+'/'-' — so `a or b or c` groups as
 // `(a or b) or c`.
-const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'none' }>> = {
+const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'left' | 'right' | 'none' }>> = {
   KW_OR: { op: 'or', bp: BP.OR, assoc: 'left' },
   KW_AND: { op: 'and', bp: BP.AND, assoc: 'left' },
   EQ_EQ: { op: '==', bp: BP.COMPARISON, assoc: 'none' },
@@ -64,6 +75,8 @@ const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'l
   SLASH: { op: '/', bp: BP.MULTIPLICATIVE, assoc: 'left' },
   KW_DIV: { op: 'div', bp: BP.MULTIPLICATIVE, assoc: 'left' },
   KW_MOD: { op: 'mod', bp: BP.MULTIPLICATIVE, assoc: 'left' },
+  // Right-associative — `2 ** 3 ** 2` groups as `2 ** (3 ** 2)` (§5).
+  STAR_STAR: { op: '**', bp: BP.EXPONENT, assoc: 'right' },
 };
 
 // Postfix table — dot-calls and indexing are "led" operators exactly
@@ -135,7 +148,11 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
     // operators reuse the same `bp + 1` call — it still keeps looser
     // operators out of the right operand, and the `chained` check
     // above is what stops them from reappearing at this level.
-    const right = parseExpr(ts, infix.bp + 1);
+    // Right-associative operators ('**') do the opposite: reusing the
+    // same `bp` (not `+ 1`) lets a second '**' at this level be
+    // absorbed into the right operand instead of returned to this loop,
+    // which is what makes `2 ** 3 ** 2` group as `2 ** (3 ** 2)`.
+    const right = parseExpr(ts, infix.assoc === 'right' ? infix.bp : infix.bp + 1);
     if (right === null) {
       return null;
     }

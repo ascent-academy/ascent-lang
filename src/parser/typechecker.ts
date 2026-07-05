@@ -191,7 +191,7 @@ const inferExpr = (
 
       let type: AscentType;
       switch (expr.op) {
-        case '+': case '-': case '*': {
+        case '+': case '-': case '*': case '**': {
           if ((lt.kind !== 'Int' && lt.kind !== 'Float') || (rt.kind !== 'Int' && rt.kind !== 'Float')) {
             return operandError(markers, expr.op, expr.span, lt, rt);
           }
