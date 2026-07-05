@@ -33,5 +33,8 @@ export function resolveWord(value: string, firstCh: string): TokenKind | null {
   if (firstCh >= 'A' && firstCh <= 'Z') {
     return CONSTRUCTORS[value] ?? BUILTIN_TYPES[value] ?? null;
   }
-  return KEYWORDS[value] ?? 'SLOT';
+  // Object.hasOwn, not a bare KEYWORDS[value] lookup: a lowercase identifier
+  // like 'toString' or 'constructor' would otherwise resolve to the
+  // inherited Object.prototype method instead of falling through to SLOT.
+  return Object.hasOwn(KEYWORDS, value) ? KEYWORDS[value]! : 'SLOT';
 }

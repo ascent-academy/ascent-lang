@@ -151,5 +151,5 @@
   message: "I expected this '${ }' hole to end here."
   explanation: >-
     A '${ }' hole inside a String holds exactly one value, like '${name}' or
-    '${price.toStr()}'. This one has extra content after a complete value, so
+    '${price.toString()}'. This one has extra content after a complete value, so
     it isn't clear what to do with it.

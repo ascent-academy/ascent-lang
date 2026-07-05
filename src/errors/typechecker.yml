@@ -77,7 +77,7 @@
   message: "{type} has no method called '{method}'."
   explanation: >-
     The methods you can call depend on the value's type. For example, an Int has
-    'toStr()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)',
+    'toString()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)',
     'reverse()', and more. Check the spelling of '{method}'.
 
 - code: T0007
@@ -145,7 +145,7 @@
   explanation: >-
     Ascent has just one built-in function right now — 'floor(x)', which rounds a
     Float down to a whole number. Everything else is a method, called on a value
-    with '.', like 'x.toStr()'.
+    with '.', like 'x.toString()'.
 
 - code: T0014
   name: interpolation-not-scalar

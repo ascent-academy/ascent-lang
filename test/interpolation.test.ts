@@ -28,27 +28,27 @@ describe('String interpolation (end-to-end)', () => {
     assert.equal(evalStr('fix name = "Ada"; "Hi ${name}!";'), 'Hi Ada!');
   });
 
-  it('evaluates multiple holes, each converted with .toStr()', () => {
+  it('evaluates multiple holes, each converted with .toString()', () => {
     assert.equal(
-      evalStr('fix age = 21; "Age: ${age.toStr()}, next year: ${(age + 1).toStr()}.";'),
+      evalStr('fix age = 21; "Age: ${age.toString()}, next year: ${(age + 1).toString()}.";'),
       'Age: 21, next year: 22.',
     );
   });
 
-  it('accepts an Int hole directly, with no .toStr() needed', () => {
+  it('accepts an Int hole directly, with no .toString() needed', () => {
     assert.equal(evalStr('fix age = 21; "Age: ${age}.";'), 'Age: 21.');
   });
 
-  it('accepts a Float hole directly, with no .toStr() needed', () => {
+  it('accepts a Float hole directly, with no .toString() needed', () => {
     assert.equal(evalStr('"Pi is about ${3.14}.";'), 'Pi is about 3.14.');
   });
 
-  it('keeps the decimal point on a whole-number Float, via a hole and via .toStr()', () => {
+  it('keeps the decimal point on a whole-number Float, via a hole and via .toString()', () => {
     assert.equal(evalStr('"total: ${3.0}";'), 'total: 3.0');
-    assert.equal(evalStr('"total: ${3.0.toStr()}";'), 'total: 3.0');
+    assert.equal(evalStr('"total: ${3.0.toString()}";'), 'total: 3.0');
   });
 
-  it('accepts a Bool hole directly, with no .toStr() needed', () => {
+  it('accepts a Bool hole directly, with no .toString() needed', () => {
     assert.equal(evalStr('fix ok = True; "ok = ${ok}.";'), 'ok = True.');
   });
 

@@ -149,14 +149,24 @@ const appendLike = (recv: AscentType, args: AscentType[], markers: Marker[], spa
 
 const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
   Int: {
-    toStr: { params: [], result: STRING_TYPE },
+    toString: { params: [], result: STRING_TYPE },
     toFloat: { params: [], result: FLOAT_TYPE },
     abs: { params: [], result: INT_TYPE },
   },
   Float: {
-    toStr: { params: [], result: STRING_TYPE },
+    toString: { params: [], result: STRING_TYPE },
     toInt: { params: [], result: INT_TYPE },
     abs: { params: [], result: FLOAT_TYPE },
+  },
+  // design.md §4: no integer indexing on String — these named, grapheme-aware
+  // methods replace it. length/first/last/chars/slice all count and cut on
+  // characters (Unicode graphemes), never bytes or code units.
+  String: {
+    length: { params: [], result: INT_TYPE },
+    first: { params: [], result: STRING_TYPE },
+    last: { params: [], result: STRING_TYPE },
+    chars: { params: [], result: listOfType(STRING_TYPE) },
+    slice: { params: [INT_TYPE, INT_TYPE], result: STRING_TYPE },
   },
   List: {
     length: { params: [], result: INT_TYPE },

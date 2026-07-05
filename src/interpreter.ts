@@ -101,9 +101,9 @@ const formatFloat = (value: number): string => {
 // How a scalar shows as text inside a '${ }' hole — hardcoded until a
 // Show-style trait exists (see isScalarType in types/types.ts, which the
 // typechecker uses to guarantee `v` is one of these four cases here). Mirrors
-// Int/Float's own '.toStr()' method exactly, so writing it explicitly in a
+// Int/Float's own '.toString()' method exactly, so writing it explicitly in a
 // hole is redundant, never different.
-const scalarToStr = (v: RuntimeValue): string => {
+const scalarToString = (v: RuntimeValue): string => {
   switch (v.type) {
     case 'Int': return String(v.value);
     case 'Float': return formatFloat(v.value);
@@ -112,6 +112,12 @@ const scalarToStr = (v: RuntimeValue): string => {
     default: throw new Error(`internal: ${v.type} in an interpolation hole (typechecker should have rejected it)`);
   }
 };
+
+// String's grapheme (Unicode "user-perceived character") segmentation —
+// design.md §4's basis for length/first/last/chars/slice, so `"é".length()`
+// is 1 even when the underlying code points are 'e' + a combining accent.
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+const graphemesOf = (s: string): string[] => Array.from(graphemeSegmenter.segment(s), seg => seg.segment);
 
 export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
@@ -129,7 +135,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       let result = '';
       for (const part of expr.parts) {
         if (part.kind === 'text') { result += part.value; continue; }
-        result += scalarToStr(evaluateExpr(part.expr, env));
+        result += scalarToString(evaluateExpr(part.expr, env));
       }
       return { type: 'String', value: result };
     }
@@ -264,7 +270,7 @@ const evalIntMethod = (
   receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, _args: RuntimeValue[], span: Span,
 ): RuntimeValue => {
   switch (method) {
-    case 'toStr': return { type: 'String', value: String(receiver.value) };
+    case 'toString': return { type: 'String', value: String(receiver.value) };
     case 'toFloat': return { type: 'Float', value: Number(receiver.value) };
     // abs(INT_MIN) has no representable Int result (its magnitude is one past
     // INT_MAX) — the classic two's-complement overflow case.
@@ -277,7 +283,7 @@ const evalFloatMethod = (
   receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[], span: Span,
 ): RuntimeValue => {
   switch (method) {
-    case 'toStr': return { type: 'String', value: formatFloat(receiver.value) };
+    case 'toString': return { type: 'String', value: formatFloat(receiver.value) };
     case 'toInt': return { type: 'Int', value: checkIntOverflow(BigInt(Math.trunc(receiver.value)), span) };
     case 'abs': return { type: 'Float', value: Math.abs(receiver.value) };
     case 'min': {
@@ -320,12 +326,46 @@ const evalListMethod = (
   }
 };
 
+// design.md §4/§9: no integer indexing on String — first/last/slice work in
+// graphemes and crash (bug tier, like list '[ ]') rather than lie about what
+// they return, exactly the reasoning that already governs List indexing.
+const evalStringMethod = (
+  receiver: Extract<RuntimeValue, { type: 'String' }>, method: string, args: RuntimeValue[], span: Span,
+): RuntimeValue => {
+  switch (method) {
+    case 'length': return { type: 'Int', value: BigInt(graphemesOf(receiver.value).length) };
+    case 'first':
+    case 'last': {
+      const chars = graphemesOf(receiver.value);
+      if (chars.length === 0) throw new RuntimeError({ code: 'R0006', span, data: { method } });
+      return { type: 'String', value: method === 'first' ? chars[0]! : chars[chars.length - 1]! };
+    }
+    case 'chars':
+      return { type: 'List', elements: graphemesOf(receiver.value).map((c): RuntimeValue => ({ type: 'String', value: c })) };
+    case 'slice': {
+      const chars = graphemesOf(receiver.value);
+      const start = Number((args[0] as Extract<RuntimeValue, { type: 'Int' }>).value);
+      const end = Number((args[1] as Extract<RuntimeValue, { type: 'Int' }>).value);
+      if (start < 0 || end > chars.length || start > end) {
+        throw new RuntimeError({
+          code: 'R0007',
+          span,
+          data: { start: String(start), end: String(end), length: String(chars.length) },
+        });
+      }
+      return { type: 'String', value: chars.slice(start, end).join('') };
+    }
+    default: throw new Error(`internal: String has no method '${method}'`);
+  }
+};
+
 const evalMethodCall = (
   receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: AscentType, span: Span,
 ): RuntimeValue => {
   switch (receiver.type) {
     case 'Int': return evalIntMethod(receiver, method, args, span);
     case 'Float': return evalFloatMethod(receiver, method, args, span);
+    case 'String': return evalStringMethod(receiver, method, args, span);
     case 'List': return evalListMethod(receiver, method, args, resultType);
     default: throw new Error(`internal: ${receiver.type} has no methods`);
   }

@@ -172,6 +172,22 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A list index counts from 0, so a list with {length} item(s) has valid indexes from 0 up to (but not including) {length}. '{found}' falls outside that range."
   },
   {
+    "code": "R0006",
+    "name": "empty-string-access",
+    "category": "runtime",
+    "summary": "'.first()' or '.last()' was called on a String with no characters.",
+    "message": "'.{method}()' has nothing to return: this String is empty.",
+    "explanation": "'.first()' returns a String's first character and '.last()' its last, but an empty String (\"\") has neither. Check the String's '.length()' before calling '.{method}()' if it might be empty."
+  },
+  {
+    "code": "R0007",
+    "name": "string-slice-out-of-bounds",
+    "category": "runtime",
+    "summary": "'.slice(start, end)' had a start or end outside the String's valid range.",
+    "message": "'.slice({start}, {end})' is out of range for this String.",
+    "explanation": "'.slice(start, end)' counts characters from 0 and the end is exclusive, so a String with {length} character(s) only accepts a start and end between 0 and {length}, with start no greater than end. '{start}' and '{end}' don't fit that rule here."
+  },
+  {
     "code": "S0001",
     "name": "unclosed-paren",
     "category": "syntactic",
@@ -307,7 +323,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A '${ }' hole in a String holds more than one value.",
     "message": "I expected this '${ }' hole to end here.",
-    "explanation": "A '${ }' hole inside a String holds exactly one value, like '${name}' or '${price.toStr()}'. This one has extra content after a complete value, so it isn't clear what to do with it."
+    "explanation": "A '${ }' hole inside a String holds exactly one value, like '${name}' or '${price.toString()}'. This one has extra content after a complete value, so it isn't clear what to do with it."
   },
   {
     "code": "T0001",
@@ -381,7 +397,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A method with this name doesn't exist on the value's type.",
     "message": "{type} has no method called '{method}'.",
-    "explanation": "The methods you can call depend on the value's type. For example, an Int has 'toStr()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)', 'reverse()', and more. Check the spelling of '{method}'."
+    "explanation": "The methods you can call depend on the value's type. For example, an Int has 'toString()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)', 'reverse()', and more. Check the spelling of '{method}'."
   },
   {
     "code": "T0007",
@@ -437,7 +453,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A call names a function that doesn't exist.",
     "message": "There's no function called '{name}'.",
-    "explanation": "Ascent has just one built-in function right now — 'floor(x)', which rounds a Float down to a whole number. Everything else is a method, called on a value with '.', like 'x.toStr()'."
+    "explanation": "Ascent has just one built-in function right now — 'floor(x)', which rounds a Float down to a whole number. Everything else is a method, called on a value with '.', like 'x.toString()'."
   },
   {
     "code": "T0014",

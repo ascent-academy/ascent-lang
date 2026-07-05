@@ -18,7 +18,7 @@ export type Literal = (
 // A String literal with at least one '${expr}' hole. A text part is the raw
 // (already-unescaped) source between holes; a hole part is an arbitrary
 // expression whose value the typechecker requires to already be a String
-// (design.md §4/§6: no auto-stringification — call '.toStr()' first). A
+// (design.md §4/§6: no auto-stringification — call '.toString()' first). A
 // String with zero holes is never a Template — it stays the plain
 // { kind: 'literal', valueType: 'String' } node (see parseStringTemplate).
 export type TemplatePart = { kind: 'text'; value: string } | { kind: 'hole'; expr: Expr };
