@@ -1,4 +1,4 @@
-import type { BinaryOp, ArgDef } from './parser/ast.js';
+import type { BinaryOp, ProgramArg } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
 import { INT_TYPE, subtype, type AscentType } from './types/types.js';
 
@@ -363,10 +363,10 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
 // names — no separate syntax check needed), and a value whose type doesn't
 // match the arg's declared type.
 export class ProgramInputs {
-  private readonly argDefs: Map<string, ArgDef>;
+  private readonly argDefs: Map<string, ProgramArg>;
   private readonly values = new Map<string, PrimitiveValue>();
 
-  public constructor(argDefs: ArgDef[]) {
+  public constructor(argDefs: ProgramArg[]) {
     this.argDefs = new Map(argDefs.map(def => [def.name, def]));
   }
 

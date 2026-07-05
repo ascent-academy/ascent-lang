@@ -18,9 +18,11 @@ export type { LexResult } from './lexer/index.js';
 
 export { parse, parseTokens } from './parser/index.js';
 export type { ParseResult } from './parser/index.js';
+export type { Program, ProgramArg } from './parser/ast.js';
 
 export { typecheck } from './parser/typechecker.js';
 export type { TypedResult } from './parser/typechecker.js';
+export type { TypedProgram } from './parser/typed-ast.js';
 
 export {
   Environment,

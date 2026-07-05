@@ -1,5 +1,5 @@
 import type { Span } from '../lexer/token.js';
-import type { UnaryOp, BinaryOp, ArgDef, TypeExpr } from './ast.js';
+import type { UnaryOp, BinaryOp, ProgramArg, TypeExpr } from './ast.js';
 import type { AscentType } from '../types/types.js';
 
 // Every typed expression carries `type`: the Type inferred by the type
@@ -58,6 +58,6 @@ export type TypedStatement = (
 );
 
 export type TypedProgram = {
-  args: ArgDef[];
+  args: ProgramArg[];
   stmts: TypedStatement[];
 };

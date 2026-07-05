@@ -10,7 +10,7 @@ import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue } from './interpreter.js';
 import { elaborate } from './errors/elaborate.js';
 import { renderTerminal } from './errors/render.js';
-import type { ArgDef } from './parser/ast.js';
+import type { ProgramArg } from './parser/ast.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
@@ -37,7 +37,7 @@ const parseCliFlags = (argv: string[]): Map<string, string> => {
 
 // Converts raw CLI strings to RuntimeValues according to each ArgDef.
 // Exits on missing or ill-typed args.
-const bindArgs = (argDefs: ArgDef[], cliFlags: Map<string, string>): ProgramInputs => {
+const bindArgs = (argDefs: ProgramArg[], cliFlags: Map<string, string>): ProgramInputs => {
   const inputs = new ProgramInputs(argDefs);
   for (const def of argDefs) {
     const raw = cliFlags.get(def.name);

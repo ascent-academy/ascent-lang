@@ -1,4 +1,4 @@
-import type { TypeExpr, ArgDef, ArgType } from './ast.js';
+import type { TypeExpr, ProgramArg, ArgType } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 
 // 'Int', 'Float', 'Bool', 'String', or 'List<Type>' — used in type annotations.
@@ -30,7 +30,7 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
 // annotation this only allows a bare type name (no 'List<…>'), so it
 // reads the TYPE_NAME token directly rather than going through
 // parseTypeExpr.
-function parseArgDef(ts: TokenStream): ArgDef | null {
+function parseArgDef(ts: TokenStream): ProgramArg | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
     ts.report('S0003', nameTok.span);
@@ -53,7 +53,7 @@ function parseArgDef(ts: TokenStream): ArgDef | null {
 // 'args (name: Type, …) ;' — the program's typed input declaration, if
 // present. Returns [] (not null) when there's no 'args' keyword at all;
 // null is reserved for an actual parse error.
-export function parseArgsSection(ts: TokenStream): ArgDef[] | null {
+export function parseArgsSection(ts: TokenStream): ProgramArg[] | null {
   if (ts.peek().kind !== 'KW_ARGS') return [];
   ts.advance(); // consume 'args'
 

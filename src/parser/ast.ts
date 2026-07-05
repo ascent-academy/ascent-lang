@@ -60,6 +60,6 @@ export type Statement = (
 );
 
 export type ArgType = 'Int' | 'Float' | 'Bool' | 'String';
-export type ArgDef = { name: string; type: ArgType };
+export type ProgramArg = { name: string; type: ArgType };
 
-export type Program = { args: ArgDef[]; stmts: Statement[] };
+export type Program = { args: ProgramArg[]; stmts: Statement[] };
