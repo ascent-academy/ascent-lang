@@ -22,7 +22,7 @@ interface Binding {
 }
 
 // A chain of scopes mirroring Environment in the interpreter.
-class TypeEnv {
+export class TypeEnv {
   private vars = new Map<string, Binding>();
   public constructor(private readonly parent: TypeEnv | null = null) { }
 
@@ -36,6 +36,13 @@ class TypeEnv {
 
   public child(): TypeEnv {
     return new TypeEnv(this);
+  }
+
+  // The bindings declared directly in this scope (not inherited from a
+  // parent) — used to promote a successful trial scope's new names into
+  // a persistent parent, e.g. across REPL lines.
+  public ownEntries(): IterableIterator<[string, Binding]> {
+    return this.vars.entries();
   }
 }
 
@@ -472,9 +479,14 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
   }
 };
 
-export const typecheck = (program: Program): TypedResult => {
+// parentEnv lets a caller (the REPL) carry name bindings across separate
+// typecheck() calls: each call type-checks into a child scope, and only
+// promotes its new bindings into parentEnv once the whole program
+// succeeds, so a line that fails typechecking never leaks a partial
+// declaration into later lines.
+export const typecheck = (program: Program, parentEnv?: TypeEnv): TypedResult => {
   const markers: Marker[] = [];
-  const env = new TypeEnv();
+  const env = parentEnv !== undefined ? parentEnv.child() : new TypeEnv();
 
   for (const arg of program.args) {
     env.set(arg.name, typeFromName(arg.type), 'arg');
@@ -490,5 +502,12 @@ export const typecheck = (program: Program): TypedResult => {
   if (failed || markers.length > 0) {
     return { program: null, errorMarkers: markers };
   }
+
+  if (parentEnv !== undefined) {
+    for (const [name, binding] of env.ownEntries()) {
+      parentEnv.set(name, binding.ty, binding.origin, binding.declSpan);
+    }
+  }
+
   return { program: { args: program.args, stmts: typedStmts }, errorMarkers: [] };
 };

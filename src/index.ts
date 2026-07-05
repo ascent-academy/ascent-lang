@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { parse, parseTokens } from './parser/index.js';
-import { typecheck } from './parser/typechecker.js';
+import { typecheck, TypeEnv } from './parser/typechecker.js';
 import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue } from './interpreter.js';
@@ -125,6 +125,7 @@ const runRepl = async (): Promise<void> => {
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const env = new Environment();
+  const typeEnv = new TypeEnv();
 
   try {
     while (true) {
@@ -159,7 +160,7 @@ const runRepl = async (): Promise<void> => {
           process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
         }
       } else if (parseResult.program !== null) {
-        const typeResult = typecheck(parseResult.program);
+        const typeResult = typecheck(parseResult.program, typeEnv);
         const typeErrors = typeResult.errorMarkers;
 
         if (typeErrors.length > 0) {
