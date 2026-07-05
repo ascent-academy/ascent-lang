@@ -1,50 +1,50 @@
 import type { Token, Marker } from '../lexer/token.js';
-import type { ArgDef, Program } from './ast.js';
+import { Lexer } from '../lexer/index.js';
+import type { Program } from './ast.js';
 import { TokenStream } from './token-stream.js';
 import { parseStmt } from './stmt.js';
-import { parseArgs } from './type-expr.js';
+import { parseArgsSection } from './type-expr.js';
+import { typecheck } from './typechecker.js';
+import type { TypedResult } from './typechecker.js';
 
 export interface ParseResult {
   program: Program | null;
   errorMarkers: Marker[];
 }
 
-// The program is an optional 'args (…);' header followed by a
-// semicolon-separated run of statements up to EOF — the same
-// "item (sep item)* close" shape as a block, with EOF standing in for
-// the closing brace. `recover` is on, so a malformed statement is
-// synchronized past rather than aborting the whole parse.
-function parseProgram(ts: TokenStream): Program | null {
-  let args: ArgDef[] = [];
-  if (ts.peek().kind === 'KW_ARGS') {
-    const result = parseArgs(ts);
-    if (result === null) return null;
-    args = result;
-
-    if (ts.expect('SEMICOLON', 'S0011') === null) return null;
+export const parseTokens = (tokens: Token[]): ParseResult => {
+  const ts = new TokenStream(tokens);
+  const args = parseArgsSection(ts);
+  if (args === null) {
+    return { program: null, errorMarkers: ts.errors };
   }
 
-  const parsed = ts.parseSeparated(() => parseStmt(ts), 'SEMICOLON', 'EOF', 'S0011', true);
-  if (parsed === null) return null;
+  const parsed = ts.parseSeparated(
+    () => parseStmt(ts), 'SEMICOLON', 'EOF', 'S0011', true
+  );
 
-  return { args, stmts: parsed.items };
+  if (parsed === null) {
+    return { program: null, errorMarkers: ts.errors };
+  }
+
+  const program: Program = {
+    args,
+    stmts: parsed.items
+  };
+
+  return { program, errorMarkers: ts.errors };
 }
 
-// The parser's public entry point. Phase 5 moved the grammar into
-// free functions over a TokenStream (token-stream.ts, expr.ts, stmt.ts,
-// type-expr.ts); this class is the thin wiring that owns the stream for
-// one parse and exposes the same `new Parser(tokens).parse()` API the
-// rest of the toolchain calls.
-export class Parser {
-  private readonly tokens: Token[];
-
-  public constructor(tokens: Token[]) {
-    this.tokens = tokens;
+export const parse = (src: string): TypedResult => {
+  const lexResult = new Lexer(src).tokenize();
+  if (lexResult.errorMarkers.length > 0) {
+    return { typedProgram: null, errorMarkers: lexResult.errorMarkers };
   }
 
-  public parse(): ParseResult {
-    const ts = new TokenStream(this.tokens);
-    const program = parseProgram(ts);
-    return { program, errorMarkers: ts.errors };
+  const parseResult = parseTokens(lexResult.tokens);
+  if (parseResult.program === null || parseResult.errorMarkers.length > 0) {
+    return { typedProgram: null, errorMarkers: parseResult.errorMarkers };
   }
+
+  return typecheck(parseResult.program);
 }

@@ -50,8 +50,11 @@ function parseArgDef(ts: TokenStream): ArgDef | null {
   return { name: nameTok.value, type: typeTok.value as ArgType };
 }
 
-// 'args (name: Type, …)' — the program's typed input declaration.
-export function parseArgs(ts: TokenStream): ArgDef[] | null {
+// 'args (name: Type, …) ;' — the program's typed input declaration, if
+// present. Returns [] (not null) when there's no 'args' keyword at all;
+// null is reserved for an actual parse error.
+export function parseArgsSection(ts: TokenStream): ArgDef[] | null {
+  if (ts.peek().kind !== 'KW_ARGS') return [];
   ts.advance(); // consume 'args'
 
   const open = ts.expect('LPAREN', 'S0006');
@@ -59,6 +62,8 @@ export function parseArgs(ts: TokenStream): ArgDef[] | null {
 
   const parsed = ts.parseSeparated(() => parseArgDef(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
+
+  if (ts.expect('SEMICOLON', 'S0011') === null) return null;
 
   return parsed.items;
 }

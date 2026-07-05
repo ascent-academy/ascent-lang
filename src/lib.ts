@@ -1,20 +1,25 @@
 // Public programmatic API for the Ascent language toolchain.
-// The `ascent` CLI (see index.ts) is the primary entry point, but the
-// individual stages are re-exported here so tools can embed the pipeline:
+// The `ascent` CLI (see index.ts) is the primary entry point. Embedders
+// wanting source-to-typed-AST in one call should use parse():
+//
+//   const { typedProgram, errorMarkers } = parse(src);
+//   const result = executeProgram(typedProgram!, new Environment());
+//
+// The individual stages are also re-exported for tools that need
+// intermediate results (e.g. tokens, or the untyped AST):
 //
 //   const { tokens, errorMarkers } = new Lexer(src).tokenize();
-//   const { program } = new Parser(tokens).parse();
+//   const { program } = parseTokens(tokens);
 //   const { typedProgram } = typecheck(program!);
-//   const result = executeProgram(typedProgram!, new Environment());
 
 export { Lexer } from './lexer/index.js';
 export type { LexResult } from './lexer/index.js';
 
-export { Parser } from './parser/index.js';
+export { parse, parseTokens } from './parser/index.js';
 export type { ParseResult } from './parser/index.js';
 
 export { typecheck } from './parser/typechecker.js';
-export type { TypeCheckResult } from './parser/typechecker.js';
+export type { TypedResult } from './parser/typechecker.js';
 
 export {
   Environment,

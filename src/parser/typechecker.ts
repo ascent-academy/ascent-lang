@@ -6,7 +6,7 @@ import {
   leastCommonType, isAssignableTo, typeToString,
 } from '../types/types.js';
 
-export interface TypeCheckResult {
+export interface TypedResult {
   typedProgram: TypedProgram | null;
   errorMarkers: Marker[];
 }
@@ -472,7 +472,7 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
   }
 };
 
-export const typecheck = (program: Program): TypeCheckResult => {
+export const typecheck = (program: Program): TypedResult => {
   const markers: Marker[] = [];
   const env = new TypeEnv();
 

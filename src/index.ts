@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline/promises';
 import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
-import { Parser } from './parser/index.js';
+import { parse, parseTokens } from './parser/index.js';
 import { typecheck } from './parser/typechecker.js';
 import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
@@ -96,38 +96,22 @@ const runFile = async (filePath: string): Promise<void> => {
     process.exit(1);
   }
 
-  const lexResult = new Lexer(src).tokenize();
-  const parseResult = new Parser(lexResult.tokens).parse();
-
-  // Lexer errors mask downstream parser noise: if the characters didn't form
-  // valid tokens, the parser's complaints are just echoes of that.
-  const errors = lexResult.errorMarkers.length > 0
-    ? lexResult.errorMarkers
-    : parseResult.errorMarkers;
-  if (errors.length > 0) {
-    for (const marker of errors) {
+  const parseResult = parse(src);
+  if (parseResult.errorMarkers.length > 0) {
+    for (const marker of parseResult.errorMarkers) {
       process.stderr.write(renderTerminal(elaborate(marker, src), src, filePath) + '\n\n');
     }
     process.exit(1);
   }
 
-  if (parseResult.program === null) return;
-
-  const typeResult = typecheck(parseResult.program);
-  if (typeResult.errorMarkers.length > 0) {
-    for (const marker of typeResult.errorMarkers) {
-      process.stderr.write(renderTerminal(elaborate(marker, src), src, filePath) + '\n\n');
-    }
-    process.exit(1);
-  }
-
+  const typedProgram = parseResult.typedProgram!;
   const env = new Environment();
-  if (parseResult.program.args.length > 0) {
-    bindArgs(parseResult.program.args, parseCliFlags(process.argv.slice(3)), env);
+  if (typedProgram.args.length > 0) {
+    bindArgs(typedProgram.args, parseCliFlags(process.argv.slice(3)), env);
   }
 
   try {
-    const result = executeProgram(typeResult.typedProgram!, env);
+    const result = executeProgram(typedProgram, env);
     if (result.type !== 'Done') {
       process.stdout.write(formatValue(result) + '\n');
     }
@@ -161,7 +145,7 @@ const runRepl = async (): Promise<void> => {
 
       process.stdout.write(tokenParts.join(`  ${chalk.dim('·')}  `) + '\n');
 
-      const parseResult = new Parser(lexResult.tokens).parse();
+      const parseResult = parseTokens(lexResult.tokens);
 
       // A non-null program no longer means error-free: panic-mode
       // recovery can skip a malformed statement and still finish the
