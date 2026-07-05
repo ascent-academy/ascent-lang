@@ -5,6 +5,7 @@ export type AscentType =
   | { kind: 'String' }
   | { kind: 'None' }
   | { kind: 'Done' }
+  | { kind: 'Never' }
   | { kind: 'List'; elem: AscentType }
   | { kind: 'Optional'; elem: AscentType };
 
@@ -14,6 +15,10 @@ export const BOOL_TYPE: AscentType = { kind: 'Bool' };
 export const STRING_TYPE: AscentType = { kind: 'String' };
 export const NONE_TYPE: AscentType = { kind: 'None' };
 export const DONE_TYPE: AscentType = { kind: 'Done' };
+// design.md §7: the bottom type — uninhabited, assignable to every type. Not
+// (yet) a type anyone writes; it only ever shows up as the checker's own
+// inference for a diverging expression, or (below) an empty list literal.
+export const NEVER_TYPE: AscentType = { kind: 'Never' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
 export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
 
@@ -59,7 +64,10 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
 // equal — no runtime conversion needed.
 export type Coercion = 'intToFloat' | { elem: Coercion } | null;
 
-// S <: T — the one place widening is defined. Int widens to Float, lists
+// S <: T — the one place widening is defined. `Never` widens to *any* T
+// (design.md §7 — it's uninhabited, so the edge is vacuously sound: there's
+// never actually a Never value to convert, so `null` is a safe placeholder
+// witness regardless of what T turns out to be). Int widens to Float, lists
 // widen covariantly (sound only because Ascent lists are immutable: append /
 // prepend / concat return new lists rather than mutating in place), and — the
 // other hard-coded widening rule design.md §7 calls out — a non-null T widens
@@ -73,6 +81,10 @@ export type Coercion = 'intToFloat' | { elem: Coercion } | null;
 // subtype of T.
 export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
   if (typesEqual(sub, sup)) {
+    return null;
+  }
+
+  if (sub.kind === 'Never') {
     return null;
   }
 

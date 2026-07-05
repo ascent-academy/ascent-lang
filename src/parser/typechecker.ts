@@ -2,7 +2,7 @@ import type { Expr, Statement, Program, Block, If, TypeExpr, TypeName, ArgType }
 import type { Marker, Span } from '../lexer/token.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram, TypedTemplatePart } from './typed-ast.js';
 import {
-  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType, optionalOf,
+  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, listOfType, optionalOf,
   leastCommonType, isAssignableTo, typeToString, typesEqual, isScalarType,
 } from '../types/types.js';
 import { Diagnostic, elaborate } from '../errors/elaborate.js';
@@ -371,8 +371,13 @@ const inferExpr = (
         if (contextType !== null && contextType.kind === 'List') {
           return { kind: 'list', elements: [], type: contextType, span: expr.span };
         }
-        markers.push({ code: 'T0003', span: expr.span });
-        return null;
+        // No context to take a type from — design.md §7: an empty list has
+        // no elements to infer T from, so it's List<Never> (Never widens to
+        // any T), not an error. This is what lets '[].append(1)' infer
+        // List<Int> on its own, and a slot declared from a bare '[]' still
+        // needs an annotation (checked below in the fix/mut case) since
+        // otherwise its type would freeze at the un-widenable List<Never>.
+        return { kind: 'list', elements: [], type: listOfType(NEVER_TYPE), span: expr.span };
       }
 
       const typedElements: TypedExpr[] = [];
@@ -505,6 +510,16 @@ const inferIf = (expr: If, env: TypeEnv, markers: Marker[]): TypedIf | null => {
   return { kind: 'if', cond: typedCond, then: typedThen, else: typedElse, type: ct, span: expr.span };
 };
 
+// True when 'Never' appears anywhere in t's structure — the un-annotated
+// fix/mut check below uses this to catch not just a bare '[]' but anything
+// built from one with no widening context ('[].reverse()', '[[]]', …), since
+// all of those freeze the same way once the slot's type is fixed.
+const containsNever = (t: AscentType): boolean => {
+  if (t.kind === 'Never') return true;
+  if (t.kind === 'List' || t.kind === 'Optional') return containsNever(t.elem);
+  return false;
+};
+
 const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedStatement | null => {
   switch (stmt.kind) {
     case 'fix':
@@ -524,10 +539,19 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
         slotType = annotation;
       } else {
         // design.md §7's slot-inference wrinkle: a bare 'None' carries no
-        // type information (there's nothing to widen it to), the same gap a
-        // bare '[]' has above — so it needs a written annotation too.
+        // type information (there's nothing to widen it to) — so it needs a
+        // written annotation too.
         if (typedInit !== null && typedInit.type.kind === 'None') {
           markers.push({ code: 'T0015', span: stmt.init.span });
+        }
+        // Same wrinkle for a bare '[]' (or anything built from one, like
+        // '[].reverse()'): List<Never> would otherwise freeze the slot at a
+        // type nothing can ever be assigned back into (T0003 — 'append'
+        // works fine as a standalone expression, since there Never widens
+        // freely; only a *fixed slot type* can't take that widened value
+        // back once reassigned).
+        if (typedInit !== null && containsNever(typedInit.type)) {
+          markers.push({ code: 'T0003', span: stmt.init.span });
         }
         slotType = typedInit?.type ?? null;
       }
