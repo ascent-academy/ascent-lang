@@ -2,7 +2,7 @@ import type { Expr, Statement, Program, Block, If, TypeExpr, TypeName, ArgType }
 import type { Marker, Span } from '../lexer/token.js';
 import type { TypedExpr, TypedBlock, TypedIf, TypedStatement, TypedProgram, TypedTemplatePart } from './typed-ast.js';
 import {
-  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType,
+  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, listOfType, optionalOf,
   leastCommonType, isAssignableTo, typeToString, typesEqual, isScalarType,
 } from '../types/types.js';
 import { Diagnostic, elaborate } from '../errors/elaborate.js';
@@ -62,8 +62,13 @@ const typeFromName = (name: TypeName['name'] | ArgType): AscentType => {
   }
 };
 
-const typeFromExpr = (te: TypeExpr): AscentType =>
-  te.kind === 'TypeName' ? typeFromName(te.name) : listOfType(typeFromExpr(te.elem));
+const typeFromExpr = (te: TypeExpr): AscentType => {
+  switch (te.kind) {
+    case 'TypeName': return typeFromName(te.name);
+    case 'ListType': return listOfType(typeFromExpr(te.elem));
+    case 'OptionalType': return optionalOf(typeFromExpr(te.elem));
+  }
+};
 
 // ---- Method type signatures ------------------------------------------
 
@@ -516,6 +521,12 @@ const inferStmt = (stmt: Statement, env: TypeEnv, markers: Marker[]): TypedState
         }
         slotType = annotation;
       } else {
+        // design.md §7's slot-inference wrinkle: a bare 'None' carries no
+        // type information (there's nothing to widen it to), the same gap a
+        // bare '[]' has above — so it needs a written annotation too.
+        if (typedInit !== null && typedInit.type.kind === 'None') {
+          markers.push({ code: 'T0015', span: stmt.init.span });
+        }
         slotType = typedInit?.type ?? null;
       }
 

@@ -5,7 +5,8 @@ export type AscentType =
   | { kind: 'String' }
   | { kind: 'None' }
   | { kind: 'Done' }
-  | { kind: 'List'; elem: AscentType };
+  | { kind: 'List'; elem: AscentType }
+  | { kind: 'Optional'; elem: AscentType };
 
 export const INT_TYPE: AscentType = { kind: 'Int' };
 export const FLOAT_TYPE: AscentType = { kind: 'Float' };
@@ -14,10 +15,17 @@ export const STRING_TYPE: AscentType = { kind: 'String' };
 export const NONE_TYPE: AscentType = { kind: 'None' };
 export const DONE_TYPE: AscentType = { kind: 'Done' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
+export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
 
+// design.md §4: 'T?' is surface sugar for 'Optional<T>' — render it that way
+// everywhere a type shows up (diagnostics, the REPL, the AST printers)
+// rather than as 'Optional<T>', since that sugar is what a learner wrote.
 export const typeToString = (t: AscentType): string => {
   if (t.kind === 'List') {
     return `List<${typeToString(t.elem)}>`;
+  }
+  if (t.kind === 'Optional') {
+    return `${typeToString(t.elem)}?`;
   }
   return t.kind;
 };
@@ -39,6 +47,10 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
     return typesEqual(a.elem, b.elem);
   }
 
+  if (a.kind === 'Optional' && b.kind === 'Optional') {
+    return typesEqual(a.elem, b.elem);
+  }
+
   return true;
 };
 
@@ -47,10 +59,18 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
 // equal — no runtime conversion needed.
 export type Coercion = 'intToFloat' | { elem: Coercion } | null;
 
-// S <: T — the one place widening is defined. Int widens to Float, and lists
+// S <: T — the one place widening is defined. Int widens to Float, lists
 // widen covariantly (sound only because Ascent lists are immutable: append /
-// prepend / concat return new lists rather than mutating in place). Returns
-// the coercion that witnesses the edge, or `false` when S is not a subtype of T.
+// prepend / concat return new lists rather than mutating in place), and — the
+// other hard-coded widening rule design.md §7 calls out — a non-null T widens
+// to T?: a bare value needs no runtime change to become "present" (there's no
+// Some(...) wrapper, design.md §4), and None widens to T? for any T since it's
+// already the Optional's absent case. Both reuse whatever coercion the inner
+// types need (e.g. Int widening into Float? still yields 'intToFloat'), never
+// a nested { elem: … } witness — unlike List, an Optional value is never
+// wrapped, so the coercion applies straight to the raw value at runtime.
+// Returns the coercion that witnesses the edge, or `false` when S is not a
+// subtype of T.
 export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
   if (typesEqual(sub, sup)) {
     return null;
@@ -63,6 +83,12 @@ export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
   if (sub.kind === 'List' && sup.kind === 'List') {
     const c = subtype(sub.elem, sup.elem);
     return c === false ? false : { elem: c };
+  }
+
+  if (sup.kind === 'Optional') {
+    if (sub.kind === 'None') return null;
+    const subElem = sub.kind === 'Optional' ? sub.elem : sub;
+    return subtype(subElem, sup.elem);
   }
 
   return false;

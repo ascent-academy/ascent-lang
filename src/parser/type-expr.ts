@@ -1,7 +1,9 @@
 import type { TypeExpr, ProgramArg, ArgType } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 
-// 'Int', 'Float', 'Bool', 'String', or 'List<Type>' — used in type annotations.
+// 'Int', 'Float', 'Bool', 'String', 'List<Type>', or any of those followed by
+// a trailing '?' (sugar for 'Optional<Type>', design.md §4) — used in type
+// annotations.
 export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
   const tok = ts.peek();
   if (tok.kind !== 'TYPE_NAME') {
@@ -10,6 +12,7 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
   }
   ts.advance(); // consume type name
 
+  let base: TypeExpr;
   if (tok.value === 'List') {
     if (ts.expect('LT', 'S0010') === null) return null;
 
@@ -19,11 +22,21 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
     const gt = ts.expect('GT', 'S0010');
     if (gt === null) return null;
 
-    return { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
+    base = { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
+  } else {
+    const name = tok.value as 'Int' | 'Float' | 'Bool' | 'String';
+    base = { kind: 'TypeName', name, span: tok.span };
   }
 
-  const name = tok.value as 'Int' | 'Float' | 'Bool' | 'String';
-  return { kind: 'TypeName', name, span: tok.span };
+  // A trailing '?' wraps whatever came before it — 'String?', 'List<Int>?' —
+  // and stacks if repeated ('String??' is Optional<Optional<String>>, an odd
+  // but harmless type, not a special error).
+  while (ts.peek().kind === 'QUESTION') {
+    const q = ts.advance();
+    base = { kind: 'OptionalType', elem: base, span: { start: base.span.start, end: q.span.end } };
+  }
+
+  return base;
 }
 
 // 'name: Type' — one entry in an args declaration. Unlike a slot's type

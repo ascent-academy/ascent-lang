@@ -13,10 +13,6 @@
       explanation: >-
         Ascent doesn't use '!' on its own. It writes "is not equal to" as
         '!=', and flips a True / False value with the word 'not'.
-    - when: { equals: "?" }
-      explanation: >-
-        Ascent doesn't use '?' on its own. It uses '??' to supply a fallback
-        value when something is None.
 
 - code: L0002
   name: invalid-number-literal

@@ -6,6 +6,7 @@ const formatTypeExpr = (te: TypeExpr): string => {
   switch (te.kind) {
     case 'TypeName': return te.name;
     case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
+    case 'OptionalType': return `${formatTypeExpr(te.elem)}?`;
   }
 };
 

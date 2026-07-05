@@ -43,7 +43,7 @@ source → Lexer (src/lexer) → tokens → Parser (src/parser) → Program (unt
 
 ### Types
 
-`AscentType` (`src/types/types.ts`) is the single source of truth for the type lattice: `Int`, `Float`, `Bool`, `String`, `None`, `Done`, `List<T>`. Subtyping is currently just `Int <: Float` (value-preserving widening) plus covariant `List`; `subtype()` returns the runtime coercion witness (or `false`), and `leastCommonType()`/`isAssignableTo()` are built on top of it. There is no `Option`/`T?` type and no `Range` type yet, despite both being described in `docs/design.md` — features that would naturally use them (e.g. `String.first()`/`.last()`/`.slice()`) use a documented crash-tier or two-`Int`-argument stand-in until those land.
+`AscentType` (`src/types/types.ts`) is the single source of truth for the type lattice: `Int`, `Float`, `Bool`, `String`, `None`, `Done`, `List<T>`, `Optional<T>` (surface sugar `T?`). Subtyping is `Int <: Float` (value-preserving widening), covariant `List`, and `Optional` widening (a bare `T` or `None` is usable where `T?` is expected — never wrapped, since there's no runtime `Some(...)`); `subtype()` returns the runtime coercion witness (or `false`), and `leastCommonType()`/`isAssignableTo()` are built on top of it. `Optional` is type-system-only so far — no `??`, `try`, or `match` yet, and a bare `None`/`[]` initializer with no annotation still needs one (T0015/T0003). There is no `Range` type yet, despite being described in `docs/design.md` — features that would naturally use it (e.g. `String.first()`/`.last()`/`.slice()`) use a documented crash-tier or two-`Int`-argument stand-in until it lands.
 
 ### Diagnostics (error) system
 

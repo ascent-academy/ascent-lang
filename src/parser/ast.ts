@@ -4,7 +4,10 @@ import type { Span } from '../lexer/token.js';
 // It carries span information so the type checker can point at it in errors.
 export type TypeName = { kind: 'TypeName'; name: 'Int' | 'Float' | 'Bool' | 'String'; span: Span };
 export type ListType = { kind: 'ListType'; elem: TypeExpr; span: Span };
-export type TypeExpr = TypeName | ListType;
+// 'T?' — sugar for 'Optional<T>' (design.md §4). Written as a trailing '?'
+// on any other TypeExpr, never as a spelled-out 'Optional<T>' name.
+export type OptionalType = { kind: 'OptionalType'; elem: TypeExpr; span: Span };
+export type TypeExpr = TypeName | ListType | OptionalType;
 
 export type Literal = (
   | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }

@@ -16,12 +16,6 @@ export const ERRORS: ErrorEntry[] = [
           "equals": "!"
         },
         "explanation": "Ascent doesn't use '!' on its own. It writes \"is not equal to\" as '!=', and flips a True / False value with the word 'not'."
-      },
-      {
-        "when": {
-          "equals": "?"
-        },
-        "explanation": "Ascent doesn't use '?' on its own. It uses '??' to supply a fallback value when something is None."
       }
     ]
   },
@@ -462,6 +456,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A '${ }' hole's value isn't an Int, Float, Bool, or String.",
     "message": "This '${ }' hole has type {actual}, which can't go straight into text.",
     "explanation": "A '${ }' hole puts its value straight into the surrounding text. Int, Float, Bool, and String all have one obvious way to show as text, so they're accepted directly. {actual} isn't one of those."
+  },
+  {
+    "code": "T0015",
+    "name": "none-needs-annotation",
+    "category": "type",
+    "summary": "A slot's only starting value is None, so its type has to be written down.",
+    "message": "This slot needs a type.",
+    "explanation": "'None' on its own doesn't say what kind of value the slot will hold — so, just like an empty list '[]', its type has to be written down — for example 'fix nick: String? = None'."
   }
 ];
 

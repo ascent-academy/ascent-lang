@@ -156,3 +156,13 @@
     A '${ }' hole puts its value straight into the surrounding text. Int,
     Float, Bool, and String all have one obvious way to show as text, so
     they're accepted directly. {actual} isn't one of those.
+
+- code: T0015
+  name: none-needs-annotation
+  category: type
+  summary: A slot's only starting value is None, so its type has to be written down.
+  message: "This slot needs a type."
+  explanation: >-
+    'None' on its own doesn't say what kind of value the slot will hold — so,
+    just like an empty list '[]', its type has to be written down — for
+    example 'fix nick: String? = None'.
