@@ -1,6 +1,29 @@
-import type { BinaryOp, ProgramArg } from './parser/ast.js';
+import type { ProgramArg } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
+import type { Span } from './lexer/token.js';
 import { INT_TYPE, subtype, type AscentType } from './types/types.js';
+import { RuntimeError } from './errors/runtime-error.js';
+
+// Int is a 64-bit signed whole number (design.md §4): it traps on overflow
+// rather than silently wrapping around.
+const INT_MIN = -(2n ** 63n);
+const INT_MAX = 2n ** 63n - 1n;
+
+const checkIntOverflow = (value: bigint, span: Span): bigint => {
+  if (value < INT_MIN || value > INT_MAX) {
+    throw new RuntimeError({ code: 'R0001', span });
+  }
+  return value;
+};
+
+// Every Float is a real, ordered number (design.md §4) — NaN/Infinity never
+// exist as a value, so any operation that would produce one crashes instead.
+const checkFiniteFloat = (value: number, span: Span): number => {
+  if (!Number.isFinite(value)) {
+    throw new RuntimeError({ code: 'R0004', span });
+  }
+  return value;
+};
 
 export type PrimitiveValue = (
   | { type: 'Int'; value: bigint }
@@ -72,8 +95,8 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
   switch (expr.kind) {
     case 'literal': {
       switch (expr.valueType) {
-        case 'Int': return { type: 'Int', value: expr.value };
-        case 'Float': return { type: 'Float', value: expr.value };
+        case 'Int': return { type: 'Int', value: checkIntOverflow(expr.value, expr.span) };
+        case 'Float': return { type: 'Float', value: checkFiniteFloat(expr.value, expr.span) };
         case 'Bool': return { type: 'Bool', value: expr.value };
         case 'String': return { type: 'String', value: expr.value };
         case 'None': return { type: 'None' };
@@ -100,7 +123,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
       const args = expr.args.map(a => evaluateExpr(a, env));
-      return evalMethodCall(receiver, expr.method, args, expr.type);
+      return evalMethodCall(receiver, expr.method, args, expr.type, expr.span);
     }
     case 'list': {
       // expr.type is List<T>; coerce each element to T (handles Int → Float).
@@ -118,7 +141,11 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       if (idx.type !== 'Int') throw new Error('internal: index not an Int');
       const i = Number(idx.value);
       if (i < 0 || i >= list.elements.length) {
-        throw new Error(`index ${i} out of bounds (length ${list.elements.length})`);
+        throw new RuntimeError({
+          code: 'R0005',
+          span: expr.index.span,
+          data: { length: String(list.elements.length) },
+        });
       }
       return list.elements[i]!;
     }
@@ -128,8 +155,8 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         if (operand.type !== 'Bool') throw new Error(`internal: 'not' on ${operand.type}`);
         return { type: 'Bool', value: !operand.value };
       }
-      if (operand.type === 'Int') return { type: 'Int', value: -operand.value };
-      if (operand.type === 'Float') return { type: 'Float', value: -operand.value };
+      if (operand.type === 'Int') return { type: 'Int', value: checkIntOverflow(-operand.value, expr.span) };
+      if (operand.type === 'Float') return { type: 'Float', value: checkFiniteFloat(-operand.value, expr.span) };
       throw new Error(`internal: unary '-' on ${operand.type}`);
     }
     case 'binary': {
@@ -145,7 +172,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         if (right.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
         return right;
       }
-      return evaluateBinary(expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
+      return evaluateBinary(expr, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
     }
     case 'block': {
       return evaluateBlock(expr, env);
@@ -203,19 +230,25 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
 
 // ---- Method dispatch ------------------------------------------------
 
-const evalIntMethod = (receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, _args: RuntimeValue[]): RuntimeValue => {
+const evalIntMethod = (
+  receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, _args: RuntimeValue[], span: Span,
+): RuntimeValue => {
   switch (method) {
     case 'toStr': return { type: 'String', value: String(receiver.value) };
     case 'toFloat': return { type: 'Float', value: Number(receiver.value) };
-    case 'abs': return { type: 'Int', value: receiver.value < 0n ? -receiver.value : receiver.value };
+    // abs(INT_MIN) has no representable Int result (its magnitude is one past
+    // INT_MAX) — the classic two's-complement overflow case.
+    case 'abs': return { type: 'Int', value: checkIntOverflow(receiver.value < 0n ? -receiver.value : receiver.value, span) };
     default: throw new Error(`internal: Int has no method '${method}'`);
   }
 };
 
-const evalFloatMethod = (receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[]): RuntimeValue => {
+const evalFloatMethod = (
+  receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[], span: Span,
+): RuntimeValue => {
   switch (method) {
     case 'toStr': return { type: 'String', value: String(receiver.value) };
-    case 'toInt': return { type: 'Int', value: BigInt(Math.trunc(receiver.value)) };
+    case 'toInt': return { type: 'Int', value: checkIntOverflow(BigInt(Math.trunc(receiver.value)), span) };
     case 'abs': return { type: 'Float', value: Math.abs(receiver.value) };
     case 'min': {
       const r = args[0]!;
@@ -258,11 +291,11 @@ const evalListMethod = (
 };
 
 const evalMethodCall = (
-  receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: AscentType,
+  receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: AscentType, span: Span,
 ): RuntimeValue => {
   switch (receiver.type) {
-    case 'Int': return evalIntMethod(receiver, method, args);
-    case 'Float': return evalFloatMethod(receiver, method, args);
+    case 'Int': return evalIntMethod(receiver, method, args, span);
+    case 'Float': return evalFloatMethod(receiver, method, args, span);
     case 'List': return evalListMethod(receiver, method, args, resultType);
     default: throw new Error(`internal: ${receiver.type} has no methods`);
   }
@@ -303,7 +336,11 @@ const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean => {
   return true; // None, Done — singleton types
 };
 
-const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
+type BinaryExpr = Extract<TypedExpr, { kind: 'binary' }>;
+
+const evaluateBinary = (expr: BinaryExpr, left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
+  const { op, span } = expr;
+
   if (op === '==' || op === '!=') {
     const eq = valuesEqual(left, right);
     return { type: 'Bool', value: op === '==' ? eq : !eq };
@@ -321,15 +358,17 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
 
   if (op === 'div' || op === 'mod') {
     if (left.type !== 'Int' || right.type !== 'Int') throw new Error(`internal: '${op}' on non-Int`);
-    if (right.value === 0n) throw new Error(`${op} by zero`);
+    if (right.value === 0n) throw new RuntimeError({ code: 'R0002', span: expr.right.span });
     const { div, mod } = floorDivMod(left.value, right.value);
-    return { type: 'Int', value: op === 'div' ? div : mod };
+    // INT_MIN div -1 is the one 'div'/'mod' case that can overflow: its exact
+    // result (INT_MAX + 1) has no representable Int.
+    return { type: 'Int', value: checkIntOverflow(op === 'div' ? div : mod, span) };
   }
 
   if (op === '/') {
     const divisor = asFloat(right);
-    if (divisor === 0) throw new Error('division by zero');
-    return { type: 'Float', value: asFloat(left) / divisor };
+    if (divisor === 0) throw new RuntimeError({ code: 'R0002', span: expr.right.span });
+    return { type: 'Float', value: checkFiniteFloat(asFloat(left) / divisor, span) };
   }
 
   if (op === '**') {
@@ -338,24 +377,24 @@ const evaluateBinary = (op: BinaryOp, left: RuntimeValue, right: RuntimeValue): 
       // exponent's runtime sign (§5), so a negative exponent — which would
       // need a fractional result — can't be silently truncated; it crashes.
       if (right.value < 0n) {
-        throw new Error('negative exponent on Int ** Int — use a Float base instead, e.g. 2.0 ** -1');
+        throw new RuntimeError({ code: 'R0003', span: expr.right.span });
       }
-      return { type: 'Int', value: left.value ** right.value };
+      return { type: 'Int', value: checkIntOverflow(left.value ** right.value, span) };
     }
-    return { type: 'Float', value: Math.pow(asFloat(left), asFloat(right)) };
+    return { type: 'Float', value: checkFiniteFloat(Math.pow(asFloat(left), asFloat(right)), span) };
   }
 
   if (left.type === 'Int' && right.type === 'Int') {
     const v = op === '+' ? left.value + right.value
       : op === '-' ? left.value - right.value
         : left.value * right.value;
-    return { type: 'Int', value: v };
+    return { type: 'Int', value: checkIntOverflow(v, span) };
   }
 
   const l = asFloat(left);
   const r = asFloat(right);
   const v = op === '+' ? l + r : op === '-' ? l - r : l * r;
-  return { type: 'Float', value: v };
+  return { type: 'Float', value: checkFiniteFloat(v, span) };
 };
 
 // Bound to one program's `args`: `set` rejects a name that isn't one of
@@ -387,12 +426,21 @@ export class ProgramInputs {
   }
 }
 
+// The outcome of a whole program run: either the value it produced, or the
+// RuntimeError (§9's bug tier) that crashed it. A caller reads `kind` off the
+// return value instead of wrapping the call in try/catch; an internal
+// invariant violation (a plain Error, not a RuntimeError) still propagates as
+// an exception, since that's a bug in the interpreter, not a modeled outcome.
+export type RuntimeResult =
+  | { kind: 'ok'; value: RuntimeValue }
+  | { kind: 'error'; error: RuntimeError };
+
 // Creates the top-level Environment itself, declaring each of the program's
 // `args` as a fixed slot from `inputs` — callers provide values, not scopes.
 export const executeProgram = (
   program: TypedProgram,
   inputs: ProgramInputs = new ProgramInputs(program.args),
-): RuntimeValue => {
+): RuntimeResult => {
   const env = new Environment();
   for (const arg of program.args) {
     const value = inputs.get(arg.name);
@@ -400,9 +448,14 @@ export const executeProgram = (
     env.declare(arg.name, value, false);
   }
 
-  let result: RuntimeValue = { type: 'Done' };
-  for (const stmt of program.stmts) {
-    result = executeStmt(stmt, env);
+  try {
+    let result: RuntimeValue = { type: 'Done' };
+    for (const stmt of program.stmts) {
+      result = executeStmt(stmt, env);
+    }
+    return { kind: 'ok', value: result };
+  } catch (e) {
+    if (e instanceof RuntimeError) return { kind: 'error', error: e };
+    throw e;
   }
-  return result;
 };

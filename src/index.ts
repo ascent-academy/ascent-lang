@@ -10,6 +10,7 @@ import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue } from './interpreter.js';
 import { elaborate } from './errors/elaborate.js';
 import { renderTerminal } from './errors/render.js';
+import { RuntimeError } from './errors/runtime-error.js';
 import type { ProgramArg } from './parser/ast.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
@@ -58,7 +59,7 @@ const bindArgs = (argDefs: ProgramArg[], cliFlags: Map<string, string>): Program
       }
       case 'Float': {
         const n = Number(raw);
-        if (isNaN(n)) {
+        if (isNaN(n) || !isFinite(n)) {
           process.stderr.write(`--${def.name}: expected Float, got '${raw}'\n`);
           process.exit(1);
         }
@@ -109,14 +110,13 @@ const runFile = async (filePath: string): Promise<void> => {
   const typedProgram = parseResult.program!;
   const inputs = bindArgs(typedProgram.args, parseCliFlags(process.argv.slice(3)));
 
-  try {
-    const result = executeProgram(typedProgram, inputs);
-    if (result.type !== 'Done') {
-      process.stdout.write(formatValue(result) + '\n');
-    }
-  } catch (e) {
-    process.stderr.write(chalk.red(String(e)) + '\n');
+  const result = executeProgram(typedProgram, inputs);
+  if (result.kind === 'error') {
+    process.stderr.write(renderTerminal(elaborate(result.error.marker, src), src, filePath) + '\n');
     process.exit(1);
+  }
+  if (result.value.type !== 'Done') {
+    process.stdout.write(formatValue(result.value) + '\n');
   }
 };
 
@@ -178,7 +178,11 @@ const runRepl = async (): Promise<void> => {
               const result = executeStmt(typedStmts[i]!, env);
               process.stdout.write(chalk.dim('=> ') + formatValue(result) + '\n');
             } catch (e) {
-              process.stdout.write(chalk.red(String(e)) + '\n');
+              if (e instanceof RuntimeError) {
+                process.stdout.write(renderTerminal(elaborate(e.marker, line), line, null) + '\n');
+              } else {
+                process.stdout.write(chalk.red(String(e)) + '\n');
+              }
             }
           }
         }

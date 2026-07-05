@@ -31,7 +31,9 @@ export {
   executeProgram,
   ProgramInputs,
 } from './interpreter.js';
-export type { RuntimeValue, AssignResult, PrimitiveValue } from './interpreter.js';
+export type { RuntimeValue, RuntimeResult, AssignResult, PrimitiveValue } from './interpreter.js';
+
+export type { RuntimeError } from './errors/runtime-error.js';
 
 export { formatExpr, formatStmt, formatValue, valueToString } from './parser/printer.js';
 export { formatTypedStmt } from './parser/typed-printer.js';

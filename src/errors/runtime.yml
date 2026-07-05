@@ -1,0 +1,55 @@
+# R — runtime: only running reveals it (division by zero, overflow, index out of bounds)
+
+- code: R0001
+  name: int-overflow
+  category: runtime
+  summary: An Int calculation produced a result outside Int's 64-bit range.
+  message: "'{found}' overflows Int."
+  explanation: >-
+    Int holds a whole number in 64 bits, from -9223372036854775808 to
+    9223372036854775807. This calculation's result falls outside that range, so
+    Ascent stops rather than silently wrapping it around to a different
+    number. If the calculation genuinely needs to go this high, use Float
+    instead.
+
+- code: R0002
+  name: division-by-zero
+  category: runtime
+  summary: The right-hand side of '/', 'div', or 'mod' was zero.
+  message: "'{found}' is zero, so I can't divide by it."
+  explanation: >-
+    '/', 'div', and 'mod' all need a divisor that isn't zero — there's no
+    number that answers "divided by zero". Check that '{found}' can't actually
+    be zero here, or guard this line with an 'if'.
+
+- code: R0003
+  name: negative-int-exponent
+  category: runtime
+  summary: Int ** Int was raised to a negative power, which needs a fractional result.
+  message: "I can't raise an Int to the negative power '{found}'."
+  explanation: >-
+    When both sides of '**' are Int, the result is always an Int — but a
+    negative exponent needs a fractional answer, like 0.5, which an Int can't
+    hold. Make the base a Float instead (for example '2.0 ** {found}') to get
+    a Float result.
+
+- code: R0004
+  name: non-finite-float
+  category: runtime
+  summary: A Float calculation produced Infinity or NaN, which aren't valid Float values.
+  message: "'{found}' doesn't produce a real number."
+  explanation: >-
+    Every Float in Ascent has to be a real, ordered number — Ascent never lets
+    'Infinity' or 'NaN' exist as a value. This calculation's result is either
+    too large to represent or has no defined numeric answer, so it can't
+    become a Float.
+
+- code: R0005
+  name: index-out-of-bounds
+  category: runtime
+  summary: A list was indexed with '[ ]' outside its valid range.
+  message: "'{found}' is out of range for this list."
+  explanation: >-
+    A list index counts from 0, so a list with {length} item(s) has valid
+    indexes from 0 up to (but not including) {length}. '{found}' falls
+    outside that range.
