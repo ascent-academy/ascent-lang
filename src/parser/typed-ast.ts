@@ -25,6 +25,7 @@ export type TypedExpr = (
   | { kind: 'call'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'list'; elements: TypedExpr[]; type: AscentType; span: Span }
+  | { kind: 'range'; lo: TypedExpr; hi: TypedExpr; type: AscentType; span: Span }
   | { kind: 'index'; list: TypedExpr; index: TypedExpr; type: AscentType; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; type: AscentType; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
@@ -59,6 +60,9 @@ export type TypedStatement = (
   | { kind: 'assign'; name: string; slotType: AscentType; value: TypedExpr; span: Span }
   | { kind: 'expr'; expr: TypedExpr; span: Span }
   | { kind: 'while'; cond: TypedExpr; body: TypedBlock; span: Span }
+  // elemType is what each iteration binds `name` to: a List's element type,
+  // or Int for a Range. The interpreter reads it to type the loop variable.
+  | { kind: 'for'; name: string; elemType: AscentType; iterable: TypedExpr; body: TypedBlock; span: Span }
 );
 
 export type TypedProgram = {

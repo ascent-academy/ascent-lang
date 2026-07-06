@@ -54,6 +54,11 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       );
       return [`${chalk.cyan('List')}${t}`, ...elementLines];
     }
+    case 'range': {
+      const loLines = branch(typedExprLines(expr.lo), false);
+      const hiLines = branch(typedExprLines(expr.hi), true);
+      return [`${chalk.cyan('Range')}${t}`, ...loLines, ...hiLines];
+    }
     case 'index': {
       const listLines = branch(typedExprLines(expr.list), false);
       const indexLines = branch(typedExprLines(expr.index), true);
@@ -108,6 +113,12 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
       const condLines = branch(typedExprLines(stmt.cond), false);
       const bodyLines = branch(typedExprLines(stmt.body), true);
       return [`${chalk.cyan('While')}`, ...condLines, ...bodyLines];
+    }
+    case 'for': {
+      const nameLabel = `${chalk.green(stmt.name)}${ty(typeToString(stmt.elemType))}`;
+      const iterableLines = branch(typedExprLines(stmt.iterable), false);
+      const bodyLines = branch(typedExprLines(stmt.body), true);
+      return [`${chalk.cyan('For')} ${nameLabel}`, ...iterableLines, ...bodyLines];
     }
   }
 };

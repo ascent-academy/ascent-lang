@@ -2,7 +2,7 @@ import type { Expr } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
 import type { TypedExpr, TypedTemplatePart } from '../parser/typed-ast.js';
 import {
-  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE,
+  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
   listOfType, leastCommonType, typeToString, typesEqual, isScalarType, isInvalidType,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
@@ -226,6 +226,23 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const typedElements = expr.elements.map(el => synth(el, env, diagnostics));
       const elemType = joinElementTypes(typedElements, expr.span, diagnostics);
       return { kind: 'list', elements: typedElements, type: listOfType(elemType), span: expr.span };
+    }
+
+    case 'range': {
+      const typedLo = synth(expr.lo, env, diagnostics);
+      const typedHi = synth(expr.hi, env, diagnostics);
+      if (isInvalidType(typedLo.type) || isInvalidType(typedHi.type)) {
+        return { kind: 'range', lo: typedLo, hi: typedHi, type: INVALID_TYPE, span: expr.span };
+      }
+      // Both bounds must be Int — a Range counts whole steps (design.md §4).
+      // Point at the first bound that isn't; if the low bound is fine, the
+      // high one is the culprit.
+      if (typedLo.type.kind !== 'Int' || typedHi.type.kind !== 'Int') {
+        const bad = typedLo.type.kind !== 'Int' ? typedLo : typedHi;
+        diagnostics.error({ code: 'T0016', span: bad.span, data: { actual: typeToString(bad.type) } });
+        return { kind: 'range', lo: typedLo, hi: typedHi, type: INVALID_TYPE, span: expr.span };
+      }
+      return { kind: 'range', lo: typedLo, hi: typedHi, type: RANGE_TYPE, span: expr.span };
     }
 
     case 'index': {

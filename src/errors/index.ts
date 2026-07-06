@@ -178,9 +178,9 @@ export const ERRORS: ErrorEntry[] = [
     "code": "R0007",
     "name": "string-slice-out-of-bounds",
     "category": "runtime",
-    "summary": "'.slice(start, end)' had a start or end outside the String's valid range.",
-    "message": "'.slice({start}, {end})' is out of range for this String.",
-    "explanation": "'.slice(start, end)' counts characters from 0 and the end is exclusive, so a String with {length} character(s) only accepts a start and end between 0 and {length}, with start no greater than end. '{start}' and '{end}' don't fit that rule here."
+    "summary": "'.slice(start..end)' had a start or end outside the String's valid range.",
+    "message": "'.slice({start}..{end})' is out of range for this String.",
+    "explanation": "'.slice(start..end)' counts characters from 0 and the end is exclusive, so a String with {length} character(s) only accepts a start and end between 0 and {length}, with start no greater than end. '{start}' and '{end}' don't fit that rule here."
   },
   {
     "code": "R0008",
@@ -329,6 +329,22 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A '${ }' hole inside a String holds exactly one value, like '${name}' or '${price.toString()}'. This one has extra content after a complete value, so it isn't clear what to do with it."
   },
   {
+    "code": "S0016",
+    "name": "expected-loop-name",
+    "category": "syntactic",
+    "summary": "A loop variable name was expected after 'for'.",
+    "message": "I expected a name here.",
+    "explanation": "A 'for' loop names each item as it goes, like 'for item in items' or 'for i in 0..n'. The name comes right after 'for', and it starts with a lowercase letter."
+  },
+  {
+    "code": "S0017",
+    "name": "expected-in",
+    "category": "syntactic",
+    "summary": "'in' was expected after the loop variable in a 'for' loop.",
+    "message": "I expected 'in' here.",
+    "explanation": "A 'for' loop is written 'for name in values', so 'in' comes after the loop variable and before what's being looped over, as in 'for i in 0..n'."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",
@@ -448,7 +464,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "The value's type has no methods at all.",
     "message": "Values of type {type} don't have any methods.",
-    "explanation": "Only some types have methods you can call with '.': Int, Float, and List. A {type} has none, so 'value.something()' can't be used on it."
+    "explanation": "Only some types have methods you can call with '.': Int, Float, String, List, and Range. A {type} has none, so 'value.something()' can't be used on it."
   },
   {
     "code": "T0013",
@@ -473,6 +489,22 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A slot's only starting value is None, so its type has to be written down.",
     "message": "This slot needs a type.",
     "explanation": "'None' on its own doesn't say what kind of value the slot will hold — so, just like an empty list '[]', its type has to be written down — for example 'fix nick: String? = None'."
+  },
+  {
+    "code": "T0016",
+    "name": "range-bounds-not-int",
+    "category": "type",
+    "summary": "A range's start or end isn't an Int.",
+    "message": "A range's start and end have to be Ints, but this is {actual}.",
+    "explanation": "A range like '0..n' counts whole steps from its start up to (but not including) its end, so both sides have to be whole numbers (Int). This one is {actual}."
+  },
+  {
+    "code": "T0017",
+    "name": "for-not-iterable",
+    "category": "type",
+    "summary": "A 'for' loop was given something that isn't a list or a range.",
+    "message": "I can't loop over this — it has type {actual}.",
+    "explanation": "'for x in …' goes through the items of a list ('for x in items') or the numbers of a range ('for i in 0..n'). This value is {actual}, which isn't either of those."
   }
 ];
 

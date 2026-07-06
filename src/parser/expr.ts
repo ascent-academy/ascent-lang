@@ -24,11 +24,18 @@ import { dedent, type RawChunk } from './dedent.js';
 // than what: postfix (`.method()`, `[index]`) and '**' bind tightest
 // (tighter even than unary '-', per §5 of design.md — `-2 ** 2` is
 // `-(2 ** 2)`), then unary '-', then '*'/'/'/'div'/'mod', then '+'/'-',
-// then the comparisons, then 'not', then 'and', then 'or', loosest —
-// the word operators sit below the comparisons (§5 of design.md), so
-// `a == b and c == d` groups as `(a == b) and (c == d)`, never
-// `a == (b and c) == d`. Every table below is keyed off these numbers
-// instead of inlining its own.
+// then '..' (the range operator), then the comparisons, then 'not',
+// then 'and', then 'or', loosest — the word operators sit below the
+// comparisons (§5 of design.md), so `a == b and c == d` groups as
+// `(a == b) and (c == d)`, never `a == (b and c) == d`. Every table
+// below is keyed off these numbers instead of inlining its own.
+//
+// RANGE ('..') sits just below additive so a range's bounds may be
+// arithmetic without parentheses — `a+1..b-1` groups as `(a+1)..(b-1)`
+// — while staying tighter than the comparisons (a Range is never itself
+// compared, so their relative order is only a fallback). It has no row
+// in INFIX_OPS: '..' builds a distinct `range` node, not a `binary` one,
+// so it's matched by hand in the loop below (like the postfix operators).
 //
 // EXPONENT shares POSTFIX's tier rather than sitting strictly above it.
 // '**' is right-associative, so its right operand is parsed with
@@ -43,11 +50,12 @@ const BP = {
   AND: 2,
   NOT: 3,
   COMPARISON: 4,
-  ADDITIVE: 5,
-  MULTIPLICATIVE: 6,
-  UNARY: 7,
-  POSTFIX: 7,
-  EXPONENT: 7,
+  RANGE: 5,
+  ADDITIVE: 6,
+  MULTIPLICATIVE: 7,
+  UNARY: 8,
+  POSTFIX: 8,
+  EXPONENT: 8,
 } as const;
 
 // Every binary operator this parser knows about has one row in this
@@ -123,6 +131,21 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
       if (postfix.bp < minBp) break;
       left = kind === 'DOT' ? parseMethodCall(ts, left) : parseIndex(ts, left);
       if (left === null) return null;
+      continue;
+    }
+
+    // Range 'lo..hi' — built as its own `range` node (not a binary one),
+    // so it's handled here rather than through INFIX_OPS. The right bound
+    // is parsed at RANGE + 1 so a second '..' can't nest into it; a Range
+    // isn't an Int, so `a..b..c` is meaningless — it parses as `(a..b)..c`
+    // and the checker rejects the Range bound (T0016) rather than the
+    // parser guessing a grouping.
+    if (kind === 'DOTDOT') {
+      if (BP.RANGE < minBp) break;
+      ts.advance(); // consume '..'
+      const hi = parseExpr(ts, BP.RANGE + 1);
+      if (hi === null) return null;
+      left = { kind: 'range', lo: left, hi, span: { start: left.span.start, end: hi.span.end } };
       continue;
     }
 

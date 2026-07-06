@@ -4,7 +4,7 @@ import { RuntimeError } from '../errors/runtime-error.js';
 import {
   coerce, formatFloat, graphemesOf,
   intVal, floatVal, strVal, boolVal, NONE,
-  type RuntimeValue, type IntValue, type FloatValue, type StringValue, type ListValue,
+  type RuntimeValue, type IntValue, type FloatValue, type StringValue, type ListValue, type RangeValue,
 } from './values.js';
 import { checkIntOverflow } from './arithmetic.js';
 
@@ -73,9 +73,12 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
   },
   chars: r => ({ type: 'List', elements: graphemesOf(r.value).map((c): RuntimeValue => strVal(c)) }),
   slice: (r, args, { span }) => {
+    // design.md §4: slice takes one Range; its bounds are the start (low)
+    // and end (high, exclusive) of the substring.
+    const range = args[0] as RangeValue;
     const chars = graphemesOf(r.value);
-    const start = Number((args[0] as IntValue).value);
-    const end = Number((args[1] as IntValue).value);
+    const start = Number(range.lo);
+    const end = Number(range.hi);
     if (start < 0 || end > chars.length || start > end) {
       throw new RuntimeError({
         code: 'R0007', span,
@@ -146,6 +149,22 @@ const LIST_IMPLS: Record<string, MethodImpl<ListValue>> = {
   },
 };
 
+// design.md §4: a Range is Int-only and half-open. length/toList/contains
+// read its stored bounds directly — an empty range (lo >= hi) has length 0,
+// an empty toList, and contains nothing.
+const RANGE_IMPLS: Record<string, MethodImpl<RangeValue>> = {
+  length: r => intVal(r.hi > r.lo ? r.hi - r.lo : 0n),
+  toList: r => {
+    const elements: RuntimeValue[] = [];
+    for (let i = r.lo; i < r.hi; i++) elements.push(intVal(i));
+    return { type: 'List', elements };
+  },
+  contains: (r, args) => {
+    const x = (args[0] as IntValue).value;
+    return boolVal(r.lo <= x && x < r.hi);
+  },
+};
+
 // Each group is written with its receiver narrowed (IntValue, ListValue, …);
 // the cast to the erased MethodImpl is sound because evalMethodCall only
 // invokes METHOD_IMPLS[receiver.type], so the receiver always matches the key.
@@ -154,6 +173,7 @@ export const METHOD_IMPLS: Partial<Record<RuntimeValue['type'], Record<string, M
   Float: FLOAT_IMPLS as Record<string, MethodImpl>,
   String: STRING_IMPLS as Record<string, MethodImpl>,
   List: LIST_IMPLS as Record<string, MethodImpl>,
+  Range: RANGE_IMPLS as Record<string, MethodImpl>,
 };
 
 // The one lookup-and-apply rule. Both lookups are total by construction (the

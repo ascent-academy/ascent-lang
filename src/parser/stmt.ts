@@ -99,6 +99,42 @@ function parseWhile(ts: TokenStream): Statement | null {
   return { kind: 'while', cond, body, span: { start: whileTok.span.start, end: body.span.end } };
 }
 
+// 'for name in iterable { }' — a statement (§5), like 'while'. It takes
+// *no* parens (it has no test): parenthesizing it would mimic TypeScript's
+// key-iterating 'for…in', the false friend the 'in'-for-values choice
+// avoids. The body braces are mandatory (§2), same as every other loop.
+function parseFor(ts: TokenStream): Statement | null {
+  const forTok = ts.advance(); // consume 'for'
+
+  const nameTok = ts.peek();
+  if (nameTok.kind !== 'SLOT') {
+    ts.report('S0016', nameTok.span);
+    return null;
+  }
+  ts.advance(); // consume loop variable name
+
+  if (ts.expect('KW_IN', 'S0017') === null) return null;
+
+  const iterable = parseExpr(ts);
+  if (iterable === null) {
+    return null;
+  }
+
+  const body = parseRequiredBlock(ts);
+  if (body === null) {
+    return null;
+  }
+
+  return {
+    kind: 'for',
+    name: nameTok.value,
+    nameSpan: nameTok.span,
+    iterable,
+    body,
+    span: { start: forTok.span.start, end: body.span.end },
+  };
+}
+
 // 'fix' and 'mut' share every rule but the keyword itself and the
 // mutability it grants — one parse method, told which by 'kind'.
 function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
@@ -165,6 +201,9 @@ export function parseStmt(ts: TokenStream): Statement | null {
   }
   if (ts.peek().kind === 'KW_WHILE') {
     return parseWhile(ts);
+  }
+  if (ts.peek().kind === 'KW_FOR') {
+    return parseFor(ts);
   }
   if (ts.peek().kind === 'SLOT' && ts.peekNext().kind === 'EQUALS') {
     return parseAssign(ts);

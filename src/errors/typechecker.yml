@@ -134,8 +134,9 @@
   summary: The value's type has no methods at all.
   message: "Values of type {type} don't have any methods."
   explanation: >-
-    Only some types have methods you can call with '.': Int, Float, and List. A
-    {type} has none, so 'value.something()' can't be used on it.
+    Only some types have methods you can call with '.': Int, Float, String,
+    List, and Range. A {type} has none, so 'value.something()' can't be used on
+    it.
 
 - code: T0013
   name: unknown-function
@@ -166,3 +167,23 @@
     'None' on its own doesn't say what kind of value the slot will hold — so,
     just like an empty list '[]', its type has to be written down — for
     example 'fix nick: String? = None'.
+
+- code: T0016
+  name: range-bounds-not-int
+  category: type
+  summary: "A range's start or end isn't an Int."
+  message: "A range's start and end have to be Ints, but this is {actual}."
+  explanation: >-
+    A range like '0..n' counts whole steps from its start up to (but not
+    including) its end, so both sides have to be whole numbers (Int). This one
+    is {actual}.
+
+- code: T0017
+  name: for-not-iterable
+  category: type
+  summary: "A 'for' loop was given something that isn't a list or a range."
+  message: "I can't loop over this — it has type {actual}."
+  explanation: >-
+    'for x in …' goes through the items of a list ('for x in items') or the
+    numbers of a range ('for i in 0..n'). This value is {actual}, which isn't
+    either of those.

@@ -64,6 +64,11 @@ const exprLines = (expr: Expr): string[] => {
       );
       return [`${chalk.cyan('List')}`, ...elementLines];
     }
+    case 'range': {
+      const loLines = branch(exprLines(expr.lo), false);
+      const hiLines = branch(exprLines(expr.hi), true);
+      return [`${chalk.cyan('Range')}`, ...loLines, ...hiLines];
+    }
     case 'index': {
       const listLines = branch(exprLines(expr.list), false);
       const indexLines = branch(exprLines(expr.index), true);
@@ -130,6 +135,11 @@ const stmtLines = (stmt: Statement): string[] => {
       const body = branch(exprLines(stmt.body), true);
       return [`${chalk.cyan('While')}`, ...cond, ...body];
     }
+    case 'for': {
+      const iterable = branch(exprLines(stmt.iterable), false);
+      const body = branch(exprLines(stmt.body), true);
+      return [`${chalk.cyan('For')} ${chalk.green(stmt.name)}`, ...iterable, ...body];
+    }
   }
 };
 
@@ -150,6 +160,8 @@ export const formatValue = (value: RuntimeValue): string => {
       const items = value.elements.map(formatValue).join(', ');
       return chalk.yellow(`[${items}]`);
     }
+    case 'Range':
+      return chalk.yellow(`${value.lo}..${value.hi}`);
     case 'None':
       return chalk.yellow('None');
     case 'Done':
@@ -172,6 +184,8 @@ export const valueToString = (value: RuntimeValue): string => {
       const items = value.elements.map(valueToString).join(', ');
       return `[${items}]`;
     }
+    case 'Range':
+      return `${value.lo}..${value.hi}`;
     case 'None':
       return 'None';
     case 'Done':

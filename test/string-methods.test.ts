@@ -86,29 +86,29 @@ describe('String methods (end-to-end)', () => {
     });
   });
 
-  describe('.slice(start, end)', () => {
+  describe('.slice(range)', () => {
     it('takes a half-open substring', () => {
-      assert.deepEqual(evalOk('"hello".slice(1, 4);'), { type: 'String', value: 'ell' });
+      assert.deepEqual(evalOk('"hello".slice(1..4);'), { type: 'String', value: 'ell' });
     });
 
     it('returns the whole String when the range spans it', () => {
-      assert.deepEqual(evalOk('"hello".slice(0, 5);'), { type: 'String', value: 'hello' });
+      assert.deepEqual(evalOk('"hello".slice(0..5);'), { type: 'String', value: 'hello' });
     });
 
     it('returns an empty String when start equals end', () => {
-      assert.deepEqual(evalOk('"hello".slice(2, 2);'), { type: 'String', value: '' });
+      assert.deepEqual(evalOk('"hello".slice(2..2);'), { type: 'String', value: '' });
     });
 
     it('crashes with R0007 when the end exceeds the length', () => {
-      assert.equal(evalCrash('"hello".slice(0, 6);'), 'R0007');
+      assert.equal(evalCrash('"hello".slice(0..6);'), 'R0007');
     });
 
     it('crashes with R0007 when the start is negative', () => {
-      assert.equal(evalCrash('"hello".slice(-1, 3);'), 'R0007');
+      assert.equal(evalCrash('"hello".slice(-1..3);'), 'R0007');
     });
 
     it('crashes with R0007 when the start exceeds the end', () => {
-      assert.equal(evalCrash('"hello".slice(3, 1);'), 'R0007');
+      assert.equal(evalCrash('"hello".slice(3..1);'), 'R0007');
     });
   });
 

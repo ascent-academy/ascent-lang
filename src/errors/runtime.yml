@@ -70,10 +70,10 @@
 - code: R0007
   name: string-slice-out-of-bounds
   category: runtime
-  summary: "'.slice(start, end)' had a start or end outside the String's valid range."
-  message: "'.slice({start}, {end})' is out of range for this String."
+  summary: "'.slice(start..end)' had a start or end outside the String's valid range."
+  message: "'.slice({start}..{end})' is out of range for this String."
   explanation: >-
-    '.slice(start, end)' counts characters from 0 and the end is exclusive, so
+    '.slice(start..end)' counts characters from 0 and the end is exclusive, so
     a String with {length} character(s) only accepts a start and end between 0
     and {length}, with start no greater than end. '{start}' and '{end}' don't
     fit that rule here.

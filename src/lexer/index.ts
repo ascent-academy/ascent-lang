@@ -295,7 +295,12 @@ export class Lexer {
         }
         this.modeStack.push({ kind: 'string' });
         return this.readStringChunk(start);
-      case '.': return this.token('DOT', start);
+      case '.':
+        // '..' is the range operator ('0..n'); a lone '.' is member access.
+        // A number never reaches here with a following digit (readNumber
+        // consumes '.5' as its fractional part), so '..' can't split a float.
+        if (this.c.match('.')) return this.token('DOTDOT', start);
+        return this.token('DOT', start);
       case ':': return this.token('COLON', start);
       case ',': return this.token('COMMA', start);
       case ';': return this.token('SEMICOLON', start);

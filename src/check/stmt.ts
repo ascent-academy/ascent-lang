@@ -1,6 +1,6 @@
 import type { Statement, Block, If } from '../parser/ast.js';
 import type { TypedBlock, TypedIf, TypedExpr, TypedStatement } from '../parser/typed-ast.js';
-import { AscentType, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
+import { AscentType, INT_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics } from './diagnostics.js';
 import { typeFromExpr } from './formation.js';
@@ -149,6 +149,34 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       }
       const typedBody = inferBlock(stmt.body, env, diagnostics);
       return { kind: 'while', cond: typedCond, body: typedBody, span: stmt.span };
+    }
+
+    case 'for': {
+      const typedIterable = synth(stmt.iterable, env, diagnostics);
+      const it = typedIterable.type;
+      // What each iteration binds `name` to: a List's element type, or Int
+      // for a Range (design.md §5). Anything else can't be iterated — T0017.
+      // An already-Invalid iterable stays Invalid without a second error.
+      let elemType: AscentType;
+      if (isInvalidType(it)) {
+        elemType = INVALID_TYPE;
+      } else if (it.kind === 'List') {
+        elemType = it.elem;
+      } else if (it.kind === 'Range') {
+        elemType = INT_TYPE;
+      } else {
+        diagnostics.error({ code: 'T0017', span: stmt.iterable.span, data: { actual: typeToString(it) } });
+        elemType = INVALID_TYPE;
+      }
+
+      // The loop variable is a fresh fixed binding scoped to the body — a
+      // new one each iteration (value semantics), so reassigning it inside
+      // the body is an N0002 error, like any other 'fix'. inferBlock opens
+      // its own child under this, so the binding is visible throughout it.
+      const inner = env.child();
+      inner.set(stmt.name, elemType, 'fix', stmt.nameSpan);
+      const typedBody = inferBlock(stmt.body, inner, diagnostics);
+      return { kind: 'for', name: stmt.name, elemType, iterable: typedIterable, body: typedBody, span: stmt.span };
     }
 
     case 'expr': {

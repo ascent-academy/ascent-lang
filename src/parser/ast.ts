@@ -54,6 +54,9 @@ export type Expr = (
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
   | { kind: 'list'; elements: Expr[]; span: Span }
+  // 'lo..hi' — a half-open Int range (design.md §4). Both bounds are
+  // required; open-ended forms ('..b', 'a..') are not syntax here.
+  | { kind: 'range'; lo: Expr; hi: Expr; span: Span }
   | { kind: 'index'; list: Expr; index: Expr; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
@@ -61,15 +64,19 @@ export type Expr = (
   | If
 );
 
-// Unlike 'if', 'while' is a statement, not an expression — a loop has
+// Unlike 'if', 'while'/'for' are statements, not expressions — a loop has
 // no single meaningful result (zero iterations has no last value to
-// give), so it always yields Done rather than forcing a fake one.
+// give), so they always yield Done rather than forcing a fake one.
 export type Statement = (
   | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'assign'; name: string; nameSpan: Span; value: Expr; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
+  // 'for name in iterable { … }' — iterates the values of a List or the
+  // numbers of a Range (design.md §5), binding each to `name` in the body.
+  // No parens (it has no test); `name` is a fresh, per-iteration binding.
+  | { kind: 'for'; name: string; nameSpan: Span; iterable: Expr; body: Block; span: Span }
 );
 
 export type ArgType = 'Int' | 'Float' | 'Bool' | 'String';

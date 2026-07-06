@@ -8,7 +8,11 @@ export type AscentType =
   | { kind: 'Never' }
   | { kind: 'Invalid' }
   | { kind: 'List'; elem: AscentType }
-  | { kind: 'Optional'; elem: AscentType };
+  | { kind: 'Optional'; elem: AscentType }
+  // design.md §4: a half-open Int range 'a..b'. Monomorphic — the bounds
+  // and the values it yields are always Int — so, unlike List/Optional, it
+  // carries no element parameter. Iterating one (a 'for' loop) gives Int.
+  | { kind: 'Range' };
 
 export type TypeKind = AscentType['kind'];
 
@@ -30,6 +34,7 @@ export const NEVER_TYPE: AscentType = { kind: 'Never' };
 // directions" rule that lets a failure stop at the point it's reported
 // instead of cascading into new, misleading diagnostics further up the tree.
 export const INVALID_TYPE: AscentType = { kind: 'Invalid' };
+export const RANGE_TYPE: AscentType = { kind: 'Range' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
 export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
 

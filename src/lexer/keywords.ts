@@ -13,6 +13,8 @@ export const KEYWORDS: Record<string, TokenKind> = {
   if: 'KW_IF',
   else: 'KW_ELSE',
   while: 'KW_WHILE',
+  for: 'KW_FOR',
+  in: 'KW_IN',
   args: 'KW_ARGS',
 };
 

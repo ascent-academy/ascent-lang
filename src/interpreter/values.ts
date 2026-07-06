@@ -14,6 +14,10 @@ export type ScalarValue = (
 export type RuntimeValue = (
   | ScalarValue
   | { type: 'List'; elements: RuntimeValue[] }
+  // A half-open Int range (design.md §4). Stores its bounds as bigints (the
+  // Int representation), not a materialized list — iterating walks lo→hi
+  // lazily, so '0..1000000' costs nothing until asked for its items.
+  | { type: 'Range'; lo: bigint; hi: bigint }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -24,6 +28,7 @@ export type IntValue = Extract<RuntimeValue, { type: 'Int' }>;
 export type FloatValue = Extract<RuntimeValue, { type: 'Float' }>;
 export type StringValue = Extract<RuntimeValue, { type: 'String' }>;
 export type ListValue = Extract<RuntimeValue, { type: 'List' }>;
+export type RangeValue = Extract<RuntimeValue, { type: 'Range' }>;
 
 // Thin value constructors — the runtime twin of INT_TYPE etc. on the type
 // side, so the evaluator and the builtin table stop repeating
@@ -33,6 +38,7 @@ export const intVal = (value: bigint) => ({ type: 'Int' as const, value });
 export const floatVal = (value: number) => ({ type: 'Float' as const, value });
 export const strVal = (value: string) => ({ type: 'String' as const, value });
 export const boolVal = (value: boolean) => ({ type: 'Bool' as const, value });
+export const rangeVal = (lo: bigint, hi: bigint) => ({ type: 'Range' as const, lo, hi });
 export const NONE = { type: 'None' as const };
 export const DONE = { type: 'Done' as const };
 
@@ -107,5 +113,9 @@ export const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean =>
   if (left.type !== right.type) return false;
   if (left.type === 'Bool' && right.type === 'Bool') return left.value === right.value;
   if (left.type === 'String' && right.type === 'String') return left.value === right.value;
+  // Two ranges are equal when they carry the same bounds — structural, like
+  // every other '==' (design.md §5). (Distinct empty ranges, e.g. '5..5' and
+  // '3..3', are thus unequal: different bounds, not "both empty".)
+  if (left.type === 'Range' && right.type === 'Range') return left.lo === right.lo && left.hi === right.hi;
   return true; // None, Done — singleton types
 };

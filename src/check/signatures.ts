@@ -1,6 +1,6 @@
 import type { Span } from '../lexer/token.js';
 import {
-  AscentType, TypeKind, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE,
+  AscentType, TypeKind, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, RANGE_TYPE,
   listOfType, optionalOf, leastCommonType, typesEqual, typeToString, INVALID_TYPE,
 } from '../types/types.js';
 import { Diagnostics, requireArity, typeMismatch } from './diagnostics.js';
@@ -84,7 +84,9 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
     first: { params: [], result: optionalOf(STRING_TYPE) },
     last: { params: [], result: optionalOf(STRING_TYPE) },
     chars: { params: [], result: listOfType(STRING_TYPE) },
-    slice: { params: [INT_TYPE, INT_TYPE], result: STRING_TYPE },
+    // design.md §4: slice takes a Range ('s.slice(1..4)'), not two loose
+    // Ints — the half-open bounds are one value that reads as "from…to".
+    slice: { params: [RANGE_TYPE], result: STRING_TYPE },
     repeat: { params: [INT_TYPE], result: STRING_TYPE },
     trim: { params: [], result: STRING_TYPE },
     padLeft: { params: [INT_TYPE], result: STRING_TYPE },
@@ -105,6 +107,15 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
         return ct === null ? typeMismatch('T0008', diagnostics, span, listOfType(recv.elem), arg) : listOfType(ct);
       },
     },
+  },
+  // design.md §4: a Range is Int-only, so its methods are all monomorphic —
+  // length is how many items it yields, toList materializes them, contains
+  // tests membership. It "pairs cleanly with lengths" (the whitepaper), so
+  // length reads exactly like a List's.
+  Range: {
+    length: { params: [], result: INT_TYPE },
+    toList: { params: [], result: listOfType(INT_TYPE) },
+    contains: { params: [INT_TYPE], result: BOOL_TYPE },
   },
 };
 

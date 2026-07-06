@@ -153,3 +153,22 @@
     A '${ }' hole inside a String holds exactly one value, like '${name}' or
     '${price.toString()}'. This one has extra content after a complete value, so
     it isn't clear what to do with it.
+
+- code: S0016
+  name: expected-loop-name
+  category: syntactic
+  summary: "A loop variable name was expected after 'for'."
+  message: "I expected a name here."
+  explanation: >-
+    A 'for' loop names each item as it goes, like 'for item in items' or
+    'for i in 0..n'. The name comes right after 'for', and it starts with a
+    lowercase letter.
+
+- code: S0017
+  name: expected-in
+  category: syntactic
+  summary: "'in' was expected after the loop variable in a 'for' loop."
+  message: "I expected 'in' here."
+  explanation: >-
+    A 'for' loop is written 'for name in values', so 'in' comes after the loop
+    variable and before what's being looped over, as in 'for i in 0..n'.

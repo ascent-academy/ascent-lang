@@ -62,7 +62,7 @@ export class TokenStream {
   // dispatch in stmt.ts). synchronize() treats one of these as a safe
   // place to resume, since it's a far more reliable restart point than
   // an arbitrary token that merely happens to also start an expression.
-  private static readonly STMT_START_KINDS: ReadonlySet<TokenKind> = new Set(['KW_FIX', 'KW_MUT', 'KW_WHILE']);
+  private static readonly STMT_START_KINDS: ReadonlySet<TokenKind> = new Set(['KW_FIX', 'KW_MUT', 'KW_WHILE', 'KW_FOR']);
 
   // Panic-mode recovery: skip tokens until the next statement boundary —
   // the separator, the enclosing close token, EOF, or a statement-start

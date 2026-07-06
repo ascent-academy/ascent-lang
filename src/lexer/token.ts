@@ -24,6 +24,8 @@ export type TokenKind =
   | 'KW_IF'          // the keyword if — starts a conditional expression
   | 'KW_ELSE'        // the keyword else — the alternative branch of an if
   | 'KW_WHILE'       // the keyword while — starts a condition loop
+  | 'KW_FOR'         // the keyword for — starts a value-iterating loop
+  | 'KW_IN'          // the keyword in — separates a for loop's variable from what it iterates
   | 'KW_ARGS'        // the keyword args — declares the program's typed inputs
   | 'TYPE_NAME'      // a built-in type name: Int, Float, Bool, String
   | 'COLON'          // ':' — separates a name from its type annotation
@@ -35,6 +37,7 @@ export type TokenKind =
   | 'GT'             // '>' — greater than
   | 'GT_EQ'          // '>=' — greater than or equal to
   | 'DOT'            // '.' — method call operator
+  | 'DOTDOT'         // '..' — the half-open range operator, as in '0..n'
   | 'COMMA'          // ',' — separates items in a list or arguments in a function call
   | 'SEMICOLON'      // ';' — statement terminator
   | 'LPAREN'         // '(' — open parenthesis

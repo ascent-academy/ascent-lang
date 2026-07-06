@@ -3,7 +3,7 @@ import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './pars
 import { RuntimeError } from './errors/runtime-error.js';
 import {
   coerce, scalarToString,
-  intVal, floatVal, strVal, boolVal, NONE, DONE,
+  intVal, floatVal, strVal, boolVal, rangeVal, NONE, DONE,
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
@@ -79,6 +79,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         return elemType !== null ? coerce(v, el.type, elemType) : v;
       });
       return { type: 'List', elements };
+    }
+    case 'range': {
+      const lo = evaluateExpr(expr.lo, env);
+      const hi = evaluateExpr(expr.hi, env);
+      if (lo.type !== 'Int' || hi.type !== 'Int') throw new Error('internal: range bound not an Int');
+      // No lo <= hi requirement: a range with lo >= hi is simply empty
+      // (design.md §4 — half-open, so '5..5' and '5..3' both yield nothing).
+      return rangeVal(lo.value, hi.value);
     }
     case 'index': {
       const list = evaluateExpr(expr.list, env);
@@ -173,6 +181,30 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
         if (cond.type !== 'Bool') throw new Error('internal: while condition not Bool');
         if (!cond.value) break;
         evaluateBlock(stmt.body, env);
+      }
+      return DONE;
+    }
+    case 'for': {
+      // Each iteration binds the loop variable in a fresh child scope, then
+      // runs the body (which opens its own scope under it) — so the binding
+      // is a new fixed slot per pass, never leaking or carrying over.
+      const runBody = (value: RuntimeValue): void => {
+        const loopEnv = env.child();
+        loopEnv.declare(stmt.name, value, false);
+        evaluateBlock(stmt.body, loopEnv);
+      };
+
+      const iterable = evaluateExpr(stmt.iterable, env);
+      if (iterable.type === 'Range') {
+        // Half-open: lo up to but not including hi. A step of +1 always
+        // terminates, and lo >= hi runs zero times (design.md §4).
+        for (let i = iterable.lo; i < iterable.hi; i++) runBody(intVal(i));
+      } else if (iterable.type === 'List') {
+        // Elements are already the list's element type (coerced at build
+        // time), so each is bound as-is — no re-coercion needed.
+        for (const el of iterable.elements) runBody(el);
+      } else {
+        throw new Error(`internal: for over non-iterable ${iterable.type}`);
       }
       return DONE;
     }
