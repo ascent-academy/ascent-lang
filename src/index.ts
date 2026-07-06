@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { parse, parseTokens } from './parser/index.js';
-import { typecheck, TypeEnv } from './parser/typechecker.js';
+import { typecheck, TypeEnv } from './check/index.js';
 import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue } from './interpreter.js';

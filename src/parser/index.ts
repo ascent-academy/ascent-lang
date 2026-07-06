@@ -4,8 +4,8 @@ import type { Program } from './ast.js';
 import { TokenStream } from './token-stream.js';
 import { parseStmt } from './stmt.js';
 import { parseArgsSection } from './type-expr.js';
-import { typecheck } from './typechecker.js';
-import type { TypedResult } from './typechecker.js';
+import { typecheck } from '../check/index.js';
+import type { TypedResult } from '../check/index.js';
 import { elaborate } from '../errors/elaborate.js';
 
 export interface ParseResult {

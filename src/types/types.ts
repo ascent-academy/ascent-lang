@@ -10,6 +10,8 @@ export type AscentType =
   | { kind: 'List'; elem: AscentType }
   | { kind: 'Optional'; elem: AscentType };
 
+export type TypeKind = AscentType['kind'];
+
 export const INT_TYPE: AscentType = { kind: 'Int' };
 export const FLOAT_TYPE: AscentType = { kind: 'Float' };
 export const BOOL_TYPE: AscentType = { kind: 'Bool' };
@@ -20,7 +22,7 @@ export const DONE_TYPE: AscentType = { kind: 'Done' };
 // (yet) a type anyone writes; it only ever shows up as the checker's own
 // inference for a diverging expression, or (below) an empty list literal.
 export const NEVER_TYPE: AscentType = { kind: 'Never' };
-// agenda/phase5.md: a checker-internal tombstone for a sub-expression whose
+// agenda/typechecker-refactor.md Phase 5: a checker-internal tombstone for a sub-expression whose
 // own type-checking already failed (a diagnostic was reported at that node) —
 // never written in source, never shown in a message. It is Never's dual:
 // Never is the honest bottom of a *valid* program, Invalid marks a *broken*
@@ -51,6 +53,23 @@ export const typeToString = (t: AscentType): string => {
 // ordinary dispatch instead.
 export const isScalarType = (t: AscentType): boolean =>
   t.kind === 'Int' || t.kind === 'Float' || t.kind === 'Bool' || t.kind === 'String';
+
+// agenda/typechecker-refactor.md Phase 5: true for the checker-internal
+// Invalid tombstone — a sub-expression whose own type-checking already
+// failed and reported its diagnostic there. Never written in source, never
+// shown in a message; callers use this to skip checks that Invalid itself
+// would poison, without a second, cascaded diagnostic.
+export const isInvalidType = (t: AscentType): boolean => t.kind === 'Invalid';
+
+// True when 'Never' appears anywhere in t's structure — catches not just a
+// bare '[]' but anything built from one with no widening context
+// ('[].reverse()', '[[]]', …), since all of those freeze the same way once a
+// slot's type is fixed (design.md §7).
+export const containsNever = (t: AscentType): boolean => {
+  if (t.kind === 'Never') return true;
+  if (t.kind === 'List' || t.kind === 'Optional') return containsNever(t.elem);
+  return false;
+};
 
 export const typesEqual = (a: AscentType, b: AscentType): boolean => {
   if (a.kind !== b.kind) {
@@ -89,7 +108,7 @@ export type Coercion = 'intToFloat' | { elem: Coercion } | null;
 // Returns the coercion that witnesses the edge, or `false` when S is not a
 // subtype of T.
 export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
-  // Invalid absorbs both directions (agenda/phase5.md Rule 2): it's
+  // Invalid absorbs both directions (agenda/typechecker-refactor.md Phase 5): it's
   // assignable to every type and every type is assignable to it, so a value
   // that already failed to check satisfies whatever expectation meets it
   // next without a second diagnostic. `null` is a safe placeholder witness
@@ -135,7 +154,7 @@ export const leastCommonType = (a: AscentType, b: AscentType): AscentType | null
   // the join is Invalid regardless of which side it's on — subtype()'s
   // absorption alone would make the *first* subtype(a, b) check succeed and
   // return `b` even when only `a` is Invalid, silently discarding the
-  // failure instead of propagating it (agenda/phase5.md Rule 2).
+  // failure instead of propagating it (agenda/typechecker-refactor.md Phase 5).
   if (a.kind === 'Invalid' || b.kind === 'Invalid') {
     return INVALID_TYPE;
   }

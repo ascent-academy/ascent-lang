@@ -9,7 +9,7 @@
 //
 // `program` is non-null whenever typechecking itself ran — even for a
 // program with type errors, it always returns a fully-typed tree for tooling
-// (agenda/phase5.md) — so the diagnostics check above, not `program`'s
+// (agenda/typechecker-refactor.md Phase 5) — so the diagnostics check above, not `program`'s
 // nullness, is what decides whether it's safe to execute.
 //
 // The individual stages are also re-exported for tools that need
@@ -26,8 +26,8 @@ export { parse, parseTokens } from './parser/index.js';
 export type { ParseResult } from './parser/index.js';
 export type { Program, ProgramArg } from './parser/ast.js';
 
-export { typecheck } from './parser/typechecker.js';
-export type { TypedResult } from './parser/typechecker.js';
+export { typecheck } from './check/index.js';
+export type { TypedResult } from './check/index.js';
 export type { TypedProgram } from './parser/typed-ast.js';
 
 export {
