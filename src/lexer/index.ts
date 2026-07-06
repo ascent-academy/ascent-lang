@@ -58,13 +58,9 @@ export class Lexer {
   private skipBlockComment(start: Position): void {
     let depth = 1;
     while (!this.c.atEnd()) {
-      if (this.c.peek() === '#' && this.c.peek(1) === '[') {
-        this.c.advance();
-        this.c.advance();
+      if (this.c.match('#[')) {
         depth++;
-      } else if (this.c.peek() === ']' && this.c.peek(1) === '#') {
-        this.c.advance();
-        this.c.advance();
+      } else if (this.c.match(']#')) {
         depth--;
         if (depth === 0) return;
       } else {
@@ -77,10 +73,8 @@ export class Lexer {
   private skipTrivia(): void {
     while (true) {
       this.skipWhitespace();
-      if (this.c.peek() === '#' && this.c.peek(1) === '[') {
-        const start = this.c.mark();
-        this.c.advance();
-        this.c.advance();
+      const start = this.c.mark();
+      if (this.c.match('#[')) {
         this.skipBlockComment(start);
         continue;
       }
@@ -124,8 +118,7 @@ export class Lexer {
       }
       if (ch === '$' && this.c.peek(1) === '{') {
         const interpStart = this.c.mark();
-        this.c.advance(); // '$'
-        this.c.advance(); // '{'
+        this.c.match('${');
         this.modeStack.push({ kind: 'interp', depth: 0, start: interpStart });
         return { kind: 'STR_PART', value, span: this.c.spanFrom(start) };
       }
@@ -177,16 +170,13 @@ export class Lexer {
       }
       if (ch === '"' && this.c.peek(1) === '"' && this.c.peek(2) === '"') {
         const margin = this.c.mark().column - 1;
-        this.c.advance();
-        this.c.advance();
-        this.c.advance();
+        this.c.match('"""');
         this.modeStack.pop();
         return { kind: 'MSTR_PART_END', value, span: this.c.spanFrom(start), dedentMargin: margin };
       }
       if (ch === '$' && this.c.peek(1) === '{') {
         const interpStart = this.c.mark();
-        this.c.advance(); // '$'
-        this.c.advance(); // '{'
+        this.c.match('${');
         this.modeStack.push({ kind: 'interp', depth: 0, start: interpStart });
         return { kind: 'MSTR_PART', value, span: this.c.spanFrom(start) };
       }
@@ -299,9 +289,7 @@ export class Lexer {
         if (this.c.match('=')) return this.token('GT_EQ', start);
         return this.token('GT', start);
       case '"':
-        if (this.c.peek() === '"' && this.c.peek(1) === '"') {
-          this.c.advance(); // second '"'
-          this.c.advance(); // third '"'
+        if (this.c.match('""')) {
           this.modeStack.push({ kind: 'mstring', start });
           return this.readMultilineChunk();
         }

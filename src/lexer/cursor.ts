@@ -39,11 +39,15 @@ export class Cursor {
     return { start, end: this.mark() };
   }
 
-  public match(ch: string): boolean {
-    if (this.src[this.pos] !== ch) {
+  // Consume `str` only if it appears verbatim at the cursor, e.g. match('"""').
+  // Advances one char at a time so line/column bookkeeping stays correct.
+  public match(str: string): boolean {
+    if (!this.src.startsWith(str, this.pos)) {
       return false;
     }
-    this.advance();
+    for (let i = 0; i < str.length; i++) {
+      this.advance();
+    }
     return true;
   }
 
