@@ -18,6 +18,13 @@ export type RuntimeValue = (
   | { type: 'Done' }
 );
 
+// Per-type narrowings, so a builtin impl keyed under 'Int' can take an
+// already-narrowed receiver (`r.value` is a bigint) without re-checking.
+export type IntValue = Extract<RuntimeValue, { type: 'Int' }>;
+export type FloatValue = Extract<RuntimeValue, { type: 'Float' }>;
+export type StringValue = Extract<RuntimeValue, { type: 'String' }>;
+export type ListValue = Extract<RuntimeValue, { type: 'List' }>;
+
 // Thin value constructors — the runtime twin of INT_TYPE etc. on the type
 // side, so the evaluator and the builtin table stop repeating
 // `{ type: 'Int', value: … }` literals. None/Done carry no data, so they're

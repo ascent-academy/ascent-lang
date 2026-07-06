@@ -1,15 +1,14 @@
 import type { ProgramArg } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
-import type { Span } from './lexer/token.js';
-import type { AscentType } from './types/types.js';
 import { RuntimeError } from './errors/runtime-error.js';
 import {
-  coerce, formatFloat, scalarToString, graphemesOf,
+  coerce, scalarToString,
   intVal, floatVal, strVal, boolVal, NONE, DONE,
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
 import { Environment, type AssignResult } from './interpreter/env.js';
+import { evalMethodCall } from './interpreter/builtins.js';
 
 // Re-export the value domain and the scope chain so existing importers of
 // './interpreter.js' (lib.ts, the CLI, the tests) keep resolving
@@ -59,13 +58,15 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
       const args = expr.args.map(a => evaluateExpr(a, env));
-      // Pass the static receiver/argument types alongside the values: the List
-      // methods widen their elements to the result element type, and each
-      // source's own static type is the `from` its coercion witness needs.
-      return evalMethodCall(
-        receiver, expr.method, args,
-        expr.receiver.type, expr.args.map(a => a.type), expr.type, expr.span,
-      );
+      // The ctx carries the static types alongside the values: the List methods
+      // widen their elements to the result element type, and each source's own
+      // static type is the `from` its coercion witness needs.
+      return evalMethodCall(receiver, expr.method, args, {
+        span: expr.span,
+        receiverType: expr.receiver.type,
+        argTypes: expr.args.map(a => a.type),
+        resultType: expr.type,
+      });
     }
     case 'list': {
       // expr.type is List<T>; coerce each element from its own static type to
@@ -175,145 +176,6 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       }
       return DONE;
     }
-  }
-};
-
-// ---- Method dispatch ------------------------------------------------
-
-const evalIntMethod = (
-  receiver: Extract<RuntimeValue, { type: 'Int' }>, method: string, _args: RuntimeValue[], span: Span,
-): RuntimeValue => {
-  switch (method) {
-    case 'toString': return strVal(String(receiver.value));
-    case 'toFloat': return floatVal(Number(receiver.value));
-    // abs(INT_MIN) has no representable Int result (its magnitude is one past
-    // INT_MAX) — the classic two's-complement overflow case.
-    case 'abs': return intVal(checkIntOverflow(receiver.value < 0n ? -receiver.value : receiver.value, span));
-    default: throw new Error(`internal: Int has no method '${method}'`);
-  }
-};
-
-const evalFloatMethod = (
-  receiver: Extract<RuntimeValue, { type: 'Float' }>, method: string, args: RuntimeValue[], span: Span,
-): RuntimeValue => {
-  switch (method) {
-    case 'toString': return strVal(formatFloat(receiver.value));
-    case 'toInt': return intVal(checkIntOverflow(BigInt(Math.trunc(receiver.value)), span));
-    case 'abs': return floatVal(Math.abs(receiver.value));
-    case 'min': {
-      const r = args[0]!;
-      return floatVal(Math.min(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, { type: 'Float' }>).value));
-    }
-    case 'max': {
-      const r = args[0]!;
-      return floatVal(Math.max(receiver.value, r.type === 'Int' ? Number(r.value) : (r as Extract<RuntimeValue, { type: 'Float' }>).value));
-    }
-    default: throw new Error(`internal: Float has no method '${method}'`);
-  }
-};
-
-const evalListMethod = (
-  receiver: Extract<RuntimeValue, { type: 'List' }>,
-  method: string, args: RuntimeValue[],
-  receiverType: AscentType, argTypes: AscentType[], resultType: AscentType,
-): RuntimeValue => {
-  // A List-returning method widens every element to the result's element type
-  // (e.g. appending a Float to a List<Int> yields List<Float>). Each source —
-  // the receiver's own elements, or a value that came from an argument —
-  // carries its own static type, so each gets its own coercion witness; the
-  // checker has already proven every one subtypes the result element type.
-  // length/isEmpty don't return a List, so resultElem is null and nothing is
-  // coerced.
-  const resultElem = resultType.kind === 'List' ? resultType.elem : null;
-  const recvElem = receiverType.kind === 'List' ? receiverType.elem : null;
-  const coerceRecv = (v: RuntimeValue): RuntimeValue =>
-    resultElem !== null && recvElem !== null ? coerce(v, recvElem, resultElem) : v;
-
-  switch (method) {
-    case 'length': return intVal(BigInt(receiver.elements.length));
-    case 'isEmpty': return boolVal(receiver.elements.length === 0);
-    case 'reverse': return { type: 'List', elements: [...receiver.elements].reverse().map(coerceRecv) };
-    case 'append':
-      return { type: 'List', elements: [...receiver.elements.map(coerceRecv), coerce(args[0]!, argTypes[0]!, resultElem!)] };
-    case 'prepend':
-      return { type: 'List', elements: [coerce(args[0]!, argTypes[0]!, resultElem!), ...receiver.elements.map(coerceRecv)] };
-    case 'concat': {
-      const other = args[0]! as Extract<RuntimeValue, { type: 'List' }>;
-      // The argument is itself a List; its elements coerce from *its* element
-      // type to the result's, which can differ from the receiver's edge (e.g.
-      // List<Float>.concat(List<Int>) widens the argument, not the receiver).
-      const otherType = argTypes[0]!;
-      const otherElem = otherType.kind === 'List' ? otherType.elem : null;
-      const coerceOther = (v: RuntimeValue): RuntimeValue =>
-        resultElem !== null && otherElem !== null ? coerce(v, otherElem, resultElem) : v;
-      return {
-        type: 'List',
-        elements: [...receiver.elements.map(coerceRecv), ...other.elements.map(coerceOther)],
-      };
-    }
-    default: throw new Error(`internal: List has no method '${method}'`);
-  }
-};
-
-// design.md §4/§9: no integer indexing on String — first/last/slice work in
-// graphemes and crash (bug tier, like list '[ ]') rather than lie about what
-// they return, exactly the reasoning that already governs List indexing.
-const evalStringMethod = (
-  receiver: Extract<RuntimeValue, { type: 'String' }>, method: string, args: RuntimeValue[], span: Span,
-): RuntimeValue => {
-  switch (method) {
-    case 'length': return intVal(BigInt(graphemesOf(receiver.value).length));
-    case 'first':
-    case 'last': {
-      // design.md §4: returns String? — None on an empty String, never a
-      // crash, since an empty receiver is an expected case here, not a bug.
-      const chars = graphemesOf(receiver.value);
-      if (chars.length === 0) return NONE;
-      return strVal(method === 'first' ? chars[0]! : chars[chars.length - 1]!);
-    }
-    case 'chars':
-      return { type: 'List', elements: graphemesOf(receiver.value).map((c): RuntimeValue => strVal(c)) };
-    case 'slice': {
-      const chars = graphemesOf(receiver.value);
-      const start = Number((args[0] as Extract<RuntimeValue, { type: 'Int' }>).value);
-      const end = Number((args[1] as Extract<RuntimeValue, { type: 'Int' }>).value);
-      if (start < 0 || end > chars.length || start > end) {
-        throw new RuntimeError({
-          code: 'R0007',
-          span,
-          data: { start: String(start), end: String(end), length: String(chars.length) },
-        });
-      }
-      return strVal(chars.slice(start, end).join(''));
-    }
-    case 'repeat': {
-      const count = (args[0] as Extract<RuntimeValue, { type: 'Int' }>).value;
-      if (count < 0n) {
-        throw new RuntimeError({ code: 'R0008', span, data: { count: String(count) } });
-      }
-      return strVal(receiver.value.repeat(Number(count)));
-    }
-    case 'trim':
-      return strVal(receiver.value.trim());
-    case 'padLeft': {
-      const target = Number((args[0] as Extract<RuntimeValue, { type: 'Int' }>).value);
-      const padCount = Math.max(0, target - graphemesOf(receiver.value).length);
-      return strVal(' '.repeat(padCount) + receiver.value);
-    }
-    default: throw new Error(`internal: String has no method '${method}'`);
-  }
-};
-
-const evalMethodCall = (
-  receiver: RuntimeValue, method: string, args: RuntimeValue[],
-  receiverType: AscentType, argTypes: AscentType[], resultType: AscentType, span: Span,
-): RuntimeValue => {
-  switch (receiver.type) {
-    case 'Int': return evalIntMethod(receiver, method, args, span);
-    case 'Float': return evalFloatMethod(receiver, method, args, span);
-    case 'String': return evalStringMethod(receiver, method, args, span);
-    case 'List': return evalListMethod(receiver, method, args, receiverType, argTypes, resultType);
-    default: throw new Error(`internal: ${receiver.type} has no methods`);
   }
 };
 

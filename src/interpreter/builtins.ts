@@ -1,0 +1,170 @@
+import type { Span } from '../lexer/token.js';
+import type { AscentType } from '../types/types.js';
+import { RuntimeError } from '../errors/runtime-error.js';
+import {
+  coerce, formatFloat, graphemesOf,
+  intVal, floatVal, strVal, boolVal, NONE,
+  type RuntimeValue, type IntValue, type FloatValue, type StringValue, type ListValue,
+} from './values.js';
+import { checkIntOverflow } from './arithmetic.js';
+
+// ---- Built-in methods: data, not control flow -----------------------
+//
+// The runtime peer of check/signatures.ts's METHODS table. Keyed identically —
+// receiver type kind, then method name — but holding the *implementation* of
+// each builtin rather than its *signature*. "What a method does" is data that
+// grows whenever a builtin is added; dispatch is the one lookup-and-apply rule
+// below (evalMethodCall), not a switch per type.
+//
+// The checker has already guaranteed receiver type, method name, and arity
+// before a call reaches here (synth's methodCall bails to Invalid otherwise,
+// exactly as signatures.ts relies on), so every lookup is total by
+// construction and the impls never re-validate. The two tables are kept from
+// drifting by a parity meta-test (test/builtins-parity.test.ts): every METHODS
+// key must have a METHOD_IMPLS entry and vice-versa.
+
+// Everything an impl needs beyond its receiver and evaluated args: the call
+// span (for the R#### crashes a few methods raise) and the static types the
+// List methods coerce their elements against when the result widens
+// (design.md §7 — see coerce below).
+export type MethodCtx = {
+  span: Span;
+  receiverType: AscentType;
+  argTypes: AscentType[];
+  resultType: AscentType;
+};
+
+// The receiver arrives narrowed to R: the dispatcher only ever calls an entry
+// under the key that matches its receiver's runtime type.
+type MethodImpl<R extends RuntimeValue = RuntimeValue> =
+  (recv: R, args: RuntimeValue[], ctx: MethodCtx) => RuntimeValue;
+
+const INT_IMPLS: Record<string, MethodImpl<IntValue>> = {
+  // `r` is annotated here (and on Float.toString) only because the key
+  // 'toString' collides with Object.prototype.toString's `() => string`, which
+  // hijacks the contextual type; every other entry infers `r` from the group.
+  toString: (r: IntValue) => strVal(String(r.value)),
+  toFloat: r => floatVal(Number(r.value)),
+  // abs(INT_MIN) has no representable Int result (its magnitude is one past
+  // INT_MAX) — the classic two's-complement overflow case.
+  abs: (r, _args, { span }) => intVal(checkIntOverflow(r.value < 0n ? -r.value : r.value, span)),
+};
+
+const FLOAT_IMPLS: Record<string, MethodImpl<FloatValue>> = {
+  toString: (r: FloatValue) => strVal(formatFloat(r.value)),
+  toInt: (r, _args, { span }) => intVal(checkIntOverflow(BigInt(Math.trunc(r.value)), span)),
+  abs: r => floatVal(Math.abs(r.value)),
+};
+
+// design.md §4/§9: no integer indexing on String — first/last/slice work in
+// graphemes and crash (bug tier, like list '[ ]') rather than lie about what
+// they return, exactly the reasoning that already governs List indexing.
+const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
+  length: r => intVal(BigInt(graphemesOf(r.value).length)),
+  first: r => {
+    // design.md §4: returns String? — None on an empty String, never a crash,
+    // since an empty receiver is an expected case here, not a bug.
+    const chars = graphemesOf(r.value);
+    return chars.length === 0 ? NONE : strVal(chars[0]!);
+  },
+  last: r => {
+    const chars = graphemesOf(r.value);
+    return chars.length === 0 ? NONE : strVal(chars[chars.length - 1]!);
+  },
+  chars: r => ({ type: 'List', elements: graphemesOf(r.value).map((c): RuntimeValue => strVal(c)) }),
+  slice: (r, args, { span }) => {
+    const chars = graphemesOf(r.value);
+    const start = Number((args[0] as IntValue).value);
+    const end = Number((args[1] as IntValue).value);
+    if (start < 0 || end > chars.length || start > end) {
+      throw new RuntimeError({
+        code: 'R0007', span,
+        data: { start: String(start), end: String(end), length: String(chars.length) },
+      });
+    }
+    return strVal(chars.slice(start, end).join(''));
+  },
+  repeat: (r, args, { span }) => {
+    const count = (args[0] as IntValue).value;
+    if (count < 0n) {
+      throw new RuntimeError({ code: 'R0008', span, data: { count: String(count) } });
+    }
+    return strVal(r.value.repeat(Number(count)));
+  },
+  trim: r => strVal(r.value.trim()),
+  padLeft: (r, args) => {
+    const target = Number((args[0] as IntValue).value);
+    const padCount = Math.max(0, target - graphemesOf(r.value).length);
+    return strVal(' '.repeat(padCount) + r.value);
+  },
+};
+
+// The element type of a List type, or null when it isn't a List
+// (length/isEmpty return Int/Bool). `widen` coerces one element from its own
+// static type to the result's; a null on either side means "no widening", so
+// the element passes straight through. A List-returning method widens every
+// element to the result element type (design.md §7) — the receiver's own, and
+// any coming from an argument, each by its own static edge (e.g.
+// List<Float>.concat(List<Int>) widens the argument, not the receiver).
+const elemTypeOf = (t: AscentType): AscentType | null => (t.kind === 'List' ? t.elem : null);
+const widen = (v: RuntimeValue, from: AscentType | null, to: AscentType | null): RuntimeValue =>
+  from !== null && to !== null ? coerce(v, from, to) : v;
+const widenAll = (vs: RuntimeValue[], from: AscentType | null, to: AscentType | null): RuntimeValue[] =>
+  vs.map(v => widen(v, from, to));
+
+const LIST_IMPLS: Record<string, MethodImpl<ListValue>> = {
+  length: r => intVal(BigInt(r.elements.length)),
+  isEmpty: r => boolVal(r.elements.length === 0),
+  reverse: (r, _args, ctx) => ({
+    type: 'List',
+    elements: widenAll([...r.elements].reverse(), elemTypeOf(ctx.receiverType), elemTypeOf(ctx.resultType)),
+  }),
+  append: (r, args, ctx) => {
+    const toElem = elemTypeOf(ctx.resultType);
+    return {
+      type: 'List',
+      elements: [...widenAll(r.elements, elemTypeOf(ctx.receiverType), toElem), widen(args[0]!, ctx.argTypes[0]!, toElem)],
+    };
+  },
+  prepend: (r, args, ctx) => {
+    const toElem = elemTypeOf(ctx.resultType);
+    return {
+      type: 'List',
+      elements: [widen(args[0]!, ctx.argTypes[0]!, toElem), ...widenAll(r.elements, elemTypeOf(ctx.receiverType), toElem)],
+    };
+  },
+  concat: (r, args, ctx) => {
+    const toElem = elemTypeOf(ctx.resultType);
+    const other = args[0] as ListValue;
+    return {
+      type: 'List',
+      elements: [
+        ...widenAll(r.elements, elemTypeOf(ctx.receiverType), toElem),
+        ...widenAll(other.elements, elemTypeOf(ctx.argTypes[0]!), toElem),
+      ],
+    };
+  },
+};
+
+// Each group is written with its receiver narrowed (IntValue, ListValue, …);
+// the cast to the erased MethodImpl is sound because evalMethodCall only
+// invokes METHOD_IMPLS[receiver.type], so the receiver always matches the key.
+export const METHOD_IMPLS: Partial<Record<RuntimeValue['type'], Record<string, MethodImpl>>> = {
+  Int: INT_IMPLS as Record<string, MethodImpl>,
+  Float: FLOAT_IMPLS as Record<string, MethodImpl>,
+  String: STRING_IMPLS as Record<string, MethodImpl>,
+  List: LIST_IMPLS as Record<string, MethodImpl>,
+};
+
+// The one lookup-and-apply rule. Both lookups are total by construction (the
+// checker proved the receiver has this method), so a miss is an internal
+// invariant violation, not a user error.
+export const evalMethodCall = (
+  receiver: RuntimeValue, method: string, args: RuntimeValue[], ctx: MethodCtx,
+): RuntimeValue => {
+  const impls = METHOD_IMPLS[receiver.type];
+  if (impls === undefined) throw new Error(`internal: ${receiver.type} has no methods`);
+  const impl = impls[method];
+  if (impl === undefined) throw new Error(`internal: ${receiver.type} has no method '${method}'`);
+  return impl(receiver, args, ctx);
+};
