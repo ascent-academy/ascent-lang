@@ -6,6 +6,8 @@
 
 ---
 
+> **Document set.** This is the **settled language reference** (§1–§13): the decided features and the reasoning behind them. Everything *beyond* the settled core — scope boundaries, open questions, the standard-library build plan, and forward design for traits/generics — lives in the companion **`ascent-frontiers.md`** (§14–§16). The trait system's full open-questions inventory is in **`traits-open-questions.md`**. Cross-references to §14–§16 in this document resolve in the frontiers doc.
+
 ## 1. Design principles
 
 These are the rules every other decision answers to.
@@ -75,13 +77,11 @@ count = count + 1;   # fine; would be an error on a fixed slot
   ```
 - **Compile-time-validated data literals — the fenced-backtick DSL family.** Embedded foreign data (JSON now; HTML, regex, … as they are blessed) is written as a **tagged backtick block**, not a string and not a call — because it *is* a different thing (a span of foreign syntax the compiler validates), and it should look like one. Inline uses single backticks, blocks use a Markdown-style triple-backtick fence with the tag:
 
-  ````ascent
-  fix data = json`{ "hello": "world" }`          # inline
-
-  fix page = json```
-  { "hello": "world", "items": [1, 2, 3] }
+  ```ascent
+  fix data = json`{ "hello": "world" }`
   ```
-  ````
+
+  A multi-line block is written just as a Markdown fenced code block is — the tag immediately before an opening triple-backtick fence, the payload on the lines between, and a matching closing fence — so `json`, `html`, and `regex` blocks read exactly like the fenced code in this document.
 
   The backtick is unused elsewhere in Ascent, rare inside DSL payloads, and visually distinct from `"` strings and from `()` calls; the leading tag names the DSL; and the triple-fence is the universally-recognized "here is a block of «language»" from Markdown, which web-bound learners already read fluently. **Payloads that themselves contain backticks escalate the fence** (a longer fence wraps content holding a shorter one — Markdown's own rule, inherited wholesale), so the end is always findable. The compiler **validates the block at authoring time** — malformed JSON is a *compile* error, position-accurate and pointing inside the block. This is **not a macro system**: the tag set is a **closed, compiler-curated** collection chosen by the language author, and it is **off by default — a file switches a DSL on by importing it** (`import json`), so a file with no DSL imports has zero DSL surface and the import documents exactly which formats are live. No third-party code ever runs in the compiler; adding a DSL is a compiler change, made with the language designer's quality bar.
 - **A DSL block is syntax-checked at compile time, *shape*-checked at runtime.** `json`…`` produces a runtime **`Json` value** — the nominal tagged union (object / array / string / number / bool / null), navigated by `match` — **not** a structural type inferred from the block's shape. Inferring a shape-type (`{ name: String, age: Int }`) would reintroduce the structural typing §7 shut out, so it is refused. To cross from generic `Json` to one of *your* nominal types you **decode**: `data.decode(User)` returns `User orelse DecodeError`, a runtime, fallible boundary that teaches parse-at-the-edge. So the two failures land honestly where each can — **compile time checks the syntax, runtime `decode` checks the shape against your type.** Each DSL is this pairing: a compile-time *validator* plus a runtime *library* that supplies the value's type and operations.
@@ -261,8 +261,10 @@ The governing move: the checker mainly answers one question — *"are these two 
 - **Nominal typing.** A `User` is a `User` because it was declared one (simple to implement, clear errors, predictable).
 - **No subtyping.** No inheritance, no implicit widening, no variance. The cracks are two hard-coded widening rules, not a system: a non-null `T` is usable where `T?` is expected, and `Never` (below) is usable as any type. Methods don't disturb this: `x.f()` is a nominal lookup of `f` on `x`'s concrete type — at most one match, with no overloading and no dispatch hierarchy to search.
 - **`Never`, the bottom type — machinery, not vocabulary.** A few expressions *diverge*: they never produce a value — `abort` (§9), `.orAbort()` on its failing case, a bug-tier crash, the bad-case arm of `try` (it `return`s), and an infinite loop. Their type is `Never`, which is assignable to *every* type. That is what lets a `match` arm `abort` while the arm beside it yields an `Int` (the `abort` arm satisfies `Int`), and lets a `match` whose `Err` arm `return`s still take the type of its `Ok` arm; it also underpins exhaustiveness and reachability checking. In v1 `Never` is **not a type anyone writes** — no `-> Never` annotations — it lives in the checker and surfaces only as plain diagnostics ("this line can't run — the line above always aborts"). The same hide-the-abstraction move as the monad behind `try` (§9).
+- **`Invalid`, the failure placeholder — the dual of `Never`.** A checker-internal type (never surface syntax, like `Never`) that a sub-expression receives when its type-checking *fails*, so checking continues past an error instead of aborting — which lets the checker **report several independent errors in one pass** and **always emit a fully-typed tree** for editor tooling (hover, completion) even on broken input. Four rules make it correct: **(1)** it is produced *only alongside an emitted diagnostic* — a tombstone for an already-reported failure, never a silent type a valid program can hold (this is what keeps it from being a backdoor `Any`); **(2)** it **absorbs in both directions** (assignable to every type *and* every type assignable to it) *and* any operation on an `Invalid` operand yields `Invalid` **with no new diagnostic** — the cascade-suppression that reports one error at `x` rather than ten across everything that uses `x`; **(3)** it is **checker-internal** — no `-> Invalid` annotations, and it never appears in a user-facing message (the user sees the real diagnostic, never "expected `Int`, got `Invalid`"); **(4)** any `Invalid` in the final tree **fails compilation** — the typed tree is a *tooling artifact*, never handed to codegen, so *checking-continues* never means *program-is-valid*. Quality lever: whenever an expected type is available, adopt **it** over `Invalid` (`fix x: Int = <bad expr>` gives `x: Int`), containing the failure to the smallest region. Kept distinct from its two neighbours: **`Never`** is `<:` everything but *not* the reverse, and appears in *valid* programs (a real bottom, not a failure); **`Err` / `Result`** (§9) are runtime failure *values* in *valid* programs — `Invalid` shares only a vague English root with them, and is a *type*, internal, present only in *broken* programs. With `Invalid`, inference **never returns null** and needs no `failed` flags — `typecheck` always yields a typed tree.
 - **The empty collection literal is `List<Never>` — no `?` / dynamic type needed.** As an *expression*, `[]` has type **`List<Never>`** — a list of the bottom type, which is both *true* (it has no elements) and *useful* (`Never` is assignable to every type). Because collections are **immutable** (§3), they are safely **covariant** in their element type — the covariance-is-unsound trap requires *mutation* (slipping a `Cat` into a `List<Animal>` that is really a `List<Dog>`), which does not exist here — so `List<Never>` flows into any `List<T>` **expected-type position** with no annotation: `fix xs: List<Int> = []` (the annotation supplies it), `f([])` where `f` wants `List<String>` (the parameter type supplies it), `[] ++ [1, 2]` (the other operand supplies it). But a **slot binding whose inferred type still carries an unresolved `Never`** — a bare `fix xs = []` with no annotation and no expected-type context — **is a T0003 error** (annotate it), exactly as a bare `None` is. Resolution comes *only* from expected-type context, **never from a later use**: a slot's type is fixed at its binding, there is no cross-statement flow and no flow-sensitive slot type (so a subsequent `xs = xs.append(3)` does *not* retroactively resolve the element type — that would be a materially larger inference feature Ascent does not have). No `?` or `dynamic`/`Any` type is introduced — that would be the runtime-unknown escape hatch §6 forbids; `Never` is the honest answer ("it's empty, so its element type is the empty type, which fits anywhere"), and immutability is what makes it flow — a real payoff of value semantics: immutability *buys* sound covariance.
 - **Inference lives only on slots.** Every function signature is fully explicit — **both parameter and return types are mandatory** — so nothing about a function's type is reconstructed from its body, errors stay local and name real types, and recursion needs no special case. A slot's type is inferred from its initializer; generic *type arguments* at call sites are still inferred automatically (you never write `map<Int, Int>`). Implemented via **bidirectional type checking** (bounded, no global unification). Wrinkle: a slot whose initializer carries no type information (a bare `[]` or lone `None`) needs an annotation.
+- **Narrowing is by *binding*, not by flow-sensitive slot retyping.** A slot's type is fixed at its binding (above), so Ascent does **not** retype an existing slot mid-scope the way TypeScript does (`if (typeof x === "string") { /* x is string here */ }`). But this is **not** "no narrowing" — narrowing happens by *introducing a new, well-typed binding*, which covers every real case: **`match` narrows a union to a variant**, its pattern binding the variant's fields at their known types (`match (shape) { Circle{ r } -> …; Square{ s } -> … }` — `r` / `s` are fresh, arm-scoped `Float`s); and **`T?` narrows to `T`** through `match`, `??`, `try`, `.orAbort()`, or a `!= None` check (§9). The narrowed value always has a *name* and a *scope* on the page — explicit and refactor-stable — rather than a slot whose type silently differs by region (TypeScript's flow-narrowing is invisible and fragile: extract a function or move code into a callback and it silently breaks). So the fixed-slot rule and full narrowing coexist: the slot is untouched, and the *binding* carries the sharper type. *(Possible future sugar, deferred: an `if let value = x { … }` form — a one-armed `match` that binds `value: T` from an `x: T?` for the block — would give the lightweight "check-and-use" ergonomics of TypeScript's `if`-narrowing while remaining narrowing-by-binding, not slot retyping. Recorded so it is not re-derived if the `match`-only form proves heavy for the common Optional case.)*
 - **Generics are consumable, not definable** in v1 (`List<Int>`, `Map<K,V>`, stdlib `map`/`filter`). The only polymorphism is built-in operators + stdlib generics — no interfaces/typeclasses/overloading yet. The compatible future path for shared behavior is trait/typeclass-style contracts (polymorphism *without* subtyping, à la Rust traits) — a v2 candidate that rides alongside user-definable generics, never class inheritance.
 - **Types describe data; they do not compute** (no type-level computation).
 
@@ -507,103 +509,6 @@ args (age: Int, name: String);
 
 ---
 
-## 14. Out of scope
-
-**No inheritance, no subtyping — Ascent is not class-based OOP, and never will be.** It *does* have methods (§6), but classes, inheritance, and subtype hierarchies are out for good, not just in v1. This is settled on principle: they would require subtyping, and the entire type system's simplicity (§7) rests on *not* having it — so adding them later wouldn't be a feature, it would be tearing out the foundation. Methods deliver the object-like *feel* — and real method chaining — without any of it, exactly as Rust's and Go's structs do. Shared behavior, if it ever comes, arrives as trait-style contracts that need no subtyping.
-
-**Deferred** — a "later module," introduced when a learner asks the question it answers: interfaces / typeclasses (traits) · user-definable generics · exceptions · operator overloading · default / named arguments · placeholder sections (`T{ field: _ }` as a function, with partial application) · varargs · comprehensions · getters / setters · decorators · macros · tuples · `Set` · `Char`.
-
----
-
-## 15. Open questions & backlog
-
-The conceptual core is closed — values, slots, the numeric model, expressions, the data model (§6), the type-system spine (§7), strings, `args`, the block-value rule, and the full error model (§9) cohere, and recent questions have resolved *from* these principles rather than forcing new ones. What remains is a different character of work, grouped below by kind rather than as one sequential list. The implementation itself (the build-log, growing the interpreter one capability at a time) is the parallel execution track, separate from these design questions.
-
-### Design frontiers — genuine design left
-
-- **UI / effects model — core decided (§11), edges open.** The architecture is settled: pure `view`/`update` returning `Element`/`Command` values, a runtime loop that performs effects via structured-concurrency tasks, subscriptions as model-scoped structured concurrency, failures re-entering as messages. Still open: what a `Command` *is* (a closed built-in set the runtime knows — the v1 answer — versus an open, user-extensible kind, which brushes traits); **composability** — nested view/update with local state, the *React-transfer-critical and retrofit-hard* property the design must honor from the start.
-- **Structured concurrency (nurseries) — model decided (§8), mechanics pending.** Decided: a *nursery* is the owner-node of its child tasks (a stack frame for concurrency) — a block that is also a passable first-class `Nursery` value, with `start` as a method so nothing spawns without one; its three responsibilities are wait / propagate-failure-and-cancel-siblings / own-cancellation, and result-collection is deliberately *not* one; one fail-fast error policy, with all combinators (`all`/`gather`/`race`/`any`) as library functions that transform tasks and loop over completions (proven complete over the primitive). Pending mechanics: the completion surface (imperative pull `nextCompletion` vs. a **channel** of completions), whether **channels** enter the language at all (they would also serve the dynamic-*and*-collecting case), how `start` returns a result/handle, cancellation semantics, and multi-failure aggregation.
-- **Widget vocabulary.** The minimal `Element` set — genuinely library content, writable once the effects substrate above exists.
-- **Compile-time-validated DSLs — `json` decided (§4), notation set, interpolation + `html` open.** Decided: a *closed, compiler-curated* set of tagged fenced-backtick blocks (inline `` json`...` ``, block triple-fence, Markdown fence-escalation), **off by default and switched on per-file by import**, each a compile-time validator paired with a runtime library; `json` produces a runtime `Json` value (nominal union, *not* structural shapes) with `.decode(NominalType)` as the runtime boundary; no general macro system, no third-party compiler code. Open: **DSL interpolation** — typed, DSL-aware, auto-escaping `${}` holes (it interacts with both compile-time validation and injection safety, so it is *not* plain string splicing); **`html` → `Element`** as the UI-authoring surface (Ascent's JSX), designed *with* the UI frontier; and the compiler architecture (embedded per-format validators, source-position-accurate diagnostics into the block).
-
-### Standard library — mostly effort, some trait-gated
-
-- **Collections — build concrete, extract traits later (the anti-over-engineering rule).** The collection systems people love (Rust's) were *grown from concrete types with the trait extracted*; the ones they regret (Scala's early hierarchy, rewritten in 2.13) were *designed top-down first*. So the plan is explicitly **grow, don't design up front** — the hierarchy is a north star, not a starting point:
-  - **Phase 1 (now, no traits): `List<T>` as a concrete built-in.** A persistent data structure with structural sharing (§12 — start with a persistent vector, RRB-tree later; swappable without semantic change). `for x in xs` is hard-coded for `List` (it is the eventual `Iterable` desugar target, concrete for now). Methods are base-verb / returning (§6): `map`, `filter`, `reduce`, `find`, `contains`, `append`, `insert`, `remove`, `first` / `last` (→ `T?`, `None` on empty), `at` (→ `T?`) and `[i]` (→ `T`, crash-out-of-bounds, §9), `length`, `isEmpty`, `reverse`, `slice`, `concat`, and — hard-coded for the built-in comparable elements (`Int` / `Float` / `String` / `Bool`) — `sort`, `min`, `max`. **Write the signatures as if the element traits already existed** (so `sort` assumes "elements compare"), hard-coded for built-ins now; when the trait lands, `sort` generalizes to `T: Comparable` *without changing its shape*. This is buildable today and is exactly what early lessons need.
-
-    **Accessor rule — crash on a broken assumption, Optional on a normal absence.** `first()` / `last()` return `T?` (`None` on empty), because an empty list is a *normal value*, not a bug — they are the guarded `.at`-family (`first()` is `at(0)` by another name). The crashing "I've proven it's there" accessor is the existing `xs[i]` — so both situations already have spellings: `xs[0]` (crash if empty) and `xs.first()` (`None` if empty). **Indices are non-negative positions from the front, period.** A negative index is *out of bounds*: `xs[-1]` crashes (bug tier, §9) and `xs.at(-1)` yields `None`. There is **no** Python-style "negative means from the end" — it would branch `[i]` on the runtime *sign* of a possibly-computed index, silently turning an accidentally-negative value into the last element (a silent wrong answer where Ascent wants a loud caught bug), and it is a false friend to the C-family (`arr[-1]` is absent/error there) that students graduate to. End-relative access is the named `last()` / `first()` — exactly what `[-1]` was reaching for, done safely (Optional, arithmetic-proof). (String `first()` / `last()` follow the same rule — `String?`, `None` on empty, §4 — and strings have no indexing at all, so the negative-index question never arises there.)
-  - **Phase 2 (with §16 traits): extract the hierarchy from concrete `List` / `Map` / `Set`.** Once traits exist and there are three real collections to compare, the shared capabilities are *extracted* from evidence, not guessed. The **target** — deliberately minimal, Rust-small not Scala-sprawling, two short ladders — is: **element traits** `Equatable` → `Comparable` → `Hashable` (the ones operations *require*: `contains` needs `Equatable`, `sort`/`min`/`max` need `Comparable`, hash-based `Map`/`Set` need `Hashable`), plus **`Display`** (has a canonical string form — *discovered from evidence* in string interpolation, §4, which needs it to fill a `${}` hole; hard-coded to scalars until traits exist); and **container traits** `Iterable` (the root — yield elements one at a time, the `for` desugar target) → `Collection` (Iterable + known length / `isEmpty`; a lazy infinite stream is `Iterable` but *not* `Collection`) → `Indexed` (Collection + positional `[i]` — `List`, but not `Set`/`Map`) and `Keyed` (Map-like key → value). This is the shape to *grow toward*, **not** to build up front — the extracted hierarchy will differ from this guess, which is precisely why it must come from three concrete implementations rather than from zero.
-- **String API** — `trim`/`split`/etc., and how text meets the boundary.
-- **`Map` API & literals** — literal form, lookup returning `V?`, and key constraints (needs equality/hashing — trait-gated, §16).
-- **Number formatting** — how `Int`/`Float` render in `${…}` and `.toStr()`.
-
-### Core details still thin — decide with their stage
-
-- **Collections — model settled; a builder escape open.** Decided: structures are immutable; all collection methods **return new values** using plain base-form verbs (`sort`, `reverse`, `append`, `insert`, `remove`, `map`, `filter`) — no `-ed` participle, since with mutation gone there is no mutating twin to distinguish from (§6). Change is rebinding a `mut` slot (§3, §6). Indexing has two reading accessors (§9): `xs[i]` yields `T` and crashes out-of-bounds (bug tier), `xs.at(i)` yields `T?`. Element replacement is the update form `xs with { [i] = v }` (§6), not an assignment. Still open: the precise method set and exact names, and whether to add a single quarantined **builder** — a transient, mutable-under-the-hood collection for genuine hot loops (Clojure's transients, or an array behind `Ref`) — as an advanced, opt-in escape so rebind-only never hits a performance cliff.
-- **Equality & ordering on user types.** Structural `==` is decided; *ordering* (and *hashing* for `Map` keys) need `Comparable`/`Hashable` traits (§16).
-
-### The generics / traits slot
-
-- **The single most important forward-compat decision** — user-definable generics *and* trait-style contracts, designed so they drop in without breaking changes. Concrete design already in **§16**; it gates the trait-dependent items above (ordering, hashing, auto error-conversion, the construction-site interaction).
-
-### Deferred by design — parked, correctly late
-
-- **`Ref` surface** — `get`/`set` vs a `.value` field; identity vs structural equality once `Ref` exists. For cyclic data.
-- **Construction-site type inference** — an expected type supplies the constructor name (`fix f = fn() -> Person => Person{ name: "A", age: 1 }`); downward propagation through the bidirectional checker (§7), nominal, *no* anonymous records; interacts with the generics slot.
-- **Automatic error conversion (candidate, not committed)** — `From`-style hidden adaptation for bare `try`, weighed against honesty; revisit only if `try … else` proves noisy in real code (§9).
-- **Supervised crash-recovery boundary** — isolate and restart/report a task that hits a bug, without making crashes catchable inline; preserves the two-tier model (§9).
-- **`args` empty field** — does an empty text field mean `None` or `""` (§11)?
-
----
-
-## 16. Forward design: traits & generics (v2)
-
-Traits are **not in v1** — beginners use concrete types and the curated methods of §6 and never meet one. This records the *decided shape* of the v2 feature so it is not re-derived, and so v1 avoids blocking it. A trait is a **named capability** — a set of method signatures a type can claim — letting functions work over "any type that can do X." It is polymorphism **without** inheritance or subtyping: a type *claims* capabilities (a flat set), it does not *descend* from them, so §7's no-subtyping rule is undisturbed.
-
-**Declaration** reuses the `methods` member syntax (§6) with bodies optional — a member with no body is *required*, a member with a body is a *default* the implementer inherits or overrides. `Self` denotes the implementing type.
-
-```ascent
-trait Equatable {
-    equals:    fn(self, other: Self) -> Bool,                            # required
-    notEquals: fn(self, other: Self) -> Bool => not self.equals(other),  # default
-}
-```
-
-**Implementation** is a *separate* block — deliberately unlike a type's own `methods {}`, because an impl attaches behavior a type *claims* (and, later, may attach to a type you don't own). Keeping them apart makes "intrinsic behavior" and "a claimed capability" read as different things. The impl repeats the full signature (every signature is explicit, §7):
-
-```ascent
-implement Equatable for Player {
-    equals: fn(self, other: Self) -> Bool => self.name == other.name,
-}
-```
-
-**Supertraits** — traits extending traits — express **capability dependency**, written `requires`:
-
-```ascent
-trait Comparable requires Equatable {
-    lessThan: fn(self, other: Self) -> Bool,
-}
-```
-
-Any type implementing `Comparable` must also implement `Equatable`, and `Comparable`'s defaults may call `Equatable`'s methods. This is **not** subtyping: a `Comparable` value is not a kind-of `Equatable`, there is no hierarchy to search and no substitutability — just "implementers carry both capabilities." The keyword is `requires`, not Rust's `:`, precisely because `:` reads as "is a kind of" (the subtyping model Ascent bans); `requires` says the honest thing.
-
-**Consumption — bounded generics.** A function generic over any type with a capability:
-
-```ascent
-fn announce<T: Equatable>(a: T, b: T) -> String =>
-    if (a.equals(b)) { "same" } else { "different" }
-```
-
-`<T: Equatable>` reads "for any `T` that implements `Equatable`," and inside, the trait *guarantees* `.equals` exists. This is the consumption side of the generics slot — and the hardest part for a learner (the `<…>` / `:` bound syntax), which is why traits stay an advanced, library-author feature.
-
-**What it unlocks** (each parked elsewhere, all the same door): extensible collections without ambient monkey-patching — a user *implements a trait* rather than bolting a method onto your `List`, gated by an **orphan rule** (an impl is allowed only if you own the trait *or* the type, which prevents collisions and spooky-action); automatic error conversion (the §15 candidate, i.e. `implement From<ReadError> for AppError`); and the hidden "value-or-not" abstraction behind `try` (§9), which stays hidden — recognizing it *as* a trait is exactly what confirms you have chosen not to surface it.
-
-**v1's only obligation: don't block this.** Keep intrinsic behavior in the type's `methods {}` (so the later `implement` block reads as distinct); keep generics *consumable, not definable* (§7), since a user-defined generic is only useful with a bound and a bound *is* a trait — so generics and traits arrive together; and `trait`, `implement`, `requires`, and `Self` are reserved now (§2) so no future program breaks when the feature lands, even though they are unusable until then. Designed as one feature, this is the generics / traits slot of §15.
-
-**Full open-questions inventory:** the trait system is a large, deferred design with retrofit-expensive hard parts (the orphan rule, static-vs-dynamic dispatch, associated types). Every concern — tiered by dependency, with the entry point and the *grow-don't-design* prerequisite (build concrete `List`/`Map`/`Set` first, extract the hierarchy from them) — is collected in the companion document **`traits-open-questions.md`**, to be picked up cold when the concrete collections are in hand.
-
----
-
 ## Appendix — a representative program
 
 ```ascent
@@ -637,3 +542,13 @@ fix main = fn() -> Done {                       # a free function, block body
     print(ada.describe());                       # describe calls self.rank()
 };
 ```
+
+---
+
+## Beyond v1 — see the Frontiers document
+
+Scope boundaries, open questions, and forward design are kept in the companion **`ascent-frontiers.md`** so this reference stays tight and implementation-facing:
+
+- **§14 Out of scope** — permanent exclusions and the deferred-features list.
+- **§15 Open questions & backlog** — the standard-library build plan (concrete `List`→`Map`→`Set`), DSL interpolation, the collections builder escape, and other open design.
+- **§16 Forward design: traits & generics (v2)** — the shape of the trait system; full open-questions inventory in **`traits-open-questions.md`**.
