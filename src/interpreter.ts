@@ -5,36 +5,15 @@ import type { AscentType } from './types/types.js';
 import { RuntimeError } from './errors/runtime-error.js';
 import {
   coerce, formatFloat, scalarToString, graphemesOf,
-  isNumeric, asFloat, valuesEqual,
   intVal, floatVal, strVal, boolVal, NONE, DONE,
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
+import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
 
 // Re-export the value domain so existing importers of './interpreter.js'
 // (lib.ts, the CLI, the tests) keep resolving RuntimeValue/ScalarValue
 // here; interpreter/values.ts is the source of truth.
 export type { ScalarValue, RuntimeValue };
-
-// Int is a 64-bit signed whole number (design.md §4): it traps on overflow
-// rather than silently wrapping around.
-const INT_MIN = -(2n ** 63n);
-const INT_MAX = 2n ** 63n - 1n;
-
-const checkIntOverflow = (value: bigint, span: Span): bigint => {
-  if (value < INT_MIN || value > INT_MAX) {
-    throw new RuntimeError({ code: 'R0001', span });
-  }
-  return value;
-};
-
-// Every Float is a real, ordered number (design.md §4) — NaN/Infinity never
-// exist as a value, so any operation that would produce one crashes instead.
-const checkFiniteFloat = (value: number, span: Span): number => {
-  if (!Number.isFinite(value)) {
-    throw new RuntimeError({ code: 'R0004', span });
-  }
-  return value;
-};
 
 type Binding = { value: RuntimeValue; mutable: boolean };
 
@@ -176,7 +155,11 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         if (right.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
         return right;
       }
-      return evaluateBinary(expr, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env));
+      // expr.right.span is where R0002/R0003 point — at the divisor/exponent,
+      // not the whole expression (expr.span, used for an overflow result).
+      return evaluateBinary(
+        expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env), expr.span, expr.right.span,
+      );
     }
     case 'block': {
       return evaluateBlock(expr, env);
@@ -370,81 +353,6 @@ const evalMethodCall = (
     case 'List': return evalListMethod(receiver, method, args, receiverType, argTypes, resultType);
     default: throw new Error(`internal: ${receiver.type} has no methods`);
   }
-};
-
-// ---- Binary operators -----------------------------------------------
-
-// BigInt's own '%' truncates toward zero (remainder takes the sign of
-// the dividend, like C/Java/JS). 'mod' instead floors — the result
-// takes the sign of the divisor — so a single correction pass covers
-// the case where the truncating remainder landed on the wrong side of
-// zero. 'div' is then defined from 'mod' so the identity
-// `(a div b) * b + (a mod b) == a` holds by construction.
-const floorDivMod = (a: bigint, b: bigint): { div: bigint; mod: bigint } => {
-  let mod = a % b;
-  if (mod !== 0n && (mod < 0n) !== (b < 0n)) mod += b;
-  return { div: (a - mod) / b, mod };
-};
-
-type BinaryExpr = Extract<TypedExpr, { kind: 'binary' }>;
-
-const evaluateBinary = (expr: BinaryExpr, left: RuntimeValue, right: RuntimeValue): RuntimeValue => {
-  const { op, span } = expr;
-
-  if (op === '==' || op === '!=') {
-    const eq = valuesEqual(left, right);
-    return boolVal(op === '==' ? eq : !eq);
-  }
-
-  if (!isNumeric(left) || !isNumeric(right)) throw new Error(`internal: '${op}' on non-numeric`);
-
-  if (op === '<' || op === '<=' || op === '>' || op === '>=') {
-    const useInt = left.type === 'Int' && right.type === 'Int';
-    const l = useInt ? left.value : asFloat(left);
-    const r = useInt ? right.value : asFloat(right);
-    const result = op === '<' ? l < r : op === '<=' ? l <= r : op === '>' ? l > r : l >= r;
-    return boolVal(result);
-  }
-
-  if (op === 'div' || op === 'mod') {
-    if (left.type !== 'Int' || right.type !== 'Int') throw new Error(`internal: '${op}' on non-Int`);
-    if (right.value === 0n) throw new RuntimeError({ code: 'R0002', span: expr.right.span });
-    const { div, mod } = floorDivMod(left.value, right.value);
-    // INT_MIN div -1 is the one 'div'/'mod' case that can overflow: its exact
-    // result (INT_MAX + 1) has no representable Int.
-    return intVal(checkIntOverflow(op === 'div' ? div : mod, span));
-  }
-
-  if (op === '/') {
-    const divisor = asFloat(right);
-    if (divisor === 0) throw new RuntimeError({ code: 'R0002', span: expr.right.span });
-    return floatVal(checkFiniteFloat(asFloat(left) / divisor, span));
-  }
-
-  if (op === '**') {
-    if (left.type === 'Int' && right.type === 'Int') {
-      // The result type is fixed at Int ** Int -> Int regardless of the
-      // exponent's runtime sign (§5), so a negative exponent — which would
-      // need a fractional result — can't be silently truncated; it crashes.
-      if (right.value < 0n) {
-        throw new RuntimeError({ code: 'R0003', span: expr.right.span });
-      }
-      return intVal(checkIntOverflow(left.value ** right.value, span));
-    }
-    return floatVal(checkFiniteFloat(Math.pow(asFloat(left), asFloat(right)), span));
-  }
-
-  if (left.type === 'Int' && right.type === 'Int') {
-    const v = op === '+' ? left.value + right.value
-      : op === '-' ? left.value - right.value
-        : left.value * right.value;
-    return intVal(checkIntOverflow(v, span));
-  }
-
-  const l = asFloat(left);
-  const r = asFloat(right);
-  const v = op === '+' ? l + r : op === '-' ? l - r : l * r;
-  return floatVal(checkFiniteFloat(v, span));
 };
 
 // Bound to one program's `args`: `set` rejects a name that isn't one of
