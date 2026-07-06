@@ -4,7 +4,7 @@ import { INT_TYPE, subtype, type AscentType } from '../types/types.js';
 // AscentType. Everything here operates on a RuntimeValue independent of the
 // tree walk: constructors, coercion, equality, and display.
 
-export type PrimitiveValue = (
+export type ScalarValue = (
   | { type: 'Int'; value: bigint }
   | { type: 'Float'; value: number }
   | { type: 'Bool'; value: boolean }
@@ -12,7 +12,7 @@ export type PrimitiveValue = (
 );
 
 export type RuntimeValue = (
-  | PrimitiveValue
+  | ScalarValue
   | { type: 'List'; elements: RuntimeValue[] }
   | { type: 'None' }
   | { type: 'Done' }

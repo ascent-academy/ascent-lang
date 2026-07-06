@@ -7,13 +7,13 @@ import {
   coerce, formatFloat, scalarToString, graphemesOf,
   isNumeric, asFloat, valuesEqual,
   intVal, floatVal, strVal, boolVal, NONE, DONE,
-  type PrimitiveValue, type RuntimeValue,
+  type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 
 // Re-export the value domain so existing importers of './interpreter.js'
-// (lib.ts, the CLI, the tests) keep resolving RuntimeValue/PrimitiveValue
+// (lib.ts, the CLI, the tests) keep resolving RuntimeValue/ScalarValue
 // here; interpreter/values.ts is the source of truth.
-export type { PrimitiveValue, RuntimeValue };
+export type { ScalarValue, RuntimeValue };
 
 // Int is a 64-bit signed whole number (design.md §4): it traps on overflow
 // rather than silently wrapping around.
@@ -427,13 +427,13 @@ const evaluateBinary = (expr: BinaryExpr, left: RuntimeValue, right: RuntimeValu
 // match the arg's declared type.
 export class ProgramInputs {
   private readonly argDefs: Map<string, ProgramArg>;
-  private readonly values = new Map<string, PrimitiveValue>();
+  private readonly values = new Map<string, ScalarValue>();
 
   public constructor(argDefs: ProgramArg[]) {
     this.argDefs = new Map(argDefs.map(def => [def.name, def]));
   }
 
-  public set(name: string, value: PrimitiveValue): this {
+  public set(name: string, value: ScalarValue): this {
     const argDef = this.argDefs.get(name);
     if (argDef === undefined) {
       throw new Error(`'${name}' is not a declared program input`);
@@ -445,7 +445,7 @@ export class ProgramInputs {
     return this;
   }
 
-  public get(name: string): PrimitiveValue | undefined {
+  public get(name: string): ScalarValue | undefined {
     return this.values.get(name);
   }
 }

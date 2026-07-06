@@ -37,7 +37,7 @@ export {
   executeProgram,
   ProgramInputs,
 } from './interpreter.js';
-export type { RuntimeValue, RuntimeResult, AssignResult, PrimitiveValue } from './interpreter.js';
+export type { RuntimeValue, RuntimeResult, AssignResult, ScalarValue } from './interpreter.js';
 
 export type { RuntimeError } from './errors/runtime-error.js';
 
