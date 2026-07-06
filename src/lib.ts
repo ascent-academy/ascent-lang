@@ -3,8 +3,14 @@
 // wanting source-to-typed-AST in one call should use parse():
 //
 //   const { program, diagnostics } = parse(src);
+//   if (diagnostics.length > 0) { /* report them; do not execute */ }
 //   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
 //   const result = executeProgram(program!, inputs);
+//
+// `program` is non-null whenever typechecking itself ran — even for a
+// program with type errors, it always returns a fully-typed tree for tooling
+// (agenda/phase5.md) — so the diagnostics check above, not `program`'s
+// nullness, is what decides whether it's safe to execute.
 //
 // The individual stages are also re-exported for tools that need
 // intermediate results (e.g. tokens, or the untyped AST):

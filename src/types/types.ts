@@ -6,6 +6,7 @@ export type AscentType =
   | { kind: 'None' }
   | { kind: 'Done' }
   | { kind: 'Never' }
+  | { kind: 'Invalid' }
   | { kind: 'List'; elem: AscentType }
   | { kind: 'Optional'; elem: AscentType };
 
@@ -19,6 +20,14 @@ export const DONE_TYPE: AscentType = { kind: 'Done' };
 // (yet) a type anyone writes; it only ever shows up as the checker's own
 // inference for a diverging expression, or (below) an empty list literal.
 export const NEVER_TYPE: AscentType = { kind: 'Never' };
+// agenda/phase5.md: a checker-internal tombstone for a sub-expression whose
+// own type-checking already failed (a diagnostic was reported at that node) —
+// never written in source, never shown in a message. It is Never's dual:
+// Never is the honest bottom of a *valid* program, Invalid marks a *broken*
+// one. See subtype()/leastCommonType() below for the "absorbs both
+// directions" rule that lets a failure stop at the point it's reported
+// instead of cascading into new, misleading diagnostics further up the tree.
+export const INVALID_TYPE: AscentType = { kind: 'Invalid' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
 export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
 
@@ -80,6 +89,16 @@ export type Coercion = 'intToFloat' | { elem: Coercion } | null;
 // Returns the coercion that witnesses the edge, or `false` when S is not a
 // subtype of T.
 export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
+  // Invalid absorbs both directions (agenda/phase5.md Rule 2): it's
+  // assignable to every type and every type is assignable to it, so a value
+  // that already failed to check satisfies whatever expectation meets it
+  // next without a second diagnostic. `null` is a safe placeholder witness
+  // here — this coercion must never actually run (Rule 4: a tree containing
+  // Invalid never reaches execution).
+  if (sub.kind === 'Invalid' || sup.kind === 'Invalid') {
+    return null;
+  }
+
   if (typesEqual(sub, sup)) {
     return null;
   }
@@ -112,6 +131,15 @@ export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
 // elements (structural join; doesn't add any widening knowledge of its own).
 // Returns null when the two types have no common supertype.
 export const leastCommonType = (a: AscentType, b: AscentType): AscentType | null => {
+  // Checked explicitly (rather than left to fall out of subtype() below) so
+  // the join is Invalid regardless of which side it's on — subtype()'s
+  // absorption alone would make the *first* subtype(a, b) check succeed and
+  // return `b` even when only `a` is Invalid, silently discarding the
+  // failure instead of propagating it (agenda/phase5.md Rule 2).
+  if (a.kind === 'Invalid' || b.kind === 'Invalid') {
+    return INVALID_TYPE;
+  }
+
   if (subtype(a, b) !== false) {
     return b;
   }
