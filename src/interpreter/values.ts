@@ -1,4 +1,4 @@
-import { INT_TYPE, subtype, type AscentType } from '../types/types.js';
+import { subtype, type AscentType, type Coercion } from '../types/types.js';
 
 // The runtime value domain — the interpreter's twin of types/types.ts's
 // AscentType. Everything here operates on a RuntimeValue independent of the
@@ -29,15 +29,28 @@ export const boolVal = (value: boolean) => ({ type: 'Bool' as const, value });
 export const NONE = { type: 'None' as const };
 export const DONE = { type: 'Done' as const };
 
-// Coerce a runtime value to match a target type, per the witness `subtype`
-// produces — currently only Int <: Float, so only an Int value ever moves.
-// All other type conversions are explicit (methods like toFloat/toInt).
-export const coerce = (v: RuntimeValue, targetType: AscentType): RuntimeValue => {
-  if (v.type === 'Int' && subtype(INT_TYPE, targetType) === 'intToFloat') {
-    return floatVal(Number(v.value));
-  }
-  return v;
+// Apply the runtime witness `subtype` produced (types/types.ts's Coercion) to
+// a value. Recurses into lists, so a nested widening — List<List<Int>> <:
+// List<List<Float>> — is one call rather than element recursion re-rolled by
+// hand at every level. `null` (equal types, or Never/Invalid's vacuous edge)
+// is a no-op; 'intToFloat' promotes the one scalar widening; `{ elem }` maps
+// the inner witness over a List's elements. It is the sole reason a value ever
+// changes shape at runtime.
+export const applyCoercion = (v: RuntimeValue, c: Coercion): RuntimeValue => {
+  if (c === null) return v;
+  if (c === 'intToFloat') return floatVal(Number((v as Extract<RuntimeValue, { type: 'Int' }>).value));
+  const list = v as Extract<RuntimeValue, { type: 'List' }>;
+  return { type: 'List', elements: list.elements.map(e => applyCoercion(e, c.elem)) };
 };
+
+// Coerce a runtime value of static type `from` into one of type `to`, per the
+// witness `subtype` produces. The checker has already proven `from <: to` at
+// every call site (the checker never emits a coercion it didn't first prove),
+// so the witness is never `false`; `|| null` collapses that impossible case to
+// a no-op instead of throwing. All conversions other than these subtyping
+// edges are explicit (methods like toFloat/toInt).
+export const coerce = (v: RuntimeValue, from: AscentType, to: AscentType): RuntimeValue =>
+  applyCoercion(v, subtype(from, to) || null);
 
 // Float's canonical string form always shows the decimal point, so a whole
 // number stays visibly a Float (`3.0`, never collapsed to `3` like an Int).

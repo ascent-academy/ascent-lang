@@ -118,14 +118,23 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
       const args = expr.args.map(a => evaluateExpr(a, env));
-      return evalMethodCall(receiver, expr.method, args, expr.type, expr.span);
+      // Pass the static receiver/argument types alongside the values: the List
+      // methods widen their elements to the result element type, and each
+      // source's own static type is the `from` its coercion witness needs.
+      return evalMethodCall(
+        receiver, expr.method, args,
+        expr.receiver.type, expr.args.map(a => a.type), expr.type, expr.span,
+      );
     }
     case 'list': {
-      // expr.type is List<T>; coerce each element to T (handles Int → Float).
+      // expr.type is List<T>; coerce each element from its own static type to
+      // T. Going through the full witness (not just a top-level Int → Float)
+      // is what widens a nested element, e.g. a List<Int> element under a
+      // List<List<Float>> literal.
       const elemType = expr.type.kind === 'List' ? expr.type.elem : null;
       const elements = expr.elements.map(el => {
         const v = evaluateExpr(el, env);
-        return elemType !== null ? coerce(v, elemType) : v;
+        return elemType !== null ? coerce(v, el.type, elemType) : v;
       });
       return { type: 'List', elements };
     }
@@ -195,14 +204,15 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
   switch (stmt.kind) {
     case 'fix':
     case 'mut': {
-      // Coerce the init value to the declared slot type (handles Int → Float
-      // when the annotation says Float but the literal is an Int).
-      const value = coerce(evaluateExpr(stmt.init, env), stmt.slotType);
+      // Coerce the init value from its own type to the declared slot type
+      // (handles Int → Float when the annotation says Float but the literal is
+      // an Int, and any nested widening the same edge implies).
+      const value = coerce(evaluateExpr(stmt.init, env), stmt.init.type, stmt.slotType);
       env.declare(stmt.name, value, stmt.kind === 'mut');
       return DONE;
     }
     case 'assign': {
-      const value = coerce(evaluateExpr(stmt.value, env), stmt.slotType);
+      const value = coerce(evaluateExpr(stmt.value, env), stmt.value.type, stmt.slotType);
       const result = env.assign(stmt.name, value);
       if (result !== 'ok') throw new Error(`internal: assign '${stmt.name}' → ${result}`);
       return DONE;
@@ -259,26 +269,41 @@ const evalFloatMethod = (
 
 const evalListMethod = (
   receiver: Extract<RuntimeValue, { type: 'List' }>,
-  method: string, args: RuntimeValue[], resultType: AscentType,
+  method: string, args: RuntimeValue[],
+  receiverType: AscentType, argTypes: AscentType[], resultType: AscentType,
 ): RuntimeValue => {
-  // For methods that return a List, resultType.elem is the element type to
-  // coerce to (handles Int → Float when the list widens, e.g. after concat).
-  const elemType = resultType.kind === 'List' ? resultType.elem : null;
-  const coerceElem = (v: RuntimeValue) => elemType !== null ? coerce(v, elemType) : v;
+  // A List-returning method widens every element to the result's element type
+  // (e.g. appending a Float to a List<Int> yields List<Float>). Each source —
+  // the receiver's own elements, or a value that came from an argument —
+  // carries its own static type, so each gets its own coercion witness; the
+  // checker has already proven every one subtypes the result element type.
+  // length/isEmpty don't return a List, so resultElem is null and nothing is
+  // coerced.
+  const resultElem = resultType.kind === 'List' ? resultType.elem : null;
+  const recvElem = receiverType.kind === 'List' ? receiverType.elem : null;
+  const coerceRecv = (v: RuntimeValue): RuntimeValue =>
+    resultElem !== null && recvElem !== null ? coerce(v, recvElem, resultElem) : v;
 
   switch (method) {
     case 'length': return intVal(BigInt(receiver.elements.length));
     case 'isEmpty': return boolVal(receiver.elements.length === 0);
-    case 'reverse': return { type: 'List', elements: [...receiver.elements].reverse().map(coerceElem) };
+    case 'reverse': return { type: 'List', elements: [...receiver.elements].reverse().map(coerceRecv) };
     case 'append':
-      return { type: 'List', elements: [...receiver.elements.map(coerceElem), coerceElem(args[0]!)] };
+      return { type: 'List', elements: [...receiver.elements.map(coerceRecv), coerce(args[0]!, argTypes[0]!, resultElem!)] };
     case 'prepend':
-      return { type: 'List', elements: [coerceElem(args[0]!), ...receiver.elements.map(coerceElem)] };
+      return { type: 'List', elements: [coerce(args[0]!, argTypes[0]!, resultElem!), ...receiver.elements.map(coerceRecv)] };
     case 'concat': {
       const other = args[0]! as Extract<RuntimeValue, { type: 'List' }>;
+      // The argument is itself a List; its elements coerce from *its* element
+      // type to the result's, which can differ from the receiver's edge (e.g.
+      // List<Float>.concat(List<Int>) widens the argument, not the receiver).
+      const otherType = argTypes[0]!;
+      const otherElem = otherType.kind === 'List' ? otherType.elem : null;
+      const coerceOther = (v: RuntimeValue): RuntimeValue =>
+        resultElem !== null && otherElem !== null ? coerce(v, otherElem, resultElem) : v;
       return {
         type: 'List',
-        elements: [...receiver.elements.map(coerceElem), ...other.elements.map(coerceElem)],
+        elements: [...receiver.elements.map(coerceRecv), ...other.elements.map(coerceOther)],
       };
     }
     default: throw new Error(`internal: List has no method '${method}'`);
@@ -335,13 +360,14 @@ const evalStringMethod = (
 };
 
 const evalMethodCall = (
-  receiver: RuntimeValue, method: string, args: RuntimeValue[], resultType: AscentType, span: Span,
+  receiver: RuntimeValue, method: string, args: RuntimeValue[],
+  receiverType: AscentType, argTypes: AscentType[], resultType: AscentType, span: Span,
 ): RuntimeValue => {
   switch (receiver.type) {
     case 'Int': return evalIntMethod(receiver, method, args, span);
     case 'Float': return evalFloatMethod(receiver, method, args, span);
     case 'String': return evalStringMethod(receiver, method, args, span);
-    case 'List': return evalListMethod(receiver, method, args, resultType);
+    case 'List': return evalListMethod(receiver, method, args, receiverType, argTypes, resultType);
     default: throw new Error(`internal: ${receiver.type} has no methods`);
   }
 };
