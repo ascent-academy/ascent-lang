@@ -9,53 +9,15 @@ import {
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
+import { Environment, type AssignResult } from './interpreter/env.js';
 
-// Re-export the value domain so existing importers of './interpreter.js'
-// (lib.ts, the CLI, the tests) keep resolving RuntimeValue/ScalarValue
-// here; interpreter/values.ts is the source of truth.
+// Re-export the value domain and the scope chain so existing importers of
+// './interpreter.js' (lib.ts, the CLI, the tests) keep resolving
+// RuntimeValue/ScalarValue/Environment/AssignResult here; interpreter/values.ts
+// and interpreter/env.ts are the sources of truth.
 export type { ScalarValue, RuntimeValue };
-
-type Binding = { value: RuntimeValue; mutable: boolean };
-
-export type AssignResult = 'ok' | 'immutable' | 'undeclared';
-
-// A chain of scopes, one per block. A lookup (or assignment) walks
-// outward through parents; a declaration always writes to the current
-// (innermost) scope, so a 'fix'/'mut' inside a block shadows an outer
-// slot of the same name without touching it, and the shadow disappears
-// once the block ends.
-export class Environment {
-  private readonly vars = new Map<string, Binding>();
-
-  public constructor(private readonly parent: Environment | null = null) { }
-
-  public get(name: string): RuntimeValue | undefined {
-    return this.vars.get(name)?.value ?? this.parent?.get(name);
-  }
-
-  public declare(name: string, value: RuntimeValue, mutable: boolean): void {
-    this.vars.set(name, { value, mutable });
-  }
-
-  // Reassigns a slot in whichever scope actually owns it (not
-  // necessarily this one), mutating the binding in place so every
-  // Environment sharing this chain sees the new value immediately —
-  // this is what lets a 'while' loop's condition observe a slot its
-  // body just changed.
-  public assign(name: string, value: RuntimeValue): AssignResult {
-    const binding = this.vars.get(name);
-    if (binding === undefined) {
-      return this.parent?.assign(name, value) ?? 'undeclared';
-    }
-    if (!binding.mutable) return 'immutable';
-    binding.value = value;
-    return 'ok';
-  }
-
-  public child(): Environment {
-    return new Environment(this);
-  }
-}
+export { Environment };
+export type { AssignResult };
 
 export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
