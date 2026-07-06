@@ -399,7 +399,7 @@ function parseMultilineStringTemplate(ts: TokenStream): Expr | null {
     last = chunk;
   }
 
-  const { texts, errors } = dedent(rawChunks, last.margin ?? 0);
+  const { texts, errors } = dedent(rawChunks, last.dedentMargin ?? 0);
   for (const e of errors) ts.report(e.code, e.span);
   if (errors.length > 0) return null;
 

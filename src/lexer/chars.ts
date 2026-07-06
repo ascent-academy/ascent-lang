@@ -1,3 +1,5 @@
+// Approved
+
 export const isDigit = (ch: string): boolean => ch >= '0' && ch <= '9';
 
 export const isAlpha = (ch: string): boolean =>

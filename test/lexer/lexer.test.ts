@@ -209,7 +209,7 @@ describe('Multiline strings', () => {
   it('records the margin as the column of the closing """', () => {
     const [tok] = new Lexer('"""\n    hi\n    """').tokenize().tokens;
     assert.equal(tok?.kind, 'MSTR_PART_END');
-    assert.equal(tok?.margin, 4);
+    assert.equal(tok?.dedentMargin, 4);
   });
 
   it('tokenizes a hole inside a multiline string like a single-line one', () => {

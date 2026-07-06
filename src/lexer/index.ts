@@ -181,7 +181,7 @@ export class Lexer {
         this.c.advance();
         this.c.advance();
         this.modeStack.pop();
-        return { kind: 'MSTR_PART_END', value, span: this.c.spanFrom(start), margin };
+        return { kind: 'MSTR_PART_END', value, span: this.c.spanFrom(start), dedentMargin: margin };
       }
       if (ch === '$' && this.c.peek(1) === '{') {
         const interpStart = this.c.mark();

@@ -1,3 +1,5 @@
+// Approved
+
 import type { Position, Span } from './token.js';
 
 export class Cursor {

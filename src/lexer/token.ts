@@ -1,51 +1,51 @@
 export type TokenKind =
-  | 'INT_LIT'    // a sequence of decimal digits: 0, 42, 1000
-  | 'FLOAT_LIT'  // a decimal number with a dot: 0.5, 3.14, 1.0
-  | 'STR_PART'      // a chunk of string text immediately followed by '${' — an interpolation hole comes next
-  | 'STR_PART_END'  // a chunk of string text that runs to the closing '"' — the string ends here
+  | 'INT_LIT'        // a sequence of decimal digits: 0, 42, 1000
+  | 'FLOAT_LIT'      // a decimal number with a dot: 0.5, 3.14, 1.0
+  | 'STR_PART'       // a chunk of string text immediately followed by '${' — an interpolation hole comes next
+  | 'STR_PART_END'   // a chunk of string text that runs to the closing '"' — the string ends here
   | 'MSTR_PART'      // like STR_PART, but inside a multiline """..."""  string — raw, undedented text
   | 'MSTR_PART_END'  // like STR_PART_END, but for """..."""  — carries `margin` (see Token below)
-  | 'BOOL_LIT'   // True or False
-  | 'NONE_LIT'   // None
-  | 'DONE_LIT'   // Done — the unit constructor
-  | 'SLOT'       // a lowercase-starting identifier — a binding name
-  | 'PLUS'       // '+'
-  | 'MINUS'      // '-'
-  | 'STAR'       // '*'
-  | 'STAR_STAR'  // '**' — raises the left operand to the right operand's power
-  | 'SLASH'      // '/', always real division — yields a Float
-  | 'KW_DIV'     // the keyword div — Int-only floor division
-  | 'KW_MOD'     // the keyword mod — Int-only floored modulo
-  | 'KW_AND'     // the keyword and — Bool-only logical and, short-circuits
-  | 'KW_OR'      // the keyword or — Bool-only logical or, short-circuits
-  | 'KW_NOT'     // the keyword not — Bool-only prefix negation
-  | 'KW_FIX'     // the keyword fix — declares a fixed slot
-  | 'KW_MUT'     // the keyword mut — declares a mutable slot
-  | 'KW_IF'      // the keyword if — starts a conditional expression
-  | 'KW_ELSE'    // the keyword else — the alternative branch of an if
-  | 'KW_WHILE'   // the keyword while — starts a condition loop
-  | 'KW_ARGS'    // the keyword args — declares the program's typed inputs
-  | 'TYPE_NAME'  // a built-in type name: Int, Float, Bool, String
-  | 'COLON'      // ':' — separates a name from its type annotation
-  | 'EQUALS'     // '=' — used in slot declarations and updates
-  | 'EQ_EQ'      // '==' — structural equality
-  | 'BANG_EQ'    // '!=' — structural inequality
-  | 'LT'         // '<'
-  | 'LT_EQ'      // '<='
-  | 'GT'         // '>'
-  | 'GT_EQ'      // '>='
-  | 'DOT'        // '.' — method call operator
-  | 'COMMA'      // ','
-  | 'SEMICOLON'  // ';' — statement terminator
-  | 'LPAREN'     // '('
-  | 'RPAREN'     // ')'
-  | 'LBRACE'     // '{'
-  | 'RBRACE'     // '}'
-  | 'LBRACKET'   // '[' — list literal open / index open
-  | 'RBRACKET'   // ']' — list literal close / index close
-  | 'QUESTION'   // '?' — the Optional<T> suffix in a type annotation, e.g. 'String?'
-  | 'ERROR'      // a character or run the lexer couldn't recognise
-  | 'EOF';       // the sentinel that marks the end of source
+  | 'BOOL_LIT'       // True or False
+  | 'NONE_LIT'       // None
+  | 'DONE_LIT'       // Done — the unit constructor
+  | 'SLOT'           // a lowercase-starting identifier — a binding name
+  | 'PLUS'           // '+' — addition operator
+  | 'MINUS'          // '-' — subtraction operator
+  | 'STAR'           // '*' — multiplication operator
+  | 'STAR_STAR'      // '**' — raises the left operand to the right operand's power
+  | 'SLASH'          // '/', always real division — yields a Float
+  | 'KW_DIV'         // the keyword div — Int-only floor division
+  | 'KW_MOD'         // the keyword mod — Int-only floored modulo
+  | 'KW_AND'         // the keyword and — Bool-only logical and, short-circuits
+  | 'KW_OR'          // the keyword or — Bool-only logical or, short-circuits
+  | 'KW_NOT'         // the keyword not — Bool-only prefix negation
+  | 'KW_FIX'         // the keyword fix — declares a fixed slot
+  | 'KW_MUT'         // the keyword mut — declares a mutable slot
+  | 'KW_IF'          // the keyword if — starts a conditional expression
+  | 'KW_ELSE'        // the keyword else — the alternative branch of an if
+  | 'KW_WHILE'       // the keyword while — starts a condition loop
+  | 'KW_ARGS'        // the keyword args — declares the program's typed inputs
+  | 'TYPE_NAME'      // a built-in type name: Int, Float, Bool, String
+  | 'COLON'          // ':' — separates a name from its type annotation
+  | 'EQUALS'         // '=' — used in slot declarations and updates
+  | 'EQ_EQ'          // '==' — structural equality
+  | 'BANG_EQ'        // '!=' — structural inequality
+  | 'LT'             // '<' — less than
+  | 'LT_EQ'          // '<=' — less than or equal to
+  | 'GT'             // '>' — greater than
+  | 'GT_EQ'          // '>=' — greater than or equal to
+  | 'DOT'            // '.' — method call operator
+  | 'COMMA'          // ',' — separates items in a list or arguments in a function call
+  | 'SEMICOLON'      // ';' — statement terminator
+  | 'LPAREN'         // '(' — open parenthesis
+  | 'RPAREN'         // ')' — close parenthesis
+  | 'LBRACE'         // '{' — open brace
+  | 'RBRACE'         // '}' — close brace
+  | 'LBRACKET'       // '[' — list literal open / index open
+  | 'RBRACKET'       // ']' — list literal close / index close
+  | 'QUESTION'       // '?' — the Optional<T> suffix in a type annotation, e.g. 'String?'
+  | 'ERROR'          // a character or run the lexer couldn't recognise
+  | 'EOF';           // the sentinel that marks the end of source
 
 export interface Position {
   offset: number;  // 0-based index into the source string
@@ -84,7 +84,6 @@ export interface Token {
   span: Span;
   // Only set on MSTR_PART_END: the column of the closing '"""' — how many
   // characters precede it on its own line, and so how many leading
-  // characters the dedent pass (src/parser/dedent.ts) strips from every
-  // line of the string (design.md §4).
-  margin?: number;
+  // characters to dedent from every line of the string
+  dedentMargin?: number;
 }
