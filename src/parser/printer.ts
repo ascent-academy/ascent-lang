@@ -164,11 +164,13 @@ const stmtLines = (stmt: Statement): string[] => {
       return [`${chalk.cyan('Assign')} ${chalk.green(stmt.name)}`, ...value];
     }
     case 'typeDecl': {
-      const fieldLines = stmt.fields.map((f, i) =>
-        (i === stmt.fields.length - 1 ? chalk.dim('└─ ') : chalk.dim('├─ ')) +
-        `${chalk.green(f.name)}${chalk.dim(': ' + formatTypeExpr(f.type))}`
-      );
-      return [`${chalk.cyan('Type')} ${chalk.green(stmt.name)}`, ...fieldLines];
+      const variantLines = stmt.variants.flatMap((v, i) => {
+        const fieldLines = v.fields.flatMap((f, j) =>
+          branch([`${chalk.green(f.name)}${chalk.dim(': ' + formatTypeExpr(f.type))}`], j === v.fields.length - 1)
+        );
+        return branch([`${chalk.cyan('Variant')} ${chalk.green(v.tag)}`, ...fieldLines], i === stmt.variants.length - 1);
+      });
+      return [`${chalk.cyan('Type')} ${chalk.green(stmt.name)}`, ...variantLines];
     }
     case 'expr':
       return exprLines(stmt.expr);

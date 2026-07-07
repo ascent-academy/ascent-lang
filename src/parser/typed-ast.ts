@@ -82,11 +82,16 @@ export type TypedIf = {
 // and needs nothing from a typeDecl at runtime.
 export type TypedFieldDecl = { name: string; type: AscentType };
 
+// A typed variant of a tagged-union declaration — its tag and its resolved
+// fields. Like TypedFieldDecl, kept only for the printer / tooling; types are
+// erased before the tree walk.
+export type TypedVariantDecl = { tag: string; fields: TypedFieldDecl[] };
+
 export type TypedStatement = (
   | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
   | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
   | { kind: 'assign'; name: string; slotType: AscentType; value: TypedExpr; span: Span }
-  | { kind: 'typeDecl'; name: string; fields: TypedFieldDecl[]; span: Span }
+  | { kind: 'typeDecl'; name: string; variants: TypedVariantDecl[]; span: Span }
   | { kind: 'expr'; expr: TypedExpr; span: Span }
   // 'void expr' — evaluates `expr` and discards its value; the statement yields
   // Done (whitepaper §2). No `type` field: like every non-'expr' statement, it

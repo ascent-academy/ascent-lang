@@ -1,5 +1,5 @@
 import type { Token } from '../lexer/token.js';
-import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl } from './ast.js';
+import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl, VariantDecl } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseExpr } from './expr.js';
 import { parseTypeExpr } from './type-expr.js';
@@ -294,10 +294,41 @@ function parseFieldDecl(ts: TokenStream): FieldDecl | null {
   return { name: nameTok.value, nameSpan: nameTok.span, type, span: { start: nameTok.span.start, end: type.span.end } };
 }
 
-// 'type Name = { field: Type, … };' — a record type declaration (design.md
-// §6). Only the bare-brace (single-variant) form is parsed for now; the tag
-// of its sole constructor is the type's own name. Multi-variant unions ('|')
-// and the explicit 'type Name = Name{ … }' spelling arrive later.
+// The '{ field: Type, … }' body shared by both the record-sugar head and every
+// union variant: the fields between '{' and '}'. The opening '{' is already
+// confirmed on lookahead by the caller. Returns the fields and the '}' token
+// (for the enclosing node's end span), or null if the body is malformed.
+function parseFields(ts: TokenStream): { fields: FieldDecl[]; close: Token } | null {
+  const open = ts.expect('LBRACE', 'S0020');
+  if (open === null) return null;
+  const parsed = ts.parseSeparated(() => parseFieldDecl(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  if (parsed === null) return null;
+  return { fields: parsed.items, close: parsed.close };
+}
+
+// One 'Tag{ field: Type, … }' variant of a union. The tag is an UpperCamel
+// constructor name; its fields (possibly empty) follow in braces (whitepaper
+// §6). A braceless enum variant ('Red') isn't parsed yet — every variant
+// carries its brace body, so construction stays uniformly 'Tag{ … }'.
+function parseVariantDecl(ts: TokenStream): VariantDecl | null {
+  const tagTok = ts.peek();
+  if (tagTok.kind !== 'TYPE_NAME') {
+    ts.report('S0027', tagTok.span);
+    return null;
+  }
+  ts.advance(); // consume variant tag
+
+  const body = parseFields(ts);
+  if (body === null) return null;
+
+  return { tag: tagTok.value, tagSpan: tagTok.span, fields: body.fields, span: { start: tagTok.span.start, end: body.close.span.end } };
+}
+
+// 'type Name = …;' — a type declaration (whitepaper §6). Two heads share one
+// representation: the record sugar 'type Name = { … }' becomes a single variant
+// whose tag is `name`, and the union form 'type Name = A{ … } | B{ … }' (a lone
+// leading '|' allowed) becomes that list of variants. The explicit single
+// variant 'type Name = Name{ … }' is just the one-variant union.
 function parseTypeDecl(ts: TokenStream): Statement | null {
   const typeTok = ts.advance(); // consume 'type'
 
@@ -310,18 +341,30 @@ function parseTypeDecl(ts: TokenStream): Statement | null {
 
   if (ts.expect('EQUALS', 'S0019') === null) return null;
 
-  const open = ts.expect('LBRACE', 'S0020');
-  if (open === null) return null;
-
-  const parsed = ts.parseSeparated(() => parseFieldDecl(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
-  if (parsed === null) return null;
+  const variants: VariantDecl[] = [];
+  if (ts.peek().kind === 'LBRACE') {
+    // Record sugar: the sole constructor's tag is the type's own name.
+    const body = parseFields(ts);
+    if (body === null) return null;
+    variants.push({ tag: nameTok.value, tagSpan: nameTok.span, fields: body.fields, span: { start: nameTok.span.start, end: body.close.span.end } });
+  } else {
+    // Union form: an optional leading '|', then '|'-separated variants.
+    if (ts.peek().kind === 'PIPE') ts.advance();
+    for (; ;) {
+      const variant = parseVariantDecl(ts);
+      if (variant === null) return null;
+      variants.push(variant);
+      if (ts.peek().kind !== 'PIPE') break;
+      ts.advance(); // consume the '|' before the next variant
+    }
+  }
 
   return {
     kind: 'typeDecl',
     name: nameTok.value,
     nameSpan: nameTok.span,
-    fields: parsed.items,
-    span: { start: typeTok.span.start, end: parsed.close.span.end },
+    variants,
+    span: { start: typeTok.span.start, end: variants[variants.length - 1]!.span.end },
   };
 }
 

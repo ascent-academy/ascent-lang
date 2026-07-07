@@ -259,3 +259,14 @@
   explanation: >-
     Each arm of a 'match' is written as a pattern, then '->', then the result to
     use when it matches — like '0 -> "none"'. This is where the '->' should be.
+
+- code: S0027
+  name: expected-variant
+  category: syntactic
+  summary: A variant name was expected in a 'type' declaration.
+  message: "I expected a variant name here."
+  explanation: >-
+    After the '=' of a 'type', each case is a variant — a name that starts with
+    an uppercase letter, followed by its fields in braces, like the 'Circle' in
+    'type Shape = Circle{ radius: Float } | Square{ side: Float }'. Variants are
+    separated by '|'. This is where a variant name should be.

@@ -340,3 +340,14 @@
   related:
     - key: shadow
       label: "this earlier arm already matches it"
+
+- code: T0032
+  name: field-access-on-union
+  category: type
+  summary: "A '.field' was read from a value that has more than one variant."
+  message: "'{type}' has more than one variant, so it has no fields to read directly."
+  explanation: >-
+    Reading a field with '.name' works on a record — a type with a single
+    variant, whose fields are always the same. '{type}' has more than one
+    variant ({variants}), so which fields it has depends on which one it is.
+    A 'match' looks at each variant on its own and reads that variant's fields.

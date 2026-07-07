@@ -115,15 +115,23 @@ export type Expr = (
 // declared *type*.
 export type FieldDecl = { name: string; nameSpan: Span; type: TypeExpr; span: Span };
 
+// One variant of a tagged-union 'type' (whitepaper §6). `tag` is the
+// variant's constructor name (UpperCamel) — 'Circle' in
+// 'type Shape = Circle{ radius: Float } | …' — and `fields` its own record of
+// fields, possibly empty. A single-variant record ('type User = { … }') is
+// just the one-variant case whose tag is auto-named after the type.
+export type VariantDecl = { tag: string; tagSpan: Span; fields: FieldDecl[]; span: Span };
+
 export type Statement = (
   | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'assign'; name: string; nameSpan: Span; value: Expr; span: Span }
-  // 'type Name = { field: Type, … };' — declares a record type (design.md §6).
-  // Sugar for the single-variant form 'type Name = Name{ … }', so the sole
-  // constructor's tag is `name`. Only the bare-brace (record) form is parsed
-  // for now; unions arrive later.
-  | { kind: 'typeDecl'; name: string; nameSpan: Span; fields: FieldDecl[]; span: Span }
+  // 'type Name = Variant{ … } | Variant{ … };' — declares a tagged-union type
+  // (whitepaper §6). A record ('type Name = { … }') is the single-variant case,
+  // its sole constructor's tag auto-named after the type; the explicit
+  // 'type Name = Name{ … }' spelling and the multi-variant union both land in
+  // the same `variants` list.
+  | { kind: 'typeDecl'; name: string; nameSpan: Span; variants: VariantDecl[]; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
   // 'void expr' — evaluates `expr` for its effect and discards its value, so
   // the statement itself yields Done (whitepaper §2). It's a statement, not an

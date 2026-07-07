@@ -335,6 +335,7 @@ export class Lexer {
       case '[': return this.token('LBRACKET', start);
       case ']': return this.token('RBRACKET', start);
       case '?': return this.token('QUESTION', start);
+      case '|': return this.token('PIPE', start);
       default: return this.error('L0001', this.c.spanFrom(start));
     }
   }

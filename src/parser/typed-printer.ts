@@ -128,11 +128,13 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
       return [`${chalk.cyan('Assign')} ${chalk.green(stmt.name)}${slotTy}`, ...valueLines];
     }
     case 'typeDecl': {
-      const fieldLines = stmt.fields.map((f, i) =>
-        (i === stmt.fields.length - 1 ? chalk.dim('└─ ') : chalk.dim('├─ ')) +
-        `${chalk.green(f.name)}${ty(typeToString(f.type))}`
-      );
-      return [`${chalk.cyan('Type')} ${chalk.green(stmt.name)}`, ...fieldLines];
+      const variantLines = stmt.variants.flatMap((v, i) => {
+        const fieldLines = v.fields.flatMap((f, j) =>
+          branch([`${chalk.green(f.name)}${ty(typeToString(f.type))}`], j === v.fields.length - 1)
+        );
+        return branch([`${chalk.cyan('Variant')} ${chalk.green(v.tag)}`, ...fieldLines], i === stmt.variants.length - 1);
+      });
+      return [`${chalk.cyan('Type')} ${chalk.green(stmt.name)}`, ...variantLines];
     }
     case 'expr':
       return typedExprLines(stmt.expr);

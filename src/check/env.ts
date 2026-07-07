@@ -23,10 +23,9 @@ export interface RecordField {
 
 // The structure behind a nominal 'Named' type — the registry entry a type name
 // resolves to. A record is a single variant whose tag equals the type name
-// (the 'type X = { … }' sugar, design.md §6); modelling it as a variant list
-// now is what lets tagged unions be "more than one variant" later, with no
-// re-representation. declSpan points at the type name in its declaration (for a
-// "already declared here" related span).
+// (the 'type X = { … }' sugar, design.md §6); a tagged union has several, each
+// with its own tag and fields (whitepaper §6). declSpan points at the type name
+// in its declaration (for a "already declared here" related span).
 export interface Variant {
   tag: string;
   fields: RecordField[];
@@ -60,6 +59,20 @@ export class TypeEnv {
 
   public setType(info: TypeInfo): void {
     this.types.set(info.name, info);
+  }
+
+  // Resolve a constructor tag ('Circle') to the type it builds and the variant
+  // it names. Unlike getType (keyed by the *type* name), this searches each
+  // type's variants — a single-variant record's tag equals its type name, but a
+  // union's variant tags ('Circle', 'Square') differ from the type ('Shape').
+  // The checker keeps tags unambiguous (N0010), so the first match is the only
+  // match; a child scope still shadows a parent, as with every other lookup.
+  public getConstructor(tag: string): { info: TypeInfo; variant: Variant } | null {
+    for (const info of this.types.values()) {
+      const variant = info.variants.find(v => v.tag === tag);
+      if (variant !== undefined) return { info, variant };
+    }
+    return this.parent?.getConstructor(tag) ?? null;
   }
 
   public child(): TypeEnv {

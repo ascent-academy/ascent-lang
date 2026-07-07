@@ -170,6 +170,42 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'{name}' already names one of the language's built-in types (Int, Float, Bool, String, List), so a 'type' declaration can't reuse it. Choose a different name for your type."
   },
   {
+    "code": "N0009",
+    "name": "duplicate-variant",
+    "category": "name",
+    "summary": "A 'type' declares two variants with the same name.",
+    "message": "This type already has a variant named '{tag}'.",
+    "explanation": "Each variant of a 'type' has its own name, and the names have to be different so every case can be told apart when you build or match one. '{tag}' is listed twice here — remove or rename one of them.",
+    "related": [
+      {
+        "key": "declaration",
+        "label": "'{tag}' was already listed here"
+      }
+    ]
+  },
+  {
+    "code": "N0010",
+    "name": "duplicate-constructor",
+    "category": "name",
+    "summary": "A variant name is already used by another type.",
+    "message": "There's already a variant named '{tag}', in the type '{owner}'.",
+    "explanation": "A variant name is how you build and match that case, so each one belongs to a single type. '{tag}' already names a variant of '{owner}', so a second type can't reuse it — the name would no longer say which type you meant. Rename this variant.",
+    "related": [
+      {
+        "key": "declaration",
+        "label": "'{tag}' was already declared here"
+      }
+    ]
+  },
+  {
+    "code": "N0011",
+    "name": "construct-multi-variant",
+    "category": "name",
+    "summary": "A multi-variant type is built by its type name instead of a variant.",
+    "message": "'{name}' has more than one variant, so build one of them: {variants}.",
+    "explanation": "A type with several variants isn't built directly — you build one of its variants, since each carries its own fields. '{name}' has these variants: {variants}. Write one of those names in place of '{name}' here, like 'Circle{ radius: 2.0 }'."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",
@@ -459,6 +495,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A '->' was expected after a 'match' arm's pattern.",
     "message": "I expected a '->' here.",
     "explanation": "Each arm of a 'match' is written as a pattern, then '->', then the result to use when it matches — like '0 -> \"none\"'. This is where the '->' should be."
+  },
+  {
+    "code": "S0027",
+    "name": "expected-variant",
+    "category": "syntactic",
+    "summary": "A variant name was expected in a 'type' declaration.",
+    "message": "I expected a variant name here.",
+    "explanation": "After the '=' of a 'type', each case is a variant — a name that starts with an uppercase letter, followed by its fields in braces, like the 'Circle' in 'type Shape = Circle{ radius: Float } | Square{ side: Float }'. Variants are separated by '|'. This is where a variant name should be."
   },
   {
     "code": "T0001",
@@ -757,6 +801,14 @@ export const ERRORS: ErrorEntry[] = [
         "label": "this earlier arm already matches it"
       }
     ]
+  },
+  {
+    "code": "T0032",
+    "name": "field-access-on-union",
+    "category": "type",
+    "summary": "A '.field' was read from a value that has more than one variant.",
+    "message": "'{type}' has more than one variant, so it has no fields to read directly.",
+    "explanation": "Reading a field with '.name' works on a record — a type with a single variant, whose fields are always the same. '{type}' has more than one variant ({variants}), so which fields it has depends on which one it is. A 'match' looks at each variant on its own and reads that variant's fields."
   }
 ];
 

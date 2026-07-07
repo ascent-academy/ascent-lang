@@ -294,18 +294,30 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     }
 
     case 'construct': {
-      const info = env.getType(expr.typeName);
-      if (info === null) {
-        // No such type — N0005. Still synth every field value so independent
-        // errors inside them surface (there's no declared type to check
-        // against, so nothing here can widen or adopt).
-        diagnostics.error({ code: 'N0005', span: expr.typeNameSpan, data: { name: expr.typeName } });
+      // A construction names a *constructor* (a variant tag), which for a record
+      // equals the type name and for a union is one of its variants ('Circle').
+      const ctor = env.getConstructor(expr.typeName);
+      if (ctor === null) {
+        // The name isn't a constructor. If it's nonetheless a declared type, it
+        // must be a multi-variant one (a single-variant type registers its own
+        // name as a constructor) — you build one of *its* variants, not the type
+        // itself (N0011). Otherwise there's simply no such type (N0005). Either
+        // way, still synth every field value so independent errors inside them
+        // surface (nothing here can widen or adopt without a declared field).
+        const asType = env.getType(expr.typeName);
+        if (asType !== null) {
+          diagnostics.error({ code: 'N0011', span: expr.typeNameSpan, data: { name: expr.typeName, variants: asType.variants.map(v => v.tag).join(', ') } });
+        } else {
+          diagnostics.error({ code: 'N0005', span: expr.typeNameSpan, data: { name: expr.typeName } });
+        }
         const typedFields = expr.fields.map(f => ({ name: f.name, declaredType: INVALID_TYPE, value: synth(f.value, env, diagnostics) }));
         return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: INVALID_TYPE, span: expr.span };
       }
 
-      // A record is the sole variant (design.md §6's single-variant sugar).
-      const declaredFields = info.variants[0]!.fields;
+      // The value's type is the whole union (namedType(info.name), e.g. 'Shape'),
+      // even though we built one variant ('Circle') — that variant's fields are
+      // what the provided fields are checked against.
+      const declaredFields = ctor.variant.fields;
       const declaredNames = new Set(declaredFields.map(d => d.name));
 
       // Pass 1: record the first init for each field name, and flag the
@@ -346,7 +358,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         diagnostics.error({ code: 'T0018', span: expr.typeNameSpan, data: { type: expr.typeName, fields: missing.join(', ') } });
       }
 
-      return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: namedType(expr.typeName), span: expr.span };
+      return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: namedType(ctor.info.name), span: expr.span };
     }
 
     case 'fieldAccess': {
@@ -354,14 +366,19 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       if (isInvalidType(typedReceiver.type)) {
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
       }
-      // Field access is legal only on a record (design.md §6 — and, once unions
-      // exist, only on a single-variant one; every Named type is single-variant
-      // today). Anything else has no fields to read.
+      // Field access needs a value with fields to read. A non-Named type has
+      // none (T0022); a Named type does, but only a *record* (one variant) — a
+      // multi-variant union has no single field set, so '.field' on one is
+      // T0032 (its cases are told apart with 'match', not a field read).
       if (typedReceiver.type.kind !== 'Named') {
         diagnostics.error({ code: 'T0022', span: expr.receiver.span, data: { type: typeToString(typedReceiver.type) } });
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
       }
       const info = env.getType(typedReceiver.type.name);
+      if (info !== null && info.variants.length !== 1) {
+        diagnostics.error({ code: 'T0032', span: expr.receiver.span, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+        return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
+      }
       const field = info?.variants[0]?.fields.find(f => f.name === expr.field);
       if (field === undefined) {
         diagnostics.error({ code: 'T0023', span: expr.fieldSpan, data: { field: expr.field, type: typedReceiver.type.name } });

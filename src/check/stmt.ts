@@ -2,8 +2,8 @@ import type { Statement, Block, If, Match, LiteralPattern } from '../parser/ast.
 import type { Span } from '../lexer/token.js';
 import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement } from '../parser/typed-ast.js';
 import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
-import type { TypeEnv, RecordField } from './env.js';
-import type { TypedFieldDecl } from '../parser/typed-ast.js';
+import type { TypeEnv, RecordField, Variant } from './env.js';
+import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
 import { typeFromExpr } from './formation.js';
 import { synth } from './synth.js';
@@ -265,9 +265,9 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
     }
 
     case 'typeDecl': {
-      // A record type declaration (design.md §6). Reject clashes first — a
-      // built-in name (Int, List, …) or a name already declared — then form
-      // the field types and register the completed type.
+      // A type declaration (whitepaper §6) — a record (one variant) or a tagged
+      // union (several). Reject the type-name clashes first: a built-in name
+      // (Int, List, …) or a name already declared.
       if (BUILTIN_TYPE_NAMES.has(stmt.name)) {
         diagnostics.error({ code: 'N0008', span: stmt.nameSpan, data: { name: stmt.name } });
       } else {
@@ -277,29 +277,65 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         }
       }
 
-      // Register the name up front (empty, for now) so a field may refer to the
-      // type being declared — 'type Node = { next: Node? }' resolves 'Node'.
-      env.setType({ name: stmt.name, variants: [{ tag: stmt.name, fields: [] }], declSpan: stmt.nameSpan });
-
-      const fields: RecordField[] = [];
-      const seen = new Map<string, typeof stmt.fields[number]>();
-      for (const field of stmt.fields) {
-        const first = seen.get(field.name);
-        if (first !== undefined) {
-          // Two fields with the same name — keep the first, report the repeat.
-          diagnostics.error({ code: 'N0007', span: field.nameSpan, data: { name: field.name }, related: [{ key: 'declaration', span: first.nameSpan }] });
+      // Vet each variant tag before anything is registered: a tag can't repeat
+      // within this type (N0009), can't reuse a built-in type name (N0008), and
+      // can't collide with a constructor another type already owns (N0010) —
+      // that last check runs now, while getConstructor still sees only *other*
+      // types (this one isn't registered yet). A repeated tag is dropped so the
+      // rest of the type still forms.
+      const tagSeen = new Map<string, typeof stmt.variants[number]>();
+      const keptVariants: typeof stmt.variants = [];
+      for (const variant of stmt.variants) {
+        const firstTag = tagSeen.get(variant.tag);
+        if (firstTag !== undefined) {
+          diagnostics.error({ code: 'N0009', span: variant.tagSpan, data: { tag: variant.tag }, related: [{ key: 'declaration', span: firstTag.tagSpan }] });
           continue;
         }
-        seen.set(field.name, field);
-        fields.push({ name: field.name, type: typeFromExpr(field.type, env, diagnostics), span: field.span });
+        tagSeen.set(variant.tag, variant);
+        // A tag equal to the type's own name (the record sugar, or the explicit
+        // single-variant form) was already vetted by the type-name checks above
+        // (N0008/N0006), so skip re-checking it here — it would just double-report.
+        if (variant.tag !== stmt.name) {
+          if (BUILTIN_TYPE_NAMES.has(variant.tag)) {
+            diagnostics.error({ code: 'N0008', span: variant.tagSpan, data: { name: variant.tag } });
+          } else {
+            const owner = env.getConstructor(variant.tag);
+            if (owner !== null && owner.info.name !== stmt.name) {
+              diagnostics.error({ code: 'N0010', span: variant.tagSpan, data: { tag: variant.tag, owner: owner.info.name }, related: [{ key: 'declaration', span: owner.info.declSpan }] });
+            }
+          }
+        }
+        keptVariants.push(variant);
       }
 
-      // Re-register with the completed field set (the placeholder above only
-      // existed so self-referential fields could resolve mid-formation).
-      env.setType({ name: stmt.name, variants: [{ tag: stmt.name, fields }], declSpan: stmt.nameSpan });
+      // Register the name up front (fieldless, for now) so a field may refer to
+      // the type being declared — 'type Node = { next: Node? }' resolves 'Node',
+      // and a union variant's field may reference its own type just the same.
+      env.setType({ name: stmt.name, variants: keptVariants.map(v => ({ tag: v.tag, fields: [] })), declSpan: stmt.nameSpan });
 
-      const typedFields: TypedFieldDecl[] = fields.map(f => ({ name: f.name, type: f.type }));
-      return { kind: 'typeDecl', name: stmt.name, fields: typedFields, span: stmt.span };
+      // Form each variant's fields, deduping names *within* the variant (N0007
+      // is per-variant — two variants may share a field name).
+      const variants: Variant[] = keptVariants.map((variant) => {
+        const fields: RecordField[] = [];
+        const seen = new Map<string, typeof variant.fields[number]>();
+        for (const field of variant.fields) {
+          const first = seen.get(field.name);
+          if (first !== undefined) {
+            diagnostics.error({ code: 'N0007', span: field.nameSpan, data: { name: field.name }, related: [{ key: 'declaration', span: first.nameSpan }] });
+            continue;
+          }
+          seen.set(field.name, field);
+          fields.push({ name: field.name, type: typeFromExpr(field.type, env, diagnostics), span: field.span });
+        }
+        return { tag: variant.tag, fields };
+      });
+
+      // Re-register with the completed variants (the placeholder above only
+      // existed so self-referential fields could resolve mid-formation).
+      env.setType({ name: stmt.name, variants, declSpan: stmt.nameSpan });
+
+      const typedVariants: TypedVariantDecl[] = variants.map(v => ({ tag: v.tag, fields: v.fields.map(f => ({ name: f.name, type: f.type })) }));
+      return { kind: 'typeDecl', name: stmt.name, variants: typedVariants, span: stmt.span };
     }
 
     case 'assign': {
