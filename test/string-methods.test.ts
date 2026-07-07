@@ -4,24 +4,26 @@ import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
-// last statement's RuntimeValue.
+// final output value — its last statement's value, which executeProgram emits
+// to the sink (or Done, the one value it doesn't emit, when that's the result).
 function evalOk(src: string): RuntimeValue {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program);
+  const outputs: RuntimeValue[] = [];
+  const result = executeProgram(program, v => outputs.push(v));
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
-  return result.value;
+  return outputs.at(-1) ?? ({ type: 'Done' } as RuntimeValue);
 }
 
 // Runs a program expected to typecheck but crash at runtime, returning the
-// RuntimeError's code.
+// RuntimeError's code. Output is discarded — only the crash matters here.
 function evalCrash(src: string): string {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program);
+  const result = executeProgram(program, () => {});
   assert.equal(result.kind, 'error');
   if (result.kind !== 'error') throw new Error('unreachable');
   return result.error.marker.code;

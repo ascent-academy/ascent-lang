@@ -1,6 +1,6 @@
 import type { Span } from '../lexer/token.js';
 import {
-  AscentType, TypeKind, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, RANGE_TYPE,
+  AscentType, TypeKind, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, RANGE_TYPE, DONE_TYPE,
   listOfType, optionalOf, leastCommonType, typesEqual, typeToString, INVALID_TYPE,
 } from '../types/types.js';
 import { Diagnostics, requireArity, typeMismatch } from './diagnostics.js';
@@ -119,10 +119,15 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
   },
 };
 
-// Ascent's one built-in function, folded in as an ordinary signature
-// instead of a special case in synth's 'call' branch.
+// Ascent's built-in free functions, folded in as ordinary signatures
+// instead of special cases in synth's 'call' branch. `print` takes a String
+// and yields Done — the unit value of a side-effecting call (whitepaper §7:
+// `print : fn(String) -> Done`). It is String-only for the same reason an
+// interpolation hole is scalar-only: there is no `Any`/universal `toString`
+// yet, so a non-String is shown by interpolating it (`print("${x}")`) or
+// converting it (`print(x.toString())`).
 export const FUNCTIONS: Record<string, MonoSig> = {
-  floor: { params: [FLOAT_TYPE], result: FLOAT_TYPE },
+  print: { params: [STRING_TYPE], result: DONE_TYPE },
 };
 
 // The one place a method call's result type is looked up: T0012 when the

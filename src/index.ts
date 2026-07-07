@@ -5,9 +5,9 @@ import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { parse, parseTokens } from './parser/index.js';
 import { typecheck, TypeEnv } from './check/index.js';
-import { formatValue } from './parser/printer.js';
+import { formatValue, valueToString } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
-import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue } from './interpreter.js';
+import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue, OutputSink } from './interpreter.js';
 import { elaborate } from './errors/elaborate.js';
 import { renderTerminal } from './errors/render.js';
 import { RuntimeError } from './errors/runtime-error.js';
@@ -16,6 +16,12 @@ import type { ProgramArg } from './parser/ast.js';
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
+
+// A program's output — its `print` calls and its final value — written to
+// stdout, one value per line. valueToString is the plain canonical form, so a
+// String prints raw (no quotes), which is what `print` means; a List/Range/etc.
+// prints in its literal shape.
+const stdoutSink: OutputSink = value => process.stdout.write(valueToString(value) + '\n');
 
 // Parses '--name value' pairs from argv into a name→raw-string map.
 const parseCliFlags = (argv: string[]): Map<string, string> => {
@@ -110,13 +116,12 @@ const runFile = async (filePath: string): Promise<void> => {
   const typedProgram = parseResult.program!;
   const inputs = bindArgs(typedProgram.args, parseCliFlags(process.argv.slice(3)));
 
-  const result = executeProgram(typedProgram, inputs);
+  // The program's output (its final value and any print calls) is written to
+  // stdout by stdoutSink as it runs; the result only tells success from a crash.
+  const result = executeProgram(typedProgram, stdoutSink, inputs);
   if (result.kind === 'error') {
     process.stderr.write(renderTerminal(elaborate(result.error.marker, src), src, filePath) + '\n');
     process.exit(1);
-  }
-  if (result.value.type !== 'Done') {
-    process.stdout.write(formatValue(result.value) + '\n');
   }
 };
 
@@ -124,7 +129,10 @@ const runRepl = async (): Promise<void> => {
   process.stdout.write(chalk.bold.green('Ascent') + ' REPL\n');
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const env = new Environment();
+  // The env carries the same stdout sink so `print` in a REPL line outputs
+  // here; each line's own value is still echoed separately below (the '=> …'
+  // inspection line), so a bare expression isn't routed through the sink.
+  const env = new Environment(null, stdoutSink);
   const typeEnv = new TypeEnv();
 
   try {

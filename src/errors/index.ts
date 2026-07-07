@@ -564,7 +564,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A call names a function that doesn't exist.",
     "message": "There's no function called '{name}'.",
-    "explanation": "Ascent has just one built-in function right now — 'floor(x)', which rounds a Float down to a whole number. Everything else is a method, called on a value with '.', like 'x.toString()'."
+    "explanation": "Ascent has just one built-in function right now — 'print(text)', which shows a String as output. Everything else is a method, called on a value with '.', like 'x.toString()'."
   },
   {
     "code": "T0014",

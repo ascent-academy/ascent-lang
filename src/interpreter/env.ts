@@ -8,6 +8,15 @@ type Binding = { value: RuntimeValue; mutable: boolean };
 
 export type AssignResult = 'ok' | 'immutable' | 'undeclared';
 
+// Where a program's output goes — the one external effect the tree walk can
+// perform. Both a `print(...)` call and the program's final value are handed
+// to it as RuntimeValues (never the "no information" value Done), so a host
+// renders them however its environment demands: the CLI writes each to stdout,
+// a browser playground appends it to a console panel, a test captures it into
+// an array. Injecting the sink (rather than hard-wiring stdout) is what lets
+// the same interpreter run in all of those places.
+export type OutputSink = (value: RuntimeValue) => void;
+
 // A chain of scopes, one per block. A lookup (or assignment) walks
 // outward through parents; a declaration always writes to the current
 // (innermost) scope, so a 'fix'/'mut' inside a block shadows an outer
@@ -16,10 +25,26 @@ export type AssignResult = 'ok' | 'immutable' | 'undeclared';
 export class Environment {
   private readonly vars = new Map<string, Binding>();
 
-  public constructor(private readonly parent: Environment | null = null) { }
+  // The output sink rides along the scope chain rather than being a lexical
+  // binding: it's set once on the root Environment and every child reaches it
+  // by walking to the parent (`output` below), exactly like `get`/`assign`.
+  // A null anywhere but the root means "look further out"; a null at the root
+  // means no host wired up output, so it's dropped.
+  public constructor(
+    private readonly parent: Environment | null = null,
+    private readonly sink: OutputSink | null = null,
+  ) { }
 
   public get(name: string): RuntimeValue | undefined {
     return this.vars.get(name)?.value ?? this.parent?.get(name);
+  }
+
+  // Emit one program output value (a `print` argument, or the program's final
+  // value). Walks outward to the sink established at the root — a child never
+  // carries its own, so output is uniform across every scope.
+  public output(value: RuntimeValue): void {
+    if (this.sink !== null) { this.sink(value); return; }
+    this.parent?.output(value);
   }
 
   public declare(name: string, value: RuntimeValue, mutable: boolean): void {

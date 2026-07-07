@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
+import type { RuntimeValue } from '../src/interpreter.js';
 import { valueToString } from '../src/parser/printer.js';
 
 // Runs every *.asc file under test/snippets/, recursively — each
@@ -57,7 +58,8 @@ const runSnippet = (src: string, expectation: Expectation): void => {
 
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the snippet to typecheck');
-  const result = executeProgram(program);
+  const outputs: RuntimeValue[] = [];
+  const result = executeProgram(program, v => outputs.push(v));
 
   if (expectation.kind === 'runtime-error') {
     assert.equal(result.kind, 'error');
@@ -68,7 +70,10 @@ const runSnippet = (src: string, expectation: Expectation): void => {
 
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
-  assert.equal(valueToString(result.value), expectation.text);
+  // The snippet's `value` is its final output (its last statement's value, or a
+  // lone `print`'s argument) — the last thing emitted to the sink.
+  const value = outputs.at(-1) ?? ({ type: 'Done' } as RuntimeValue);
+  assert.equal(valueToString(value), expectation.text);
 };
 
 const registerDir = (dir: string): void => {

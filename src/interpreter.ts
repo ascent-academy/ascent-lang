@@ -7,16 +7,16 @@ import {
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
-import { Environment, type AssignResult } from './interpreter/env.js';
+import { Environment, type AssignResult, type OutputSink } from './interpreter/env.js';
 import { evalMethodCall } from './interpreter/builtins.js';
 
 // Re-export the value domain and the scope chain so existing importers of
 // './interpreter.js' (lib.ts, the CLI, the tests) keep resolving
-// RuntimeValue/ScalarValue/Environment/AssignResult here; interpreter/values.ts
-// and interpreter/env.ts are the sources of truth.
+// RuntimeValue/ScalarValue/Environment/AssignResult/OutputSink here;
+// interpreter/values.ts and interpreter/env.ts are the sources of truth.
 export type { ScalarValue, RuntimeValue };
 export { Environment };
-export type { AssignResult };
+export type { AssignResult, OutputSink };
 
 export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
@@ -46,12 +46,15 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       return value;
     }
     case 'call': {
-      // floor is the only built-in; others are rejected by the type checker.
+      // print is the only built-in; others are rejected by the type checker.
       const args = expr.args.map(a => evaluateExpr(a, env));
-      if (expr.callee === 'floor') {
+      if (expr.callee === 'print') {
         const arg = args[0]!;
-        if (arg.type !== 'Float') throw new Error('internal: floor arg not Float');
-        return floatVal(Math.floor(arg.value));
+        if (arg.type !== 'String') throw new Error('internal: print arg not String');
+        // Hand the String value to the host's sink and yield Done — a
+        // side-effecting call has no meaningful result (whitepaper §7).
+        env.output(arg);
+        return DONE;
       }
       throw new Error(`internal: unknown built-in '${expr.callee}'`);
     }
@@ -262,22 +265,28 @@ export class ProgramInputs {
   }
 }
 
-// The outcome of a whole program run: either the value it produced, or the
-// RuntimeError (§9's bug tier) that crashed it. A caller reads `kind` off the
-// return value instead of wrapping the call in try/catch; an internal
-// invariant violation (a plain Error, not a RuntimeError) still propagates as
-// an exception, since that's a bug in the interpreter, not a modeled outcome.
+// The outcome of a whole program run: it ran to completion, or the
+// RuntimeError (§9's bug tier) crashed it. The program's *output* — its final
+// value and any `print`s along the way — goes to the `output` sink as it runs,
+// not back through this result, so a caller reads `kind` only to tell success
+// from a crash. An internal invariant violation (a plain Error, not a
+// RuntimeError) still propagates as an exception, since that's a bug in the
+// interpreter, not a modeled outcome.
 export type RuntimeResult =
-  | { kind: 'ok'; value: RuntimeValue }
+  | { kind: 'ok' }
   | { kind: 'error'; error: RuntimeError };
 
-// Creates the top-level Environment itself, declaring each of the program's
-// `args` as a fixed slot from `inputs` — callers provide values, not scopes.
+// Creates the top-level Environment itself, wiring in the output sink and
+// declaring each of the program's `args` as a fixed slot from `inputs` —
+// callers provide values, not scopes. The program's final value (the
+// block-value rule, whitepaper §2) is emitted to the same sink `print` uses,
+// unless it's Done — the "no information" value is nothing to output.
 export const executeProgram = (
   program: TypedProgram,
+  output: OutputSink,
   inputs: ProgramInputs = new ProgramInputs(program.args),
 ): RuntimeResult => {
-  const env = new Environment();
+  const env = new Environment(null, output);
   for (const arg of program.args) {
     const value = inputs.get(arg.name);
     if (value === undefined) throw new Error(`missing input '${arg.name}'`);
@@ -289,7 +298,8 @@ export const executeProgram = (
     for (const stmt of program.stmts) {
       result = executeStmt(stmt, env);
     }
-    return { kind: 'ok', value: result };
+    if (result.type !== 'Done') env.output(result);
+    return { kind: 'ok' };
   } catch (e) {
     if (e instanceof RuntimeError) return { kind: 'error', error: e };
     throw e;

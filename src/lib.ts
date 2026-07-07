@@ -5,7 +5,10 @@
 //   const { program, diagnostics } = parse(src);
 //   if (diagnostics.length > 0) { /* report them; do not execute */ }
 //   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
-//   const result = executeProgram(program!, inputs);
+//   const result = executeProgram(program!, value => console.log(value), inputs);
+//
+// The program's output — every `print` call and its final value — is handed to
+// the OutputSink you pass; `result` only reports success or a runtime crash.
 //
 // `program` is non-null whenever typechecking itself ran — even for a
 // program with type errors, it always returns a fully-typed tree for tooling
@@ -37,7 +40,7 @@ export {
   executeProgram,
   ProgramInputs,
 } from './interpreter.js';
-export type { RuntimeValue, RuntimeResult, AssignResult, ScalarValue } from './interpreter.js';
+export type { RuntimeValue, RuntimeResult, AssignResult, ScalarValue, OutputSink } from './interpreter.js';
 
 export type { RuntimeError } from './errors/runtime-error.js';
 
