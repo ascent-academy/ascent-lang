@@ -18,7 +18,7 @@
 
 ## 15. Open questions & backlog
 
-The conceptual core is closed — values, slots, the numeric model, expressions, the data model (§6), the type-system spine (§7), strings, `args`, the block-value rule, and the full error model (§9) cohere, and recent questions have resolved *from* these principles rather than forcing new ones. What remains is a different character of work, grouped below by kind rather than as one sequential list. The implementation itself (the build-log, growing the interpreter one capability at a time) is the parallel execution track, separate from these design questions.
+The conceptual core is closed — values, slots, the numeric model, expressions, the data model (§6), the type-system spine (§7), strings, the `program` entry form, the block-value rule, and the full error model (§9) cohere, and recent questions have resolved *from* these principles rather than forcing new ones. What remains is a different character of work, grouped below by kind rather than as one sequential list. The implementation itself (the build-log, growing the interpreter one capability at a time) is the parallel execution track, separate from these design questions.
 
 ### Design frontiers — genuine design left
 
@@ -53,7 +53,7 @@ The conceptual core is closed — values, slots, the numeric model, expressions,
 - **Construction-site type inference** — an expected type supplies the constructor name (`fix f = fn() -> Person => Person{ name: "A", age: 1 }`); downward propagation through the bidirectional checker (§7), nominal, *no* anonymous records; interacts with the generics slot.
 - **Automatic error conversion (candidate, not committed)** — `From`-style hidden adaptation for bare `try`, weighed against honesty; revisit only if `try … else` proves noisy in real code (§9).
 - **Supervised crash-recovery boundary** — isolate and restart/report a task that hits a bug, without making crashes catchable inline; preserves the two-tier model (§9).
-- **`args` empty field** — does an empty text field mean `None` or `""` (§11)?
+- **`program` empty input field** — does an empty text field mean `None` or `""` (§11)?
 
 ---
 
