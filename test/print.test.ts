@@ -41,6 +41,24 @@ describe('print (end-to-end)', () => {
       assert.deepEqual(run('fix n = 3; print("n is ${n}");').output, ['n is 3']);
     });
 
+    // print<T: Display> accepts any scalar, rendered by the same canonical text
+    // form an interpolation hole uses — so print(x) == print("${x}").
+    it('accepts an Int, rendered as its decimal digits', () => {
+      assert.deepEqual(run('print(42);').output, ['42']);
+    });
+
+    it('accepts a Float, keeping the decimal point', () => {
+      assert.deepEqual(run('print(3.0);').output, ['3.0']);
+    });
+
+    it('accepts a Bool, rendered as True/False', () => {
+      assert.deepEqual(run('print(1 < 2);').output, ['True']);
+    });
+
+    it('renders a scalar exactly as interpolating it would', () => {
+      assert.deepEqual(run('print(7 * 6);').output, run('print("${7 * 6}");').output);
+    });
+
     it('emits prints first, then the final value as text', () => {
       assert.deepEqual(run('print("side"); 42;').output, ['side', '42']);
     });
@@ -65,8 +83,12 @@ describe('print (end-to-end)', () => {
   });
 
   describe('type errors', () => {
-    it('rejects a non-String argument (T0008)', () => {
-      assert.deepEqual(errorCodes('print(42);'), ['T0008']);
+    it('rejects a value with no text form — a List (T0024)', () => {
+      assert.deepEqual(errorCodes('print([1, 2]);'), ['T0024']);
+    });
+
+    it('rejects None, which has no text form (T0024)', () => {
+      assert.deepEqual(errorCodes('print(None);'), ['T0024']);
     });
 
     it('rejects a missing argument (T0007)', () => {

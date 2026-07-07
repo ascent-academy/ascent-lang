@@ -52,12 +52,11 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // print is the only built-in; others are rejected by the type checker.
       const args = expr.args.map(a => evaluateExpr(a, env));
       if (expr.callee === 'print') {
-        const arg = args[0]!;
-        if (arg.type !== 'String') throw new Error('internal: print arg not String');
-        // The argument is already a String, so its text is its value — emit it
-        // and yield Done, since a side-effecting call has no meaningful result
-        // (whitepaper §7).
-        env.output(arg.value);
+        // The checker proved the argument is Display (a scalar), so it has a
+        // canonical text form — the same one an interpolation hole renders.
+        // Emit it and yield Done, since a side-effecting call has no meaningful
+        // result (whitepaper §7).
+        env.output(scalarToString(args[0]!));
         return DONE;
       }
       throw new Error(`internal: unknown built-in '${expr.callee}'`);

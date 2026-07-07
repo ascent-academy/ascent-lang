@@ -4,6 +4,7 @@ import {
   listOfType, optionalOf, leastCommonType, typesEqual, typeToString, INVALID_TYPE,
 } from '../types/types.js';
 import { Diagnostics, requireArity, typeMismatch } from './diagnostics.js';
+import { Trait, satisfies } from './traits.js';
 
 // ---- Built-in signatures: data, not control flow ----------------------
 //
@@ -119,15 +120,34 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
   },
 };
 
-// Ascent's built-in free functions, folded in as ordinary signatures
-// instead of special cases in synth's 'call' branch. `print` takes a String
-// and yields Done — the unit value of a side-effecting call (whitepaper §7:
-// `print : fn(String) -> Done`). It is String-only for the same reason an
-// interpolation hole is scalar-only: there is no `Any`/universal `toString`
-// yet, so a non-String is shown by interpolating it (`print("${x}")`) or
-// converting it (`print(x.toString())`).
-export const FUNCTIONS: Record<string, MonoSig> = {
-  print: { params: [STRING_TYPE], result: DONE_TYPE },
+// A builtin parameter's declared type: either a concrete type, or a
+// trait-bounded type variable — the `T: Display` in `print<T: Display>(value:
+// T)`. A bound accepts any argument type satisfying the trait; the variable
+// never escapes into the result (print returns Done), so this needs no
+// generics, only the predicate in traits.ts.
+export type TraitBound = { readonly bound: Trait };
+export type ParamType = AscentType | TraitBound;
+export const isTraitBound = (p: ParamType): p is TraitBound => 'bound' in p;
+
+// Whether an argument of `argType` is accepted by a parameter: a concrete
+// parameter must match exactly, a bounded one must satisfy its trait.
+export const paramAccepts = (param: ParamType, argType: AscentType): boolean =>
+  isTraitBound(param) ? satisfies(param.bound, argType) : typesEqual(argType, param);
+
+export interface FunctionSig {
+  params: readonly ParamType[];
+  result: AscentType;
+}
+
+// Ascent's built-in free functions, folded in as ordinary signatures instead
+// of special cases in synth's 'call' branch. `print<T: Display>(value: T)`
+// takes anything with a canonical text form — the same Display bound an
+// interpolation hole carries — and yields Done, the unit value of a
+// side-effecting call (whitepaper §7). So a scalar prints directly; a value
+// with no text form is shown by interpolating a scalar field (`print("${x.n}")`)
+// or converting it (`print(x.toString())`).
+export const FUNCTIONS: Record<string, FunctionSig> = {
+  print: { params: [{ bound: 'Display' }], result: DONE_TYPE },
 };
 
 // The one place a method call's result type is looked up: T0012 when the

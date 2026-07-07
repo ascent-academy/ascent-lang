@@ -3,11 +3,12 @@ import type { Span } from '../lexer/token.js';
 import type { TypedExpr, TypedTemplatePart, TypedFieldInit } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
-  listOfType, leastCommonType, typeToString, typesEqual, isScalarType, isInvalidType, namedType,
+  listOfType, leastCommonType, typeToString, isInvalidType, namedType,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
-import { methodCallType, FUNCTIONS } from './signatures.js';
+import { methodCallType, FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
+import { satisfies } from './traits.js';
 import { inferBlock, inferIf } from './stmt.js';
 import { check } from './check.js';
 
@@ -75,7 +76,9 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           continue;
         }
         const typedHole = synth(part.expr, env, diagnostics);
-        if (!isInvalidType(typedHole.type) && !isScalarType(typedHole.type)) {
+        // A hole is a Display-bounded position (the same bound as print's
+        // argument) — it must have a canonical text form to splice in.
+        if (!isInvalidType(typedHole.type) && !satisfies('Display', typedHole.type)) {
           diagnostics.error({ code: 'T0014', span: part.expr.span, data: { actual: typeToString(typedHole.type) } });
         }
         typedParts.push({ kind: 'hole', expr: typedHole });
@@ -114,9 +117,18 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         return { kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span };
       }
       for (let i = 0; i < sig.params.length; i++) {
-        if (!typesEqual(typedArgs[i]!.type, sig.params[i]!)) {
-          const type = typeMismatch('T0008', diagnostics, expr.span, sig.params[i]!, typedArgs[i]!.type);
-          return { kind: 'call', callee: expr.callee, args: typedArgs, type, span: expr.span };
+        const param = sig.params[i]!;
+        const argType = typedArgs[i]!.type;
+        if (!paramAccepts(param, argType)) {
+          // A concrete parameter that doesn't match is an ordinary type
+          // mismatch (T0008); an unmet trait bound (only print's Display today)
+          // has no single "expected type" to name, so it gets its own message.
+          if (isTraitBound(param)) {
+            diagnostics.error({ code: 'T0024', span: expr.span, data: { actual: typeToString(argType) } });
+          } else {
+            typeMismatch('T0008', diagnostics, expr.span, param, argType);
+          }
+          return { kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span };
         }
       }
       return { kind: 'call', callee: expr.callee, args: typedArgs, type: sig.result, span: expr.span };

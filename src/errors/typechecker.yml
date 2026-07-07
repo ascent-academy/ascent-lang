@@ -247,3 +247,13 @@
   explanation: >-
     A record only has the fields its type declares. '{type}' doesn't have a
     field '{field}' — check the spelling against the type's declaration.
+
+- code: T0024
+  name: print-not-displayable
+  category: type
+  summary: A value passed to 'print' has no text form.
+  message: "'print' can't show a value of type {actual}."
+  explanation: >-
+    'print' shows a value as text, so it needs a value that has one obvious way
+    to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a
+    String first.

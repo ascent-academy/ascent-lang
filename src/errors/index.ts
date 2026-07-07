@@ -651,6 +651,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A field was read that the record's type doesn't have.",
     "message": "'{type}' has no field named '{field}'.",
     "explanation": "A record only has the fields its type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration."
+  },
+  {
+    "code": "T0024",
+    "name": "print-not-displayable",
+    "category": "type",
+    "summary": "A value passed to 'print' has no text form.",
+    "message": "'print' can't show a value of type {actual}.",
+    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those — show a scalar field of it instead (like 'print(\"${x.name}\")'), or convert it to a String first."
   }
 ];
 
