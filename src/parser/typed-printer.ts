@@ -45,6 +45,16 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       );
       return [`${chalk.cyan('MethodCall')} ${chalk.green('.' + expr.method)}${t}`, ...childLines];
     }
+    case 'construct': {
+      const fieldLines = expr.fields.flatMap((f, i) =>
+        branch([`${chalk.green(f.name)}:`, ...branch(typedExprLines(f.value), true)], i === expr.fields.length - 1)
+      );
+      return [`${chalk.cyan('Construct')} ${chalk.green(expr.typeName)}${t}`, ...fieldLines];
+    }
+    case 'fieldAccess': {
+      const receiverLines = branch(typedExprLines(expr.receiver), true);
+      return [`${chalk.cyan('FieldAccess')} ${chalk.green('.' + expr.field)}${t}`, ...receiverLines];
+    }
     case 'list': {
       if (expr.elements.length === 0) {
         return [`${chalk.cyan('List')} ${chalk.dim('[]')}${t}`];
@@ -106,6 +116,13 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
       const slotTy = ty(typeToString(stmt.slotType));
       const valueLines = branch(typedExprLines(stmt.value), true);
       return [`${chalk.cyan('Assign')} ${chalk.green(stmt.name)}${slotTy}`, ...valueLines];
+    }
+    case 'typeDecl': {
+      const fieldLines = stmt.fields.map((f, i) =>
+        (i === stmt.fields.length - 1 ? chalk.dim('└─ ') : chalk.dim('├─ ')) +
+        `${chalk.green(f.name)}${ty(typeToString(f.type))}`
+      );
+      return [`${chalk.cyan('Type')} ${chalk.green(stmt.name)}`, ...fieldLines];
     }
     case 'expr':
       return typedExprLines(stmt.expr);

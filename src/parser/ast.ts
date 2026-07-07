@@ -2,7 +2,10 @@ import type { Span } from '../lexer/token.js';
 
 // TypeExpr is the AST node for a type written in source code.
 // It carries span information so the type checker can point at it in errors.
-export type TypeName = { kind: 'TypeName'; name: 'Int' | 'Float' | 'Bool' | 'String'; span: Span };
+// `name` is any UpperCamel identifier — a built-in scalar (Int/Float/Bool/
+// String) or a user-declared type (design.md §6). Which one it is, is a
+// formation-time question (src/check/formation.ts), not a lexical one.
+export type TypeName = { kind: 'TypeName'; name: string; span: Span };
 export type ListType = { kind: 'ListType'; elem: TypeExpr; span: Span };
 // 'T?' — sugar for 'Optional<T>' (design.md §4). Written as a trailing '?'
 // on any other TypeExpr, never as a spelled-out 'Optional<T>' name.
@@ -47,12 +50,27 @@ export type If = {
   span: Span;
 };
 
+// One 'field: value' entry of a record construction (design.md §6). `name`
+// is the field name; `value` its initializer; the checker matches these
+// against the type's declared fields (order-independent — fields bind by
+// name, never by position).
+export type FieldInit = { name: string; nameSpan: Span; value: Expr; span: Span };
+
 export type Expr = (
   | Literal
   | Template
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
+  // 'TypeName{ field: value, … }' — builds a record value of a declared type
+  // (design.md §6). The only way to make one; there are no anonymous record
+  // literals. `typeName` is the constructor, which for a single-variant record
+  // is the type's own name.
+  | { kind: 'construct'; typeName: string; typeNameSpan: Span; fields: FieldInit[]; span: Span }
+  // 'e.field' — reads one field of a record (design.md §6). Legal only when
+  // e's type has exactly one variant; the checker enforces that. The '.method()'
+  // form stays a 'methodCall' — the parser splits on whether a '(' follows.
+  | { kind: 'fieldAccess'; receiver: Expr; field: string; fieldSpan: Span; span: Span }
   | { kind: 'list'; elements: Expr[]; span: Span }
   // 'lo..hi' — a half-open Int range (design.md §4). Both bounds are
   // required; open-ended forms ('..b', 'a..') are not syntax here.
@@ -67,10 +85,20 @@ export type Expr = (
 // Unlike 'if', 'while'/'for' are statements, not expressions — a loop has
 // no single meaningful result (zero iterations has no last value to
 // give), so they always yield Done rather than forcing a fake one.
+// One 'name: Type' field of a record's type declaration (design.md §6).
+// Unlike a FieldInit (which carries a value), this carries the field's
+// declared *type*.
+export type FieldDecl = { name: string; nameSpan: Span; type: TypeExpr; span: Span };
+
 export type Statement = (
   | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'assign'; name: string; nameSpan: Span; value: Expr; span: Span }
+  // 'type Name = { field: Type, … };' — declares a record type (design.md §6).
+  // Sugar for the single-variant form 'type Name = Name{ … }', so the sole
+  // constructor's tag is `name`. Only the bare-brace (record) form is parsed
+  // for now; unions arrive later.
+  | { kind: 'typeDecl'; name: string; nameSpan: Span; fields: FieldDecl[]; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
   // 'for name in iterable { … }' — iterates the values of a List or the

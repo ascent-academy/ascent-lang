@@ -25,9 +25,15 @@ import { synth, joinElementTypes } from './synth.js';
 //     `expected`'s element type (e.g. Int elements under a List<Float>
 //     expectation), so the interpreter can coerce from the node's own
 //     `.type.elem` later
+// `code` is the mismatch code to report when the synthesized type doesn't fit
+// `expected` — T0001 (slot/annotation) by default, but a caller checking a
+// value against a different kind of expected slot passes its own (e.g. a record
+// construction reports T0021 for a field). It never changes *what* is checked,
+// only the diagnostic's prose.
 export const check = (
   expr: Expr, expected: AscentType, env: TypeEnv, diagnostics: Diagnostics,
   related: { key: string; span: Span }[] = [],
+  code = 'T0001',
 ): TypedExpr => {
   if (expr.kind === 'list' && expr.elements.length === 0 && expected.kind === 'List') {
     return { kind: 'list', elements: [], type: expected, span: expr.span };
@@ -42,14 +48,14 @@ export const check = (
     }
     const node: TypedExpr = { kind: 'list', elements: typedElements, type: listOfType(elemType), span: expr.span };
     if (!isAssignableTo(node.type, expected)) {
-      typeMismatch('T0001', diagnostics, node.span, expected, node.type, related);
+      typeMismatch(code, diagnostics, node.span, expected, node.type, related);
     }
     return node;
   }
 
   const node = synth(expr, env, diagnostics);
   if (!isAssignableTo(node.type, expected)) {
-    typeMismatch('T0001', diagnostics, node.span, expected, node.type, related);
+    typeMismatch(code, diagnostics, node.span, expected, node.type, related);
   }
   return node;
 };

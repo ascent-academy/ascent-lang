@@ -24,8 +24,10 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
 
     base = { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
   } else {
-    const name = tok.value as 'Int' | 'Float' | 'Bool' | 'String';
-    base = { kind: 'TypeName', name, span: tok.span };
+    // Any other TYPE_NAME — a built-in scalar or a user-declared type. Whether
+    // the name actually names a declared type is a formation-time check
+    // (src/check/formation.ts), not the parser's job.
+    base = { kind: 'TypeName', name: tok.value, span: tok.span };
   }
 
   // A trailing '?' wraps whatever came before it — 'String?', 'List<Int>?' —
@@ -53,8 +55,13 @@ function parseArgDef(ts: TokenStream): ProgramArg | null {
 
   if (ts.expect('COLON', 'S0009') === null) return null;
 
+  // args admit only the four scalars (design.md §11 — a structured value has
+  // no single input widget). Now that every UpperCamel name lexes as a
+  // TYPE_NAME, 'List' and user types reach here too, so the scalar set is
+  // checked explicitly rather than trusting the token kind.
   const typeTok = ts.peek();
-  if (typeTok.kind !== 'TYPE_NAME') {
+  const ARG_SCALARS = ['Int', 'Float', 'Bool', 'String'];
+  if (typeTok.kind !== 'TYPE_NAME' || !ARG_SCALARS.includes(typeTok.value)) {
     ts.report('S0010', typeTok.span);
     return null;
   }

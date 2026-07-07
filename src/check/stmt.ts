@@ -1,11 +1,17 @@
 import type { Statement, Block, If } from '../parser/ast.js';
 import type { TypedBlock, TypedIf, TypedExpr, TypedStatement } from '../parser/typed-ast.js';
 import { AscentType, INT_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
-import type { TypeEnv } from './env.js';
+import type { TypeEnv, RecordField } from './env.js';
+import type { TypedFieldDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
 import { typeFromExpr } from './formation.js';
 import { synth } from './synth.js';
 import { check } from './check.js';
+
+// The type names the language already owns — a 'type' declaration can't
+// redeclare one (N0008). None/Done/True/False aren't here: they lex as value
+// constructors, never TYPE_NAME, so they can't reach a type-name position.
+const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List']);
 
 export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics): TypedBlock => {
   const inner = env.child();
@@ -60,7 +66,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
   switch (stmt.kind) {
     case 'fix':
     case 'mut': {
-      const annotation = stmt.typeAnnotation !== null ? typeFromExpr(stmt.typeAnnotation) : null;
+      const annotation = stmt.typeAnnotation !== null ? typeFromExpr(stmt.typeAnnotation, env, diagnostics) : null;
 
       let typedInit: TypedExpr;
       let slotType: AscentType;
@@ -104,6 +110,44 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         init: typedInit,
         span: stmt.span,
       };
+    }
+
+    case 'typeDecl': {
+      // A record type declaration (design.md §6). Reject clashes first — a
+      // built-in name (Int, List, …) or a name already declared — then form
+      // the field types and register the completed type.
+      if (BUILTIN_TYPE_NAMES.has(stmt.name)) {
+        diagnostics.error({ code: 'N0008', span: stmt.nameSpan, data: { name: stmt.name } });
+      } else {
+        const existing = env.getType(stmt.name);
+        if (existing !== null) {
+          diagnostics.error({ code: 'N0006', span: stmt.nameSpan, related: [{ key: 'declaration', span: existing.declSpan }] });
+        }
+      }
+
+      // Register the name up front (empty, for now) so a field may refer to the
+      // type being declared — 'type Node = { next: Node? }' resolves 'Node'.
+      env.setType({ name: stmt.name, variants: [{ tag: stmt.name, fields: [] }], declSpan: stmt.nameSpan });
+
+      const fields: RecordField[] = [];
+      const seen = new Map<string, typeof stmt.fields[number]>();
+      for (const field of stmt.fields) {
+        const first = seen.get(field.name);
+        if (first !== undefined) {
+          // Two fields with the same name — keep the first, report the repeat.
+          diagnostics.error({ code: 'N0007', span: field.nameSpan, data: { name: field.name }, related: [{ key: 'declaration', span: first.nameSpan }] });
+          continue;
+        }
+        seen.set(field.name, field);
+        fields.push({ name: field.name, type: typeFromExpr(field.type, env, diagnostics), span: field.span });
+      }
+
+      // Re-register with the completed field set (the placeholder above only
+      // existed so self-referential fields could resolve mid-formation).
+      env.setType({ name: stmt.name, variants: [{ tag: stmt.name, fields }], declSpan: stmt.nameSpan });
+
+      const typedFields: TypedFieldDecl[] = fields.map(f => ({ name: f.name, type: f.type }));
+      return { kind: 'typeDecl', name: stmt.name, fields: typedFields, span: stmt.span };
     }
 
     case 'assign': {

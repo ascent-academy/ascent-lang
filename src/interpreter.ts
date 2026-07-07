@@ -3,7 +3,7 @@ import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './pars
 import { RuntimeError } from './errors/runtime-error.js';
 import {
   coerce, scalarToString,
-  intVal, floatVal, strVal, boolVal, rangeVal, NONE, DONE,
+  intVal, floatVal, strVal, boolVal, rangeVal, recordVal, NONE, DONE,
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
@@ -67,6 +67,24 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         argTypes: expr.args.map(a => a.type),
         resultType: expr.type,
       });
+    }
+    case 'construct': {
+      // Build the record's fields in declaration order (the typed node is
+      // already ordered), coercing each value from its own type into the
+      // declared field type — the same Int → Float (and nested) widening a
+      // fix/mut init gets against its slotType.
+      const fields = new Map<string, RuntimeValue>();
+      for (const f of expr.fields) {
+        fields.set(f.name, coerce(evaluateExpr(f.value, env), f.value.type, f.declaredType));
+      }
+      return recordVal(expr.typeName, fields);
+    }
+    case 'fieldAccess': {
+      const receiver = evaluateExpr(expr.receiver, env);
+      if (receiver.type !== 'Record') throw new Error('internal: field access on a non-record');
+      const value = receiver.fields.get(expr.field);
+      if (value === undefined) throw new Error(`internal: no field '${expr.field}' on ${receiver.name}`);
+      return value;
     }
     case 'list': {
       // expr.type is List<T>; coerce each element from its own static type to
@@ -171,6 +189,10 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       if (result !== 'ok') throw new Error(`internal: assign '${stmt.name}' → ${result}`);
       return DONE;
     }
+    case 'typeDecl':
+      // Types are erased at runtime — a declaration carries no value and does
+      // nothing when executed (its effect was on the typechecker's registry).
+      return DONE;
     case 'expr':
       return evaluateExpr(stmt.expr, env);
     case 'while': {

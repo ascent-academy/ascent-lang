@@ -45,3 +45,49 @@
     starts and stays the same for the whole run, so it can't be assigned to. To
     work with a value you can update, make a new name with 'mut' and start it
     from '{found}', like 'mut total = {found};'.
+
+- code: N0005
+  name: unknown-type
+  category: name
+  summary: A type name was used that hasn't been declared.
+  message: "I can't find a type named '{name}'."
+  explanation: >-
+    A type has to be declared with 'type' before it's used, like
+    'type Person = { name: String }'. Check that '{name}' is spelled the same as
+    where you declared it, and that its declaration comes before this line.
+
+- code: N0006
+  name: duplicate-type
+  category: name
+  summary: A type was declared with a name that's already a type.
+  message: "There's already a type named '{found}'."
+  explanation: >-
+    Each type name is declared once. '{found}' is already the name of another
+    type, so this second 'type {found} = …' would give the same name two
+    meanings. Rename one of them.
+  related:
+    - key: declaration
+      label: "'{found}' was already declared here"
+
+- code: N0007
+  name: duplicate-field
+  category: name
+  summary: A record type declares two fields with the same name.
+  message: "This type already has a field named '{name}'."
+  explanation: >-
+    Each field of a record has its own name, and the names have to be different
+    so every field can be told apart. '{name}' is listed twice here — remove or
+    rename one of them.
+  related:
+    - key: declaration
+      label: "'{name}' was already listed here"
+
+- code: N0008
+  name: redeclare-builtin-type
+  category: name
+  summary: A 'type' declaration reuses a built-in type name.
+  message: "'{name}' is a built-in type, so it can't be redeclared."
+  explanation: >-
+    '{name}' already names one of the language's built-in types (Int, Float,
+    Bool, String, List), so a 'type' declaration can't reuse it. Choose a
+    different name for your type.

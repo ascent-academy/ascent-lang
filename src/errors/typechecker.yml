@@ -187,3 +187,63 @@
     'for x in …' goes through the items of a list ('for x in items') or the
     numbers of a range ('for i in 0..n'). This value is {actual}, which isn't
     either of those.
+
+- code: T0018
+  name: missing-field
+  category: type
+  summary: A record is built without all of its fields.
+  message: "'{type}' is missing {fields} here."
+  explanation: >-
+    Building a record fills in every field the type declares. Add a value for
+    {fields}, so '{type}' has every field it needs.
+
+- code: T0019
+  name: unknown-field
+  category: type
+  summary: A record is built with a field its type doesn't have.
+  message: "'{type}' has no field named '{field}'."
+  explanation: >-
+    A record can only be built with the fields its type declares. '{type}'
+    doesn't have a field '{field}' — check the spelling against the type's
+    declaration, or remove it.
+
+- code: T0020
+  name: duplicate-field-value
+  category: type
+  summary: A record is built with the same field given twice.
+  message: "'{field}' is given more than once here."
+  explanation: >-
+    Each field of a record gets one value when it's built. '{field}' is listed
+    twice, so it isn't clear which value to use — remove one of them.
+
+- code: T0021
+  name: field-type-mismatch
+  category: type
+  summary: A field is built with a value of the wrong type.
+  message: "This field expects {expected}, but this value is {actual}."
+  explanation: >-
+    Each field holds a value of the type its declaration gives it. This field
+    is declared {expected}, but the value here is {actual}, and those don't
+    match. (An Int can go where a Float is expected, but not the other way
+    around.)
+  related:
+    - key: field
+      label: "this field is declared {expected}"
+
+- code: T0022
+  name: field-access-non-record
+  category: type
+  summary: "A '.field' was read from a value that isn't a record."
+  message: "I can't read a field from this — it has type {type}."
+  explanation: >-
+    Reading a field with '.name' works on a record — a value of a type declared
+    with 'type Name = { … }'. This value is {type}, which has no fields to read.
+
+- code: T0023
+  name: no-such-field
+  category: type
+  summary: A field was read that the record's type doesn't have.
+  message: "'{type}' has no field named '{field}'."
+  explanation: >-
+    A record only has the fields its type declares. '{type}' doesn't have a
+    field '{field}' — check the spelling against the type's declaration.

@@ -126,6 +126,50 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'{found}' comes from the program's 'args' — it's set once when the program starts and stays the same for the whole run, so it can't be assigned to. To work with a value you can update, make a new name with 'mut' and start it from '{found}', like 'mut total = {found};'."
   },
   {
+    "code": "N0005",
+    "name": "unknown-type",
+    "category": "name",
+    "summary": "A type name was used that hasn't been declared.",
+    "message": "I can't find a type named '{name}'.",
+    "explanation": "A type has to be declared with 'type' before it's used, like 'type Person = { name: String }'. Check that '{name}' is spelled the same as where you declared it, and that its declaration comes before this line."
+  },
+  {
+    "code": "N0006",
+    "name": "duplicate-type",
+    "category": "name",
+    "summary": "A type was declared with a name that's already a type.",
+    "message": "There's already a type named '{found}'.",
+    "explanation": "Each type name is declared once. '{found}' is already the name of another type, so this second 'type {found} = …' would give the same name two meanings. Rename one of them.",
+    "related": [
+      {
+        "key": "declaration",
+        "label": "'{found}' was already declared here"
+      }
+    ]
+  },
+  {
+    "code": "N0007",
+    "name": "duplicate-field",
+    "category": "name",
+    "summary": "A record type declares two fields with the same name.",
+    "message": "This type already has a field named '{name}'.",
+    "explanation": "Each field of a record has its own name, and the names have to be different so every field can be told apart. '{name}' is listed twice here — remove or rename one of them.",
+    "related": [
+      {
+        "key": "declaration",
+        "label": "'{name}' was already listed here"
+      }
+    ]
+  },
+  {
+    "code": "N0008",
+    "name": "redeclare-builtin-type",
+    "category": "name",
+    "summary": "A 'type' declaration reuses a built-in type name.",
+    "message": "'{name}' is a built-in type, so it can't be redeclared.",
+    "explanation": "'{name}' already names one of the language's built-in types (Int, Float, Bool, String, List), so a 'type' declaration can't reuse it. Choose a different name for your type."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",
@@ -345,6 +389,54 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'for' loop is written 'for name in values', so 'in' comes after the loop variable and before what's being looped over, as in 'for i in 0..n'."
   },
   {
+    "code": "S0018",
+    "name": "expected-type-name",
+    "category": "syntactic",
+    "summary": "A type name was expected after 'type'.",
+    "message": "I expected a type name here.",
+    "explanation": "A 'type' declaration gives a new type its name, like 'type Person = { … }'. The name comes right after 'type', and it starts with an uppercase letter."
+  },
+  {
+    "code": "S0019",
+    "name": "expected-type-equals",
+    "category": "syntactic",
+    "summary": "An '=' was expected after the name in a 'type' declaration.",
+    "message": "I expected an '=' here.",
+    "explanation": "A 'type' declaration is written 'type Name = { … }', so '=' comes after the name and before the fields, as in 'type Person = { name: String }'."
+  },
+  {
+    "code": "S0020",
+    "name": "expected-record-brace",
+    "category": "syntactic",
+    "summary": "A '{' was expected to open a record's fields.",
+    "message": "I expected a '{' here.",
+    "explanation": "A record type lists its fields between '{' and '}', like 'type Person = { name: String, age: Int }'. This is where that opening '{' should be."
+  },
+  {
+    "code": "S0021",
+    "name": "expected-field-name",
+    "category": "syntactic",
+    "summary": "A field name was expected here.",
+    "message": "I expected a field name here.",
+    "explanation": "A record's fields are each written as a name, like the 'name' and 'age' in 'Person{ name: \\\"Ann\\\", age: 30 }'. A field name starts with a lowercase letter."
+  },
+  {
+    "code": "S0022",
+    "name": "expected-field-colon",
+    "category": "syntactic",
+    "summary": "A ':' was expected after a field name.",
+    "message": "I expected a ':' here.",
+    "explanation": "Each field is written as a name, then ':', then its type or value — like 'name: String' when declaring a type, or 'name: \\\"Ann\\\"' when building one. This is where the ':' should be."
+  },
+  {
+    "code": "S0023",
+    "name": "type-name-needs-braces",
+    "category": "syntactic",
+    "summary": "A type name was used as a value without '{ … }'.",
+    "message": "'{found}' names a type, so it needs '{ … }' to build a value.",
+    "explanation": "A name that starts with an uppercase letter is a type. To make a value of it, follow it with its fields in braces, like 'Person{ name: \\\"Ann\\\", age: 30 }'. On its own, '{found}' isn't a value yet."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",
@@ -505,6 +597,60 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A 'for' loop was given something that isn't a list or a range.",
     "message": "I can't loop over this — it has type {actual}.",
     "explanation": "'for x in …' goes through the items of a list ('for x in items') or the numbers of a range ('for i in 0..n'). This value is {actual}, which isn't either of those."
+  },
+  {
+    "code": "T0018",
+    "name": "missing-field",
+    "category": "type",
+    "summary": "A record is built without all of its fields.",
+    "message": "'{type}' is missing {fields} here.",
+    "explanation": "Building a record fills in every field the type declares. Add a value for {fields}, so '{type}' has every field it needs."
+  },
+  {
+    "code": "T0019",
+    "name": "unknown-field",
+    "category": "type",
+    "summary": "A record is built with a field its type doesn't have.",
+    "message": "'{type}' has no field named '{field}'.",
+    "explanation": "A record can only be built with the fields its type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration, or remove it."
+  },
+  {
+    "code": "T0020",
+    "name": "duplicate-field-value",
+    "category": "type",
+    "summary": "A record is built with the same field given twice.",
+    "message": "'{field}' is given more than once here.",
+    "explanation": "Each field of a record gets one value when it's built. '{field}' is listed twice, so it isn't clear which value to use — remove one of them."
+  },
+  {
+    "code": "T0021",
+    "name": "field-type-mismatch",
+    "category": "type",
+    "summary": "A field is built with a value of the wrong type.",
+    "message": "This field expects {expected}, but this value is {actual}.",
+    "explanation": "Each field holds a value of the type its declaration gives it. This field is declared {expected}, but the value here is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.)",
+    "related": [
+      {
+        "key": "field",
+        "label": "this field is declared {expected}"
+      }
+    ]
+  },
+  {
+    "code": "T0022",
+    "name": "field-access-non-record",
+    "category": "type",
+    "summary": "A '.field' was read from a value that isn't a record.",
+    "message": "I can't read a field from this — it has type {type}.",
+    "explanation": "Reading a field with '.name' works on a record — a value of a type declared with 'type Name = { … }'. This value is {type}, which has no fields to read."
+  },
+  {
+    "code": "T0023",
+    "name": "no-such-field",
+    "category": "type",
+    "summary": "A field was read that the record's type doesn't have.",
+    "message": "'{type}' has no field named '{field}'.",
+    "explanation": "A record only has the fields its type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration."
   }
 ];
 

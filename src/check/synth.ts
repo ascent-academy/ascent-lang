@@ -1,14 +1,15 @@
-import type { Expr } from '../parser/ast.js';
+import type { Expr, FieldInit } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
-import type { TypedExpr, TypedTemplatePart } from '../parser/typed-ast.js';
+import type { TypedExpr, TypedTemplatePart, TypedFieldInit } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
-  listOfType, leastCommonType, typeToString, typesEqual, isScalarType, isInvalidType,
+  listOfType, leastCommonType, typeToString, typesEqual, isScalarType, isInvalidType, namedType,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
 import { methodCallType, FUNCTIONS } from './signatures.js';
 import { inferBlock, inferIf } from './stmt.js';
+import { check } from './check.js';
 
 // ---- Expression synthesis:  Γ ⊢ e ⇒ T --------------------------------
 //
@@ -278,6 +279,83 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         kind: 'methodCall', receiver: typedReceiver, method: expr.method,
         args: typedArgs, type: resultType, span: expr.span,
       };
+    }
+
+    case 'construct': {
+      const info = env.getType(expr.typeName);
+      if (info === null) {
+        // No such type — N0005. Still synth every field value so independent
+        // errors inside them surface (there's no declared type to check
+        // against, so nothing here can widen or adopt).
+        diagnostics.error({ code: 'N0005', span: expr.typeNameSpan, data: { name: expr.typeName } });
+        const typedFields = expr.fields.map(f => ({ name: f.name, declaredType: INVALID_TYPE, value: synth(f.value, env, diagnostics) }));
+        return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: INVALID_TYPE, span: expr.span };
+      }
+
+      // A record is the sole variant (design.md §6's single-variant sugar).
+      const declaredFields = info.variants[0]!.fields;
+      const declaredNames = new Set(declaredFields.map(d => d.name));
+
+      // Pass 1: record the first init for each field name, and flag the
+      // provided fields that won't be checked in pass 2 — a duplicate (T0020)
+      // or a name the type doesn't declare (T0019). Those still get synth'd so
+      // errors inside them aren't lost; declared fields wait for the checked
+      // pass so they can widen/adopt against their declared type.
+      const provided = new Map<string, FieldInit>();
+      for (const f of expr.fields) {
+        if (provided.has(f.name)) {
+          diagnostics.error({ code: 'T0020', span: f.nameSpan, data: { field: f.name, type: expr.typeName } });
+          synth(f.value, env, diagnostics);
+          continue;
+        }
+        provided.set(f.name, f);
+        if (!declaredNames.has(f.name)) {
+          diagnostics.error({ code: 'T0019', span: f.nameSpan, data: { field: f.name, type: expr.typeName } });
+          synth(f.value, env, diagnostics);
+        }
+      }
+
+      // Pass 2: walk the declared fields in order, checking each provided value
+      // against its declared type (so an Int widens to a Float field, a bare
+      // '[]' adopts a List field's element type). A field with no init is
+      // missing. Declaration order is the node's canonical field order.
+      const typedFields: TypedFieldInit[] = [];
+      const missing: string[] = [];
+      for (const decl of declaredFields) {
+        const init = provided.get(decl.name);
+        if (init === undefined) {
+          missing.push(decl.name);
+          continue;
+        }
+        const value = check(init.value, decl.type, env, diagnostics, [{ key: 'field', span: decl.span }], 'T0021');
+        typedFields.push({ name: decl.name, declaredType: decl.type, value });
+      }
+      if (missing.length > 0) {
+        diagnostics.error({ code: 'T0018', span: expr.typeNameSpan, data: { type: expr.typeName, fields: missing.join(', ') } });
+      }
+
+      return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: namedType(expr.typeName), span: expr.span };
+    }
+
+    case 'fieldAccess': {
+      const typedReceiver = synth(expr.receiver, env, diagnostics);
+      if (isInvalidType(typedReceiver.type)) {
+        return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
+      }
+      // Field access is legal only on a record (design.md §6 — and, once unions
+      // exist, only on a single-variant one; every Named type is single-variant
+      // today). Anything else has no fields to read.
+      if (typedReceiver.type.kind !== 'Named') {
+        diagnostics.error({ code: 'T0022', span: expr.receiver.span, data: { type: typeToString(typedReceiver.type) } });
+        return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
+      }
+      const info = env.getType(typedReceiver.type.name);
+      const field = info?.variants[0]?.fields.find(f => f.name === expr.field);
+      if (field === undefined) {
+        diagnostics.error({ code: 'T0023', span: expr.fieldSpan, data: { field: expr.field, type: typedReceiver.type.name } });
+        return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
+      }
+      return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: field.type, span: expr.span };
     }
 
     case 'block':

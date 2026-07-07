@@ -1,5 +1,5 @@
 import type { Token, TokenKind } from '../lexer/token.js';
-import type { Expr, BinaryOp, UnaryOp, TemplatePart } from './ast.js';
+import type { Expr, BinaryOp, UnaryOp, TemplatePart, FieldInit } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf } from './stmt.js';
 import { dedent, type RawChunk } from './dedent.js';
@@ -129,7 +129,7 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
     const postfix = POSTFIX_OPS[kind];
     if (postfix !== undefined) {
       if (postfix.bp < minBp) break;
-      left = kind === 'DOT' ? parseMethodCall(ts, left) : parseIndex(ts, left);
+      left = kind === 'DOT' ? parseDotAccess(ts, left) : parseIndex(ts, left);
       if (left === null) return null;
       continue;
     }
@@ -193,23 +193,29 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
   return left;
 }
 
-// 'receiver.method(args)' — DOT already confirmed on lookahead by the
-// Pratt loop; this consumes it through the closing ')'.
-function parseMethodCall(ts: TokenStream, receiver: Expr): Expr | null {
+// 'receiver.member' — DOT already confirmed on lookahead by the Pratt loop.
+// The member name is the same either way; a following '(' makes it a method
+// call, anything else a field read (design.md §6 — 'p.name' vs 'p.trim()').
+function parseDotAccess(ts: TokenStream, receiver: Expr): Expr | null {
   ts.advance(); // consume '.'
 
-  const methodTok = ts.peek();
-  if (methodTok.kind !== 'SLOT') {
-    ts.report('S0012', methodTok.span);
+  const memberTok = ts.peek();
+  if (memberTok.kind !== 'SLOT') {
+    ts.report('S0012', memberTok.span);
     return null;
   }
-  ts.advance(); // consume method name
+  ts.advance(); // consume member name
 
   if (ts.peek().kind !== 'LPAREN') {
-    // A missing '(' here is not an unclosed group — the call's argument list
-    // never opened — so it's its own error, not S0001.
-    ts.report('S0014', ts.peek().span);
-    return null;
+    // No '(' — this is a field read, not a call. (A field never chains into a
+    // call without another '.', so there's nothing more to consume here.)
+    return {
+      kind: 'fieldAccess',
+      receiver,
+      field: memberTok.value,
+      fieldSpan: memberTok.span,
+      span: { start: receiver.span.start, end: memberTok.span.end },
+    };
   }
   const openParen = ts.advance(); // consume '('
 
@@ -219,7 +225,7 @@ function parseMethodCall(ts: TokenStream, receiver: Expr): Expr | null {
   return {
     kind: 'methodCall',
     receiver,
-    method: methodTok.value,
+    method: memberTok.value,
     args: parsed.items,
     span: { start: receiver.span.start, end: parsed.close.span.end },
   };
@@ -304,6 +310,19 @@ function parseAtom(ts: TokenStream): Expr | null {
       return parseCall(ts, tok);
     }
     return { kind: 'slot', name: tok.value, span: tok.span };
+  }
+
+  if (tok.kind === 'TYPE_NAME') {
+    ts.advance();
+    if (ts.peek().kind === 'LBRACE') {
+      return parseConstruct(ts, tok);
+    }
+    // A bare UpperCamel name in value position isn't a value on its own — it
+    // names a type/constructor, which builds a value only with '{ … }'
+    // (design.md §6). (Zero-field constructors like enum variants aren't a
+    // thing yet.)
+    ts.report('S0023', tok.span);
+    return null;
   }
 
   if (tok.kind === 'LPAREN') {
@@ -449,6 +468,41 @@ function parseCall(ts: TokenStream, callee: Token): Expr | null {
     callee: callee.value,
     args: parsed.items,
     span: { start: callee.span.start, end: parsed.close.span.end },
+  };
+}
+
+// One 'field: value' entry inside a record construction. The field name is a
+// lowercase binding; ':' separates it from the value expression (design.md §6
+// — ':' builds, '=' would be the 'with'-update form, which isn't here yet).
+function parseFieldInit(ts: TokenStream): FieldInit | null {
+  const nameTok = ts.peek();
+  if (nameTok.kind !== 'SLOT') {
+    ts.report('S0021', nameTok.span);
+    return null;
+  }
+  ts.advance(); // consume field name
+
+  if (ts.expect('COLON', 'S0022') === null) return null;
+
+  const value = parseExpr(ts);
+  if (value === null) return null;
+
+  return { name: nameTok.value, nameSpan: nameTok.span, value, span: { start: nameTok.span.start, end: value.span.end } };
+}
+
+// 'TypeName{ field: value, … }' — record construction. The name token is
+// already consumed by parseAtom, and an LBRACE confirmed on lookahead.
+function parseConstruct(ts: TokenStream, typeNameTok: Token): Expr | null {
+  const open = ts.advance(); // consume '{'
+  const parsed = ts.parseSeparated(() => parseFieldInit(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  if (parsed === null) return null;
+
+  return {
+    kind: 'construct',
+    typeName: typeNameTok.value,
+    typeNameSpan: typeNameTok.span,
+    fields: parsed.items,
+    span: { start: typeNameTok.span.start, end: parsed.close.span.end },
   };
 }
 

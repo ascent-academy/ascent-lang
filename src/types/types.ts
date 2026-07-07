@@ -12,7 +12,13 @@ export type AscentType =
   // design.md §4: a half-open Int range 'a..b'. Monomorphic — the bounds
   // and the values it yields are always Int — so, unlike List/Optional, it
   // carries no element parameter. Iterating one (a 'for' loop) gives Int.
-  | { kind: 'Range' };
+  | { kind: 'Range' }
+  // design.md §6/§7: a nominal reference to a user-declared type (a record —
+  // and, later, a tagged union). Identity is the `name` alone — the type is a
+  // lightweight handle; its structure (variants → fields) lives in the
+  // checker's type registry (src/check/env.ts's TypeEnv), looked up by name.
+  // Nominal typing means two Named types relate only when their names match.
+  | { kind: 'Named'; name: string };
 
 export type TypeKind = AscentType['kind'];
 
@@ -37,6 +43,7 @@ export const INVALID_TYPE: AscentType = { kind: 'Invalid' };
 export const RANGE_TYPE: AscentType = { kind: 'Range' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
 export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
+export const namedType = (name: string): AscentType => ({ kind: 'Named', name });
 
 // design.md §4: 'T?' is surface sugar for 'Optional<T>' — render it that way
 // everywhere a type shows up (diagnostics, the REPL, the AST printers)
@@ -47,6 +54,11 @@ export const typeToString = (t: AscentType): string => {
   }
   if (t.kind === 'Optional') {
     return `${typeToString(t.elem)}?`;
+  }
+  // A Named type shows as the name the learner declared ('Person'), never
+  // 'Named' — the 'kind' is an implementation label, not user vocabulary.
+  if (t.kind === 'Named') {
+    return t.name;
   }
   return t.kind;
 };
@@ -87,6 +99,14 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
 
   if (a.kind === 'Optional' && b.kind === 'Optional') {
     return typesEqual(a.elem, b.elem);
+  }
+
+  // Nominal: two Named types are the same type exactly when they carry the
+  // same declared name (design.md §7 — "a User is a User because it was
+  // declared one"). The fields don't enter into it — that's what makes this
+  // nominal, not structural.
+  if (a.kind === 'Named' && b.kind === 'Named') {
+    return a.name === b.name;
   }
 
   return true;

@@ -27,7 +27,8 @@ export type TokenKind =
   | 'KW_FOR'         // the keyword for — starts a value-iterating loop
   | 'KW_IN'          // the keyword in — separates a for loop's variable from what it iterates
   | 'KW_ARGS'        // the keyword args — declares the program's typed inputs
-  | 'TYPE_NAME'      // a built-in type name: Int, Float, Bool, String
+  | 'KW_TYPE'        // the keyword type — declares a user-defined type
+  | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates
   | 'EQ_EQ'          // '==' — structural equality

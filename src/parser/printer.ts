@@ -55,6 +55,16 @@ const exprLines = (expr: Expr): string[] => {
       );
       return [`${chalk.cyan('MethodCall')} ${chalk.green('.' + expr.method)}`, ...childLines];
     }
+    case 'construct': {
+      const fieldLines = expr.fields.flatMap((f, i) =>
+        branch([`${chalk.green(f.name)}:`, ...branch(exprLines(f.value), true)], i === expr.fields.length - 1)
+      );
+      return [`${chalk.cyan('Construct')} ${chalk.green(expr.typeName)}`, ...fieldLines];
+    }
+    case 'fieldAccess': {
+      const receiverLines = branch(exprLines(expr.receiver), true);
+      return [`${chalk.cyan('FieldAccess')} ${chalk.green('.' + expr.field)}`, ...receiverLines];
+    }
     case 'list': {
       if (expr.elements.length === 0) {
         return [`${chalk.cyan('List')} ${chalk.dim('[]')}`];
@@ -128,6 +138,13 @@ const stmtLines = (stmt: Statement): string[] => {
       const value = branch(exprLines(stmt.value), true);
       return [`${chalk.cyan('Assign')} ${chalk.green(stmt.name)}`, ...value];
     }
+    case 'typeDecl': {
+      const fieldLines = stmt.fields.map((f, i) =>
+        (i === stmt.fields.length - 1 ? chalk.dim('└─ ') : chalk.dim('├─ ')) +
+        `${chalk.green(f.name)}${chalk.dim(': ' + formatTypeExpr(f.type))}`
+      );
+      return [`${chalk.cyan('Type')} ${chalk.green(stmt.name)}`, ...fieldLines];
+    }
     case 'expr':
       return exprLines(stmt.expr);
     case 'while': {
@@ -162,6 +179,10 @@ export const formatValue = (value: RuntimeValue): string => {
     }
     case 'Range':
       return chalk.yellow(`${value.lo}..${value.hi}`);
+    case 'Record': {
+      const fields = Array.from(value.fields, ([name, v]) => `${name}: ${formatValue(v)}`).join(', ');
+      return `${chalk.cyan(value.name)}{ ${fields} }`;
+    }
     case 'None':
       return chalk.yellow('None');
     case 'Done':
@@ -186,6 +207,10 @@ export const valueToString = (value: RuntimeValue): string => {
     }
     case 'Range':
       return `${value.lo}..${value.hi}`;
+    case 'Record': {
+      const fields = Array.from(value.fields, ([name, v]) => `${name}: ${valueToString(v)}`).join(', ');
+      return `${value.name}{ ${fields} }`;
+    }
     case 'None':
       return 'None';
     case 'Done':

@@ -16,6 +16,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   for: 'KW_FOR',
   in: 'KW_IN',
   args: 'KW_ARGS',
+  type: 'KW_TYPE',
 };
 
 export const CONSTRUCTORS: Record<string, TokenKind> = {
@@ -25,17 +26,14 @@ export const CONSTRUCTORS: Record<string, TokenKind> = {
   Done: 'DONE_LIT',
 };
 
-const BUILTIN_TYPES: Record<string, TokenKind> = {
-  Int: 'TYPE_NAME',
-  Float: 'TYPE_NAME',
-  Bool: 'TYPE_NAME',
-  String: 'TYPE_NAME',
-  List: 'TYPE_NAME',
-};
-
 export const resolveWord = (value: string, firstCh: string): TokenKind | null => {
+  // Every UpperCamel identifier is a TYPE_NAME — a type name or a record
+  // constructor, disambiguated by position (design.md §2's casing rule). The
+  // built-in types (Int, Float, …) and user-declared types alike arrive this
+  // way, carrying their own text; only the reserved value constructors
+  // (True/False/None/Done) get a distinct literal token.
   if (firstCh >= 'A' && firstCh <= 'Z') {
-    return CONSTRUCTORS[value] ?? BUILTIN_TYPES[value] ?? null;
+    return CONSTRUCTORS[value] ?? 'TYPE_NAME';
   }
 
   // Object.hasOwn: a lowercase identifier like 'toString' or 'constructor' would

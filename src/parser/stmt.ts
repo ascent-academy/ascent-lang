@@ -1,5 +1,5 @@
 import type { Token } from '../lexer/token.js';
-import type { Expr, Statement, Block, If, TypeExpr } from './ast.js';
+import type { Expr, Statement, Block, If, TypeExpr, FieldDecl } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseExpr } from './expr.js';
 import { parseTypeExpr } from './type-expr.js';
@@ -170,6 +170,56 @@ function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
   };
 }
 
+// One 'name: Type' field inside a record's declaration braces. The field
+// name is a lowercase binding (design.md §2's casing rule); its type is a
+// full TypeExpr, so a field may itself be 'List<T>', 'T?', or another record.
+function parseFieldDecl(ts: TokenStream): FieldDecl | null {
+  const nameTok = ts.peek();
+  if (nameTok.kind !== 'SLOT') {
+    ts.report('S0021', nameTok.span);
+    return null;
+  }
+  ts.advance(); // consume field name
+
+  if (ts.expect('COLON', 'S0022') === null) return null;
+
+  const type = parseTypeExpr(ts);
+  if (type === null) return null;
+
+  return { name: nameTok.value, nameSpan: nameTok.span, type, span: { start: nameTok.span.start, end: type.span.end } };
+}
+
+// 'type Name = { field: Type, … };' — a record type declaration (design.md
+// §6). Only the bare-brace (single-variant) form is parsed for now; the tag
+// of its sole constructor is the type's own name. Multi-variant unions ('|')
+// and the explicit 'type Name = Name{ … }' spelling arrive later.
+function parseTypeDecl(ts: TokenStream): Statement | null {
+  const typeTok = ts.advance(); // consume 'type'
+
+  const nameTok = ts.peek();
+  if (nameTok.kind !== 'TYPE_NAME') {
+    ts.report('S0018', nameTok.span);
+    return null;
+  }
+  ts.advance(); // consume type name
+
+  if (ts.expect('EQUALS', 'S0019') === null) return null;
+
+  const open = ts.expect('LBRACE', 'S0020');
+  if (open === null) return null;
+
+  const parsed = ts.parseSeparated(() => parseFieldDecl(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  if (parsed === null) return null;
+
+  return {
+    kind: 'typeDecl',
+    name: nameTok.value,
+    nameSpan: nameTok.span,
+    fields: parsed.items,
+    span: { start: typeTok.span.start, end: parsed.close.span.end },
+  };
+}
+
 // 'name = expr;' — reassigns a slot already declared with 'fix' or
 // 'mut'. Whether that's actually allowed (the slot must be 'mut') is
 // a name-binding rule, not a grammar rule, so it's checked at
@@ -204,6 +254,9 @@ export function parseStmt(ts: TokenStream): Statement | null {
   }
   if (ts.peek().kind === 'KW_FOR') {
     return parseFor(ts);
+  }
+  if (ts.peek().kind === 'KW_TYPE') {
+    return parseTypeDecl(ts);
   }
   if (ts.peek().kind === 'SLOT' && ts.peekNext().kind === 'EQUALS') {
     return parseAssign(ts);

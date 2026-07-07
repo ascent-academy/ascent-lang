@@ -18,12 +18,20 @@ export type TypedLiteral = (
 export type TypedTemplatePart = { kind: 'text'; value: string } | { kind: 'hole'; expr: TypedExpr };
 export type TypedTemplate = { kind: 'template'; parts: TypedTemplatePart[]; type: AscentType; span: Span };
 
+// One field of a typed record construction, stored in the type's *declaration*
+// order (not source order). `declaredType` is the field's declared type — the
+// interpreter coerces `value` into it (e.g. Int → Float), exactly as a fix/mut
+// init coerces into its slotType.
+export type TypedFieldInit = { name: string; declaredType: AscentType; value: TypedExpr };
+
 export type TypedExpr = (
   | TypedLiteral
   | TypedTemplate
   | { kind: 'slot'; name: string; type: AscentType; span: Span }
   | { kind: 'call'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }
+  | { kind: 'construct'; typeName: string; fields: TypedFieldInit[]; type: AscentType; span: Span }
+  | { kind: 'fieldAccess'; receiver: TypedExpr; field: string; type: AscentType; span: Span }
   | { kind: 'list'; elements: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'range'; lo: TypedExpr; hi: TypedExpr; type: AscentType; span: Span }
   | { kind: 'index'; list: TypedExpr; index: TypedExpr; type: AscentType; span: Span }
@@ -54,10 +62,16 @@ export type TypedIf = {
 // slotType is the definitive declared type of the slot — the annotation type
 // when provided, otherwise the inferred init type. The interpreter uses it to
 // coerce the init value (e.g. Int → Float when the annotation says Float).
+// A typed field of a record declaration — its declared type resolved to an
+// AscentType. Carried for the printer / tooling; the interpreter erases types
+// and needs nothing from a typeDecl at runtime.
+export type TypedFieldDecl = { name: string; type: AscentType };
+
 export type TypedStatement = (
   | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
   | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
   | { kind: 'assign'; name: string; slotType: AscentType; value: TypedExpr; span: Span }
+  | { kind: 'typeDecl'; name: string; fields: TypedFieldDecl[]; span: Span }
   | { kind: 'expr'; expr: TypedExpr; span: Span }
   | { kind: 'while'; cond: TypedExpr; body: TypedBlock; span: Span }
   // elemType is what each iteration binds `name` to: a List's element type,

@@ -45,6 +45,11 @@ export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv)
     for (const [name, binding] of env.ownEntries()) {
       parentEnv.set(name, binding.ty, binding.origin, binding.declSpan);
     }
+    // Types declared this line persist into later REPL lines too, alongside
+    // slots — so 'type Person = …' on one line is usable on the next.
+    for (const [, info] of env.ownTypeEntries()) {
+      parentEnv.setType(info);
+    }
   }
 
   return { program: { args: program.args, stmts: typedStmts }, diagnostics: [] };

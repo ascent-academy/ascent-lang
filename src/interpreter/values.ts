@@ -18,6 +18,11 @@ export type RuntimeValue = (
   // Int representation), not a materialized list — iterating walks lo→hi
   // lazily, so '0..1000000' costs nothing until asked for its items.
   | { type: 'Range'; lo: bigint; hi: bigint }
+  // A record value (design.md §6). `name` is its type/constructor name (a
+  // single-variant record's tag); `fields` holds the field values in
+  // declaration order (a Map preserves insertion order), so '==' and display
+  // are a straight field-by-field walk.
+  | { type: 'Record'; name: string; fields: Map<string, RuntimeValue> }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -39,6 +44,7 @@ export const floatVal = (value: number) => ({ type: 'Float' as const, value });
 export const strVal = (value: string) => ({ type: 'String' as const, value });
 export const boolVal = (value: boolean) => ({ type: 'Bool' as const, value });
 export const rangeVal = (lo: bigint, hi: bigint) => ({ type: 'Range' as const, lo, hi });
+export const recordVal = (name: string, fields: Map<string, RuntimeValue>) => ({ type: 'Record' as const, name, fields });
 export const NONE = { type: 'None' as const };
 export const DONE = { type: 'Done' as const };
 
@@ -117,5 +123,17 @@ export const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean =>
   // every other '==' (design.md §5). (Distinct empty ranges, e.g. '5..5' and
   // '3..3', are thus unequal: different bounds, not "both empty".)
   if (left.type === 'Range' && right.type === 'Range') return left.lo === right.lo && left.hi === right.hi;
+  // Records compare structurally: same type, then field-by-field (design.md
+  // §6/§7 — records are "immutable, structurally-compared values"). The
+  // typechecker guarantees '==' operands share a type, so same-name records
+  // have the same field set; a walk of one side's fields suffices.
+  if (left.type === 'Record' && right.type === 'Record') {
+    if (left.name !== right.name) return false;
+    for (const [name, value] of left.fields) {
+      const other = right.fields.get(name);
+      if (other === undefined || !valuesEqual(value, other)) return false;
+    }
+    return true;
+  }
   return true; // None, Done — singleton types
 };

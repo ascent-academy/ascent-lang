@@ -172,3 +172,61 @@
   explanation: >-
     A 'for' loop is written 'for name in values', so 'in' comes after the loop
     variable and before what's being looped over, as in 'for i in 0..n'.
+
+- code: S0018
+  name: expected-type-name
+  category: syntactic
+  summary: "A type name was expected after 'type'."
+  message: "I expected a type name here."
+  explanation: >-
+    A 'type' declaration gives a new type its name, like 'type Person = { … }'.
+    The name comes right after 'type', and it starts with an uppercase letter.
+
+- code: S0019
+  name: expected-type-equals
+  category: syntactic
+  summary: "An '=' was expected after the name in a 'type' declaration."
+  message: "I expected an '=' here."
+  explanation: >-
+    A 'type' declaration is written 'type Name = { … }', so '=' comes after the
+    name and before the fields, as in 'type Person = { name: String }'.
+
+- code: S0020
+  name: expected-record-brace
+  category: syntactic
+  summary: "A '{' was expected to open a record's fields."
+  message: "I expected a '{' here."
+  explanation: >-
+    A record type lists its fields between '{' and '}', like
+    'type Person = { name: String, age: Int }'. This is where that opening '{'
+    should be.
+
+- code: S0021
+  name: expected-field-name
+  category: syntactic
+  summary: A field name was expected here.
+  message: "I expected a field name here."
+  explanation: >-
+    A record's fields are each written as a name, like the 'name' and 'age' in
+    'Person{ name: \"Ann\", age: 30 }'. A field name starts with a lowercase
+    letter.
+
+- code: S0022
+  name: expected-field-colon
+  category: syntactic
+  summary: "A ':' was expected after a field name."
+  message: "I expected a ':' here."
+  explanation: >-
+    Each field is written as a name, then ':', then its type or value — like
+    'name: String' when declaring a type, or 'name: \"Ann\"' when building one.
+    This is where the ':' should be.
+
+- code: S0023
+  name: type-name-needs-braces
+  category: syntactic
+  summary: A type name was used as a value without '{ … }'.
+  message: "'{found}' names a type, so it needs '{ … }' to build a value."
+  explanation: >-
+    A name that starts with an uppercase letter is a type. To make a value of
+    it, follow it with its fields in braces, like 'Person{ name: \"Ann\", age:
+    30 }'. On its own, '{found}' isn't a value yet.
