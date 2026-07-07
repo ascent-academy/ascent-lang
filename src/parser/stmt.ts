@@ -1,5 +1,5 @@
 import type { Token } from '../lexer/token.js';
-import type { Expr, Statement, Block, If, TypeExpr, FieldDecl } from './ast.js';
+import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseExpr } from './expr.js';
 import { parseTypeExpr } from './type-expr.js';
@@ -78,6 +78,111 @@ export function parseIf(ts: TokenStream): If | null {
     else: elseBranch,
     span: { start: ifTok.span.start, end: (elseBranch ?? thenBlock).span.end },
   };
+}
+
+// 'match subject { pat -> body; … }' — an expression (whitepaper §5), so it
+// clusters here with the other braced control constructs but is reached from
+// parseAtom, like 'if'. Unlike 'if'/'while', the subject is a *bare* expression
+// with no parentheses (parens are only for a condition) — the arms' braces
+// already delimit it, exactly as a 'for' loop's iterable needs none. Parsing
+// stops at the '{' since it's neither an infix nor a postfix operator. The arms
+// sit between braces, each separated by ';' like a block's statements (trailing
+// ';' optional).
+export function parseMatch(ts: TokenStream): Match | null {
+  const matchTok = ts.advance(); // consume 'match'
+
+  const subject = parseExpr(ts);
+  if (subject === null) {
+    return null;
+  }
+
+  const open = ts.expect('LBRACE', 'S0024');
+  if (open === null) return null;
+
+  const parsed = ts.parseSeparated(() => parseMatchArm(ts), 'SEMICOLON', 'RBRACE', 'S0005', false, open.span);
+  if (parsed === null) return null;
+
+  return {
+    kind: 'match',
+    subject,
+    arms: parsed.items,
+    span: { start: matchTok.span.start, end: parsed.close.span.end },
+  };
+}
+
+// One 'pattern -> body' arm. The body is a full expression (a bare value or a
+// '{ … }' block), parsed with the ordinary parseExpr — it stops at the ';' or
+// '}' that ends the arm, neither of which is an operator.
+function parseMatchArm(ts: TokenStream): MatchArm | null {
+  const pattern = parsePattern(ts);
+  if (pattern === null) {
+    return null;
+  }
+
+  if (ts.expect('ARROW', 'S0026') === null) return null;
+
+  const body = parseExpr(ts);
+  if (body === null) {
+    return null;
+  }
+
+  return { pattern, body, span: { start: pattern.span.start, end: body.span.end } };
+}
+
+// A stage-1 pattern is either the 'else' catch-all or a scalar literal.
+function parsePattern(ts: TokenStream): Pattern | null {
+  const tok = ts.peek();
+  if (tok.kind === 'KW_ELSE') {
+    ts.advance(); // consume 'else'
+    return { kind: 'elsePattern', span: tok.span };
+  }
+  return parseLiteralPattern(ts);
+}
+
+// A literal pattern is a constant to compare the subject against: an Int, Float,
+// Bool, or plain String literal. A leading '-' forms a negative number. An
+// interpolated string ('${…}', which lexes as a leading STR_PART) isn't a
+// constant, so it can't be a pattern — it falls through to the S0025 report.
+function parseLiteralPattern(ts: TokenStream): LiteralPattern | null {
+  const tok = ts.peek();
+
+  if (tok.kind === 'MINUS') {
+    ts.advance(); // consume '-'
+    const num = ts.peek();
+    if (num.kind === 'INT_LIT') {
+      ts.advance();
+      return { kind: 'litPattern', valueType: 'Int', value: -BigInt(num.value), span: { start: tok.span.start, end: num.span.end } };
+    }
+    if (num.kind === 'FLOAT_LIT') {
+      ts.advance();
+      return { kind: 'litPattern', valueType: 'Float', value: -parseFloat(num.value), span: { start: tok.span.start, end: num.span.end } };
+    }
+    // A '-' with no number after it isn't a pattern.
+    ts.report('S0025', num.span);
+    return null;
+  }
+
+  if (tok.kind === 'INT_LIT') {
+    ts.advance();
+    return { kind: 'litPattern', valueType: 'Int', value: BigInt(tok.value), span: tok.span };
+  }
+  if (tok.kind === 'FLOAT_LIT') {
+    ts.advance();
+    return { kind: 'litPattern', valueType: 'Float', value: parseFloat(tok.value), span: tok.span };
+  }
+  if (tok.kind === 'BOOL_LIT') {
+    ts.advance();
+    return { kind: 'litPattern', valueType: 'Bool', value: tok.value === 'True', span: tok.span };
+  }
+  // A plain string (no holes) is a single STR_PART_END carrying its decoded
+  // text; its value is the constant to match against.
+  if (tok.kind === 'STR_PART_END') {
+    ts.advance();
+    return { kind: 'litPattern', valueType: 'String', value: tok.value, span: tok.span };
+  }
+
+  ts.report('S0025', tok.span);
+  return null;
 }
 
 // 'while (cond) { }' — a statement, not an expression (§5): a loop has

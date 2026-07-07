@@ -1,5 +1,5 @@
 import type { Span } from '../lexer/token.js';
-import type { UnaryOp, BinaryOp, ProgramArg, TypeExpr } from './ast.js';
+import type { UnaryOp, BinaryOp, ProgramArg, TypeExpr, Pattern } from './ast.js';
 import type { AscentType } from '../types/types.js';
 
 // Every typed expression carries `type`: the Type inferred by the type
@@ -37,9 +37,24 @@ export type TypedExpr = (
   | { kind: 'index'; list: TypedExpr; index: TypedExpr; type: AscentType; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; type: AscentType; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
+  | TypedMatch
   | TypedBlock
   | TypedIf
 );
+
+// A pattern carries no inferred type of its own — a literal pattern's type is
+// evident from its own kind — so the typed arm reuses the untyped Pattern and
+// only its body becomes a TypedExpr. `type` on TypedMatch is the join of the
+// reachable arms' body types (the value the whole 'match' produces).
+export type TypedMatchArm = { pattern: Pattern; body: TypedExpr; span: Span };
+
+export type TypedMatch = {
+  kind: 'match';
+  subject: TypedExpr;
+  arms: TypedMatchArm[];
+  type: AscentType;
+  span: Span;
+};
 
 // type is the type the block yields: the type of the last expr-statement,
 // or Done when the block is empty or ends with a non-expr statement.

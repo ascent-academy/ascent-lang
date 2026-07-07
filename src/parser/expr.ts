@@ -1,7 +1,7 @@
 import type { Token, TokenKind } from '../lexer/token.js';
 import type { Expr, BinaryOp, UnaryOp, TemplatePart, FieldInit } from './ast.js';
 import type { TokenStream } from './token-stream.js';
-import { parseBlock, parseIf } from './stmt.js';
+import { parseBlock, parseIf, parseMatch } from './stmt.js';
 import { dedent, type RawChunk } from './dedent.js';
 
 // ---- Pratt parsing ----------------------------------------------------
@@ -361,6 +361,10 @@ function parseAtom(ts: TokenStream): Expr | null {
 
   if (tok.kind === 'KW_IF') {
     return parseIf(ts);
+  }
+
+  if (tok.kind === 'KW_MATCH') {
+    return parseMatch(ts);
   }
 
   ts.report('S0002', tok.span);

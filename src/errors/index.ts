@@ -437,6 +437,30 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A name that starts with an uppercase letter is a type. To make a value of it, follow it with its fields in braces, like 'Person{ name: \\\"Ann\\\", age: 30 }'. On its own, '{found}' isn't a value yet."
   },
   {
+    "code": "S0024",
+    "name": "expected-match-brace",
+    "category": "syntactic",
+    "summary": "A '{' was expected to open a 'match'’s arms.",
+    "message": "I expected a '{' here.",
+    "explanation": "A 'match' lists its arms between '{' and '}', each written as a pattern, then '->', then a result — like 'match n { 0 -> \"none\"; else -> \"some\" }'. This is where that opening '{' should be."
+  },
+  {
+    "code": "S0025",
+    "name": "expected-pattern",
+    "category": "syntactic",
+    "summary": "A pattern was expected at the start of a 'match' arm.",
+    "message": "I expected a pattern here.",
+    "explanation": "Each arm of a 'match' starts with a pattern — a plain value to compare against, like '0', '\"hi\"', or 'True', or the word 'else' for the catch-all arm. This is where that pattern should be."
+  },
+  {
+    "code": "S0026",
+    "name": "expected-arrow",
+    "category": "syntactic",
+    "summary": "A '->' was expected after a 'match' arm's pattern.",
+    "message": "I expected a '->' here.",
+    "explanation": "Each arm of a 'match' is written as a pattern, then '->', then the result to use when it matches — like '0 -> \"none\"'. This is where the '->' should be."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",
@@ -683,6 +707,56 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'void' is used on a value that is already Done.",
     "message": "There's nothing to throw away here — this is already Done.",
     "explanation": "'void' throws away a value in a spot where it would otherwise be kept. This expression is already Done — it produces no value (an effect like 'print', or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'."
+  },
+  {
+    "code": "T0028",
+    "name": "match-pattern-type-mismatch",
+    "category": "type",
+    "summary": "A 'match' pattern can't be compared to the value being matched.",
+    "message": "This pattern is {actual}, but the value being matched is {expected}.",
+    "explanation": "Each arm's pattern is compared against the value in the 'match', so it has to be something that value could equal. Here the value being matched has type {expected}, but this pattern is {actual}, and those two can never be equal.",
+    "related": [
+      {
+        "key": "subject",
+        "label": "this value is {expected}"
+      }
+    ]
+  },
+  {
+    "code": "T0029",
+    "name": "match-not-exhaustive",
+    "category": "type",
+    "summary": "A 'match' doesn't cover every possible value.",
+    "message": "This 'match' doesn't handle every possible value.",
+    "explanation": "A 'match' has to produce a value no matter which value it's given, so its arms together have to cover every case. Add an 'else' arm to handle any value the arms above didn't list, like 'else -> 0'."
+  },
+  {
+    "code": "T0030",
+    "name": "match-arms-mismatch",
+    "category": "type",
+    "summary": "The arms of a 'match' produce different types.",
+    "message": "The arms of this 'match' produce different types.",
+    "explanation": "A 'match' used as a value becomes one value, so every arm has to produce the same type. Here one arm gives {first} and another gives {other}.",
+    "related": [
+      {
+        "key": "arm",
+        "label": "this arm gives {other}"
+      }
+    ]
+  },
+  {
+    "code": "T0031",
+    "name": "unreachable-match-arm",
+    "category": "type",
+    "summary": "A 'match' arm can never be reached.",
+    "message": "This arm can never be reached.",
+    "explanation": "The arms of a 'match' are tried in order, and an earlier arm already handles every value this one would — either it comes after an 'else' (which matches everything), or an earlier arm has the very same pattern. So this arm never runs. Remove it, or change what it matches.",
+    "related": [
+      {
+        "key": "shadow",
+        "label": "this earlier arm already matches it"
+      }
+    ]
   }
 ];
 

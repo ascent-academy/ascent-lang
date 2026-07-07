@@ -1,6 +1,21 @@
 import chalk from 'chalk';
-import type { Expr, Statement, TypeExpr } from './ast.js';
+import type { Expr, Statement, TypeExpr, Pattern } from './ast.js';
 import type { RuntimeValue } from '../interpreter.js';
+
+// How a 'match' arm's pattern shows in the AST dump — the constant it compares
+// against, or 'else'. Shared by both printers (this one and typed-printer).
+export const patternLabel = (pattern: Pattern): string => {
+  switch (pattern.kind) {
+    case 'elsePattern': return 'else';
+    case 'litPattern':
+      switch (pattern.valueType) {
+        case 'Int': return String(pattern.value);
+        case 'Float': return String(pattern.value);
+        case 'Bool': return pattern.value ? 'True' : 'False';
+        case 'String': return JSON.stringify(pattern.value);
+      }
+  }
+};
 
 const formatTypeExpr = (te: TypeExpr): string => {
   switch (te.kind) {
@@ -107,6 +122,16 @@ const exprLines = (expr: Expr): string[] => {
       const thenLines = branch(exprLines(expr.then), expr.else === null);
       const elseLines = expr.else !== null ? branch(exprLines(expr.else), true) : [];
       return [`${chalk.cyan('If')}`, ...condLines, ...thenLines, ...elseLines];
+    }
+    case 'match': {
+      const subjectLines = branch(exprLines(expr.subject), expr.arms.length === 0);
+      const armLines = expr.arms.flatMap((arm, i) =>
+        branch(
+          [`${chalk.magenta(patternLabel(arm.pattern))} ${chalk.dim('->')}`, ...branch(exprLines(arm.body), true)],
+          i === expr.arms.length - 1
+        )
+      );
+      return [`${chalk.cyan('Match')}`, ...subjectLines, ...armLines];
     }
   }
 };

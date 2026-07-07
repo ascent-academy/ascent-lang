@@ -230,3 +230,32 @@
     A name that starts with an uppercase letter is a type. To make a value of
     it, follow it with its fields in braces, like 'Person{ name: \"Ann\", age:
     30 }'. On its own, '{found}' isn't a value yet.
+
+- code: S0024
+  name: expected-match-brace
+  category: syntactic
+  summary: "A '{' was expected to open a 'match'’s arms."
+  message: "I expected a '{' here."
+  explanation: >-
+    A 'match' lists its arms between '{' and '}', each written as a pattern,
+    then '->', then a result — like 'match n { 0 -> "none"; else -> "some" }'.
+    This is where that opening '{' should be.
+
+- code: S0025
+  name: expected-pattern
+  category: syntactic
+  summary: A pattern was expected at the start of a 'match' arm.
+  message: "I expected a pattern here."
+  explanation: >-
+    Each arm of a 'match' starts with a pattern — a plain value to compare
+    against, like '0', '"hi"', or 'True', or the word 'else' for the catch-all
+    arm. This is where that pattern should be.
+
+- code: S0026
+  name: expected-arrow
+  category: syntactic
+  summary: "A '->' was expected after a 'match' arm's pattern."
+  message: "I expected a '->' here."
+  explanation: >-
+    Each arm of a 'match' is written as a pattern, then '->', then the result to
+    use when it matches — like '0 -> "none"'. This is where the '->' should be.

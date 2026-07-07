@@ -269,7 +269,10 @@ export class Lexer {
 
     switch (ch) {
       case '+': return this.token('PLUS', start);
-      case '-': return this.token('MINUS', start);
+      case '-':
+        // '->' opens a 'match' arm's result; a lone '-' is subtraction/negation.
+        if (this.c.match('>')) return this.token('ARROW', start);
+        return this.token('MINUS', start);
       case '*':
         if (this.c.match('*')) return this.token('STAR_STAR', start);
         return this.token('STAR', start);

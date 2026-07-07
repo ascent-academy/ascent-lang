@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { TypedExpr, TypedStatement } from './typed-ast.js';
 import { typeToString } from '../types/types.js';
-import { branch } from './printer.js';
+import { branch, patternLabel } from './printer.js';
 
 // Appends the inferred type as a dim annotation on a node label.
 const ty = (t: ReturnType<typeof typeToString>): string => chalk.dim(`: ${t}`);
@@ -99,6 +99,16 @@ const typedExprLines = (expr: TypedExpr): string[] => {
         ? branch(typedExprLines(expr.else), true)
         : [];
       return [`${chalk.cyan('If')}${t}`, ...condLines, ...thenLines, ...elseLines];
+    }
+    case 'match': {
+      const subjectLines = branch(typedExprLines(expr.subject), expr.arms.length === 0);
+      const armLines = expr.arms.flatMap((arm, i) =>
+        branch(
+          [`${chalk.magenta(patternLabel(arm.pattern))} ${chalk.dim('->')}`, ...branch(typedExprLines(arm.body), true)],
+          i === expr.arms.length - 1
+        )
+      );
+      return [`${chalk.cyan('Match')}${t}`, ...subjectLines, ...armLines];
     }
   }
 };

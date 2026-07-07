@@ -1,6 +1,7 @@
-import type { Statement, Block, If } from '../parser/ast.js';
-import type { TypedBlock, TypedIf, TypedExpr, TypedStatement } from '../parser/typed-ast.js';
-import { AscentType, INT_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
+import type { Statement, Block, If, Match, LiteralPattern } from '../parser/ast.js';
+import type { Span } from '../lexer/token.js';
+import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement } from '../parser/typed-ast.js';
+import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
 import type { TypeEnv, RecordField } from './env.js';
 import type { TypedFieldDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
@@ -99,6 +100,118 @@ export const inferIf = (expr: If, env: TypeEnv, diagnostics: Diagnostics): Typed
   }
 
   return { kind: 'if', cond: typedCond, then: typedThen, else: typedElse, type: ct ?? INVALID_TYPE, span: expr.span };
+};
+
+// The type a literal pattern compares as — evident from its own kind. Used
+// both for the subject-compatibility check and as documentation of what a
+// pattern's value is.
+const literalPatternType = (p: LiteralPattern): AscentType => {
+  switch (p.valueType) {
+    case 'Int': return INT_TYPE;
+    case 'Float': return FLOAT_TYPE;
+    case 'Bool': return BOOL_TYPE;
+    case 'String': return STRING_TYPE;
+  }
+};
+
+// A stable key identifying a literal pattern's constant, so a second arm with
+// the same constant is flagged unreachable (T0031). valueType is part of the
+// key, so '0' (Int) and '0.0' (Float) never collide — stage 1 doesn't chase
+// the cross-type numeric equality ('0 == 0.0') that '==' itself honours.
+const literalPatternKey = (p: LiteralPattern): string => {
+  switch (p.valueType) {
+    case 'Int': return `Int:${p.value}`;
+    case 'Float': return `Float:${p.value}`;
+    case 'Bool': return `Bool:${p.value}`;
+    case 'String': return `String:${JSON.stringify(p.value)}`;
+  }
+};
+
+// A 'match' is an expression (whitepaper §5): it synthesizes the subject, then
+// each arm, and its type is the join of the reachable arms' bodies (every arm
+// must agree, since the whole 'match' becomes one value). Three checker rules
+// ride along: a pattern must be comparable to the subject (T0028, the '=='
+// rule), the arms must be exhaustive (T0029 — stage 1 needs an 'else', since no
+// finite list of scalar literals covers every value), and no arm may be
+// unreachable (T0031 — shadowed by an earlier 'else' or a duplicate literal).
+export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics): TypedMatch => {
+  const typedSubject = synth(expr.subject, env, diagnostics);
+  const subjectType = typedSubject.type;
+
+  const typedArms: TypedMatchArm[] = [];
+  const seen = new Map<string, Span>(); // literal key → the first arm that used it
+  let elseSpan: Span | null = null;     // the 'else' arm's span, once one is seen
+
+  // The reachable arms' body types, joined into the match's own type below. An
+  // unreachable arm still gets synth'd (so errors inside its body surface) but
+  // is left out of the join and skips the pattern-compat check — it already
+  // carries its own T0031, and folding a shadowed arm in would only add noise.
+  const bodyTypes: { type: AscentType; span: Span }[] = [];
+
+  for (const arm of expr.arms) {
+    const typedBody = synth(arm.body, env, diagnostics);
+    typedArms.push({ pattern: arm.pattern, body: typedBody, span: arm.span });
+
+    if (elseSpan !== null) {
+      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: elseSpan }] });
+      continue;
+    }
+
+    if (arm.pattern.kind === 'elsePattern') {
+      elseSpan = arm.span;
+    } else {
+      const key = literalPatternKey(arm.pattern);
+      const firstSpan = seen.get(key);
+      if (firstSpan !== undefined) {
+        diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
+        continue;
+      }
+      seen.set(key, arm.span);
+
+      // The pattern is compared against the subject, so it has to be a value
+      // that could be equal to it — exactly the rule '==' uses (a common type
+      // exists). An already-Invalid subject skips this without a second error.
+      const patternType = literalPatternType(arm.pattern);
+      if (!isInvalidType(subjectType) && leastCommonType(subjectType, patternType) === null) {
+        diagnostics.error({
+          code: 'T0028', span: arm.pattern.span,
+          data: { expected: typeToString(subjectType), actual: typeToString(patternType) },
+          related: [{ key: 'subject', span: expr.subject.span }],
+        });
+      }
+    }
+
+    bodyTypes.push({ type: typedBody.type, span: arm.span });
+  }
+
+  if (elseSpan === null) {
+    diagnostics.error({ code: 'T0029', span: expr.span });
+  }
+
+  // Join the reachable arms pairwise, like a list literal's elements. On the
+  // first pair with no common type, report T0030 and settle the whole match at
+  // Invalid so the failure stops here instead of cascading. leastCommonType is
+  // Invalid-aware, so an arm whose own body failed carries Invalid through
+  // without a second diagnostic.
+  let type: AscentType = DONE_TYPE;
+  if (bodyTypes.length > 0) {
+    type = bodyTypes[0]!.type;
+    for (const arm of bodyTypes.slice(1)) {
+      const ct = leastCommonType(type, arm.type);
+      if (ct === null) {
+        diagnostics.error({
+          code: 'T0030', span: expr.span,
+          data: { first: typeToString(type), other: typeToString(arm.type) },
+          related: [{ key: 'arm', span: arm.span }],
+        });
+        type = INVALID_TYPE;
+        break;
+      }
+      type = ct;
+    }
+  }
+
+  return { kind: 'match', subject: typedSubject, arms: typedArms, type, span: expr.span };
 };
 
 export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostics): TypedStatement => {

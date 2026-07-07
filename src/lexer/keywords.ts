@@ -18,6 +18,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   args: 'KW_ARGS',
   type: 'KW_TYPE',
   void: 'KW_VOID',
+  match: 'KW_MATCH',
 };
 
 export const CONSTRUCTORS: Record<string, TokenKind> = {

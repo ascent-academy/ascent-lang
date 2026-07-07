@@ -56,6 +56,30 @@ export type If = {
 // name, never by position).
 export type FieldInit = { name: string; nameSpan: Span; value: Expr; span: Span };
 
+// A 'match' pattern (whitepaper §5). v1 patterns are shallow, and stage 1
+// implements two of the three kinds: a literal (a scalar constant compared
+// against the subject) and the 'else' catch-all. Variant patterns arrive with
+// unions. A literal pattern is a constant, so a String one is always a plain
+// string — never an interpolation.
+export type LiteralPattern = (
+  | { kind: 'litPattern'; valueType: 'Int'; value: bigint; span: Span }
+  | { kind: 'litPattern'; valueType: 'Float'; value: number; span: Span }
+  | { kind: 'litPattern'; valueType: 'Bool'; value: boolean; span: Span }
+  | { kind: 'litPattern'; valueType: 'String'; value: string; span: Span }
+);
+export type Pattern = LiteralPattern | { kind: 'elsePattern'; span: Span };
+
+// One arm of a 'match': the pattern to test and the expression to produce when
+// it matches. The body is any expression — a bare value or a '{ … }' block.
+export type MatchArm = { pattern: Pattern; body: Expr; span: Span };
+
+// 'match subject { pat -> body; … }' — an expression that yields the body of
+// the first arm whose pattern matches the subject (whitepaper §5). The subject
+// is a bare expression, no parentheses (unlike an 'if'/'while' *condition*, §2)
+// — the arms' braces delimit it. Exhaustiveness is a checker rule, not a
+// grammar one.
+export type Match = { kind: 'match'; subject: Expr; arms: MatchArm[]; span: Span };
+
 export type Expr = (
   | Literal
   | Template
@@ -78,6 +102,7 @@ export type Expr = (
   | { kind: 'index'; list: Expr; index: Expr; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
+  | Match
   | Block
   | If
 );

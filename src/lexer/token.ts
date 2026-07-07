@@ -29,6 +29,7 @@ export type TokenKind =
   | 'KW_ARGS'        // the keyword args — declares the program's typed inputs
   | 'KW_TYPE'        // the keyword type — declares a user-defined type
   | 'KW_VOID'        // the keyword void — evaluates an expression and discards its value
+  | 'KW_MATCH'       // the keyword match — starts a pattern-matching expression
   | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates
@@ -38,6 +39,7 @@ export type TokenKind =
   | 'LT_EQ'          // '<=' — less than or equal to
   | 'GT'             // '>' — greater than
   | 'GT_EQ'          // '>=' — greater than or equal to
+  | 'ARROW'          // '->' — separates a 'match' arm's pattern from its result
   | 'DOT'            // '.' — method call operator
   | 'DOTDOT'         // '..' — the half-open range operator, as in '0..n'
   | 'COMMA'          // ',' — separates items in a list or arguments in a function call

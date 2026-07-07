@@ -291,3 +291,52 @@
     'void' throws away a value in a spot where it would otherwise be kept. This
     expression is already Done — it produces no value (an effect like 'print',
     or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'.
+
+- code: T0028
+  name: match-pattern-type-mismatch
+  category: type
+  summary: "A 'match' pattern can't be compared to the value being matched."
+  message: "This pattern is {actual}, but the value being matched is {expected}."
+  explanation: >-
+    Each arm's pattern is compared against the value in the 'match', so it has to
+    be something that value could equal. Here the value being matched has type
+    {expected}, but this pattern is {actual}, and those two can never be equal.
+  related:
+    - key: subject
+      label: "this value is {expected}"
+
+- code: T0029
+  name: match-not-exhaustive
+  category: type
+  summary: "A 'match' doesn't cover every possible value."
+  message: "This 'match' doesn't handle every possible value."
+  explanation: >-
+    A 'match' has to produce a value no matter which value it's given, so its
+    arms together have to cover every case. Add an 'else' arm to handle any value
+    the arms above didn't list, like 'else -> 0'.
+
+- code: T0030
+  name: match-arms-mismatch
+  category: type
+  summary: "The arms of a 'match' produce different types."
+  message: "The arms of this 'match' produce different types."
+  explanation: >-
+    A 'match' used as a value becomes one value, so every arm has to produce the
+    same type. Here one arm gives {first} and another gives {other}.
+  related:
+    - key: arm
+      label: "this arm gives {other}"
+
+- code: T0031
+  name: unreachable-match-arm
+  category: type
+  summary: "A 'match' arm can never be reached."
+  message: "This arm can never be reached."
+  explanation: >-
+    The arms of a 'match' are tried in order, and an earlier arm already handles
+    every value this one would — either it comes after an 'else' (which matches
+    everything), or an earlier arm has the very same pattern. So this arm never
+    runs. Remove it, or change what it matches.
+  related:
+    - key: shadow
+      label: "this earlier arm already matches it"

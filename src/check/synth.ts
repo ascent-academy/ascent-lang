@@ -9,7 +9,7 @@ import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
 import { methodCallType, FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
 import { satisfies } from './traits.js';
-import { inferBlock, inferIf } from './stmt.js';
+import { inferBlock, inferIf, inferMatch } from './stmt.js';
 import { check } from './check.js';
 
 // ---- Expression synthesis:  Γ ⊢ e ⇒ T --------------------------------
@@ -375,5 +375,8 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
 
     case 'if':
       return inferIf(expr, env, diagnostics);
+
+    case 'match':
+      return inferMatch(expr, env, diagnostics);
   }
 };

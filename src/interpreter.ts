@@ -1,11 +1,11 @@
-import type { ProgramArg } from './parser/ast.js';
+import type { ProgramArg, Pattern, LiteralPattern } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
 // valueToString (plain, no colour) is how Ascent renders a runtime value to
 // its output text — the language owns this, so the host's sink takes strings.
 import { valueToString } from './parser/printer.js';
 import { RuntimeError } from './errors/runtime-error.js';
 import {
-  coerce, scalarToString,
+  coerce, scalarToString, valuesEqual,
   intVal, floatVal, strVal, boolVal, rangeVal, recordVal, NONE, DONE,
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
@@ -162,10 +162,48 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     case 'if': {
       const cond = evaluateExpr(expr.cond, env);
       if (cond.type !== 'Bool') throw new Error('internal: if condition not Bool');
-      if (cond.value) return evaluateExpr(expr.then, env);
-      if (expr.else !== null) return evaluateExpr(expr.else, env);
+      // The whole 'if' has the join type of its branches, so the taken branch's
+      // own value is widened to it — 'if (c) { 1 } else { 2.5 }' yields a Float
+      // even when the Int branch runs. Same coercion a fix/mut init gets against
+      // its slot type; a no-op when the branch already is the join type (or when
+      // there's no else, where the join is Done and the coercion doesn't apply).
+      if (cond.value) return coerce(evaluateExpr(expr.then, env), expr.then.type, expr.type);
+      if (expr.else !== null) return coerce(evaluateExpr(expr.else, env), expr.else.type, expr.type);
       return DONE;
     }
+    case 'match': {
+      // Try each arm in source order and take the first whose pattern matches
+      // (whitepaper §5). The checker proved the match exhaustive, so some arm
+      // always matches — reaching the end is an interpreter bug, not a program
+      // one. The taken arm's value is widened to the match's join type, exactly
+      // as an 'if' widens its taken branch.
+      const subject = evaluateExpr(expr.subject, env);
+      for (const arm of expr.arms) {
+        if (patternMatches(arm.pattern, subject)) {
+          return coerce(evaluateExpr(arm.body, env), arm.body.type, expr.type);
+        }
+      }
+      throw new Error('internal: no match arm matched (checker should guarantee exhaustiveness)');
+    }
+  }
+};
+
+// Whether `subject` matches `pattern`: 'else' always matches; a literal matches
+// when it's '=='-equal to the subject (the same structural, numeric-tower-aware
+// equality the '==' operator uses — so an Int pattern can match a Float subject).
+const patternMatches = (pattern: Pattern, subject: RuntimeValue): boolean => {
+  if (pattern.kind === 'elsePattern') return true;
+  return valuesEqual(literalPatternValue(pattern), subject);
+};
+
+// The runtime value a literal pattern compares against — the twin of a literal
+// expression's own value.
+const literalPatternValue = (p: LiteralPattern): RuntimeValue => {
+  switch (p.valueType) {
+    case 'Int': return intVal(p.value);
+    case 'Float': return floatVal(p.value);
+    case 'Bool': return boolVal(p.value);
+    case 'String': return strVal(p.value);
   }
 };
 
