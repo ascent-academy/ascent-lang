@@ -658,7 +658,31 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A value passed to 'print' has no text form.",
     "message": "'print' can't show a value of type {actual}.",
-    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those — show a scalar field of it instead (like 'print(\"${x.name}\")'), or convert it to a String first."
+    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a String first."
+  },
+  {
+    "code": "T0025",
+    "name": "value-dropped-by-next-statement",
+    "category": "type",
+    "summary": "A value is produced but thrown away because another statement comes after it.",
+    "message": "This {actual} value isn't used by anything.",
+    "explanation": "Only the last statement in a block keeps its value; another statement comes after this one, so its {actual} value would be quietly thrown away — and a thrown-away value is usually a mistake, like calling a method for its result and forgetting to use it. Use the value: give it a name ('fix x = …'), pass it to a function, or make it the last statement. If throwing it away is what you meant, write 'void' in front ('void …') to say so on purpose."
+  },
+  {
+    "code": "T0026",
+    "name": "value-dropped-by-loop",
+    "category": "type",
+    "summary": "A loop body ends in a value the loop throws away each time around.",
+    "message": "This {actual} value is thrown away on every pass of the loop.",
+    "explanation": "A 'for' or 'while' loop doesn't build a value — it runs its body for the effect and yields Done, so whatever the body ends with is thrown away on every pass. Here that value is {actual}. If throwing it away is what you meant, write 'void' in front ('void …') to say so on purpose."
+  },
+  {
+    "code": "T0027",
+    "name": "void-nothing-to-discard",
+    "category": "type",
+    "summary": "'void' is used on a value that is already Done.",
+    "message": "There's nothing to throw away here — this is already Done.",
+    "explanation": "'void' throws away a value in a spot where it would otherwise be kept. This expression is already Done — it produces no value (an effect like 'print', or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'."
   }
 ];
 

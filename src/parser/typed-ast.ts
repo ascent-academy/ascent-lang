@@ -73,6 +73,10 @@ export type TypedStatement = (
   | { kind: 'assign'; name: string; slotType: AscentType; value: TypedExpr; span: Span }
   | { kind: 'typeDecl'; name: string; fields: TypedFieldDecl[]; span: Span }
   | { kind: 'expr'; expr: TypedExpr; span: Span }
+  // 'void expr' — evaluates `expr` and discards its value; the statement yields
+  // Done (whitepaper §2). No `type` field: like every non-'expr' statement, it
+  // carries no value of its own.
+  | { kind: 'void'; expr: TypedExpr; span: Span }
   | { kind: 'while'; cond: TypedExpr; body: TypedBlock; span: Span }
   // elemType is what each iteration binds `name` to: a List's element type,
   // or Int for a Range. The interpreter reads it to type the loop variable.

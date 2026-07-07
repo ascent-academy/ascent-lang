@@ -4,7 +4,7 @@ import type { Diagnostic } from '../errors/elaborate.js';
 import { TypeEnv } from './env.js';
 import { Diagnostics } from './diagnostics.js';
 import { typeFromName } from './formation.js';
-import { inferStmt } from './stmt.js';
+import { inferStmt, reportDroppedValue } from './stmt.js';
 
 export { TypeEnv } from './env.js';
 
@@ -35,7 +35,16 @@ export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv)
     env.set(arg.name, typeFromName(arg.type), 'arg');
   }
 
-  const typedStmts: TypedStatement[] = program.stmts.map(stmt => inferStmt(stmt, env, diagnostics));
+  // The program body is a block like any other (whitepaper §2): its last
+  // statement is the program's value, but every non-final statement sits in a
+  // Done-required position, so a real value left there is dropped (T0025).
+  const typedStmts: TypedStatement[] = program.stmts.map((stmt, i) => {
+    const typedStmt = inferStmt(stmt, env, diagnostics);
+    if (i !== program.stmts.length - 1) {
+      reportDroppedValue(typedStmt, 'T0025', diagnostics);
+    }
+    return typedStmt;
+  });
 
   if (diagnostics.hasErrors) {
     return { program: { args: program.args, stmts: typedStmts }, diagnostics: diagnostics.elaborate(source) };

@@ -13,16 +13,55 @@ import { check } from './check.js';
 // constructors, never TYPE_NAME, so they can't reach a type-name position.
 const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List']);
 
-export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics): TypedBlock => {
+// The "value must go somewhere" rule (whitepaper §2). A statement in a
+// *Done-required* position — one whose value nothing consumes — may not leave
+// a real value behind: that's the silent-no-op bug (calling `xs.sort()` for
+// effect and dropping the new list it returns). Only an 'expr' statement can
+// carry such a value; every other kind (fix/mut/assign/typeDecl/while/for/void)
+// already yields Done. Done has nothing to drop, Invalid already reported its
+// own failure, and Never is divergence (no value ever arrives) — none of those
+// is a dropped value, so they're allowed through.
+const droppedValue = (stmt: TypedStatement): TypedExpr | null => {
+  if (stmt.kind !== 'expr') return null;
+  const t = stmt.expr.type;
+  if (t.kind === 'Done' || t.kind === 'Invalid' || t.kind === 'Never') return null;
+  return stmt.expr;
+};
+
+// Report the drop, if any: T0025 when a *following statement* discards it,
+// T0026 when a *loop* discards it each pass. The fix for both is the same —
+// consume the value, or discard it on purpose with 'void'.
+export const reportDroppedValue = (
+  stmt: TypedStatement,
+  code: 'T0025' | 'T0026',
+  diagnostics: Diagnostics,
+): void => {
+  const dropped = droppedValue(stmt);
+  if (dropped !== null) {
+    diagnostics.error({ code, span: dropped.span, data: { actual: typeToString(dropped.type) } });
+  }
+};
+
+// `loopBody` marks a fully Done-required block: a 'for'/'while' body, whose
+// *last* statement is discarded by the loop too (T0026), not just its non-final
+// ones (T0025). Everywhere else the last statement is a value position — its
+// value flows out as the block's value — so only the non-final ones are checked.
+export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics, loopBody = false): TypedBlock => {
   const inner = env.child();
   const typedStmts: TypedStatement[] = [];
   let blockType: AscentType = DONE_TYPE;
 
-  for (const stmt of block.stmts) {
+  block.stmts.forEach((stmt, i) => {
     const typedStmt = inferStmt(stmt, inner, diagnostics);
     typedStmts.push(typedStmt);
+    const isLast = i === block.stmts.length - 1;
+    if (!isLast) {
+      reportDroppedValue(typedStmt, 'T0025', diagnostics);
+    } else if (loopBody) {
+      reportDroppedValue(typedStmt, 'T0026', diagnostics);
+    }
     blockType = typedStmt.kind === 'expr' ? typedStmt.expr.type : DONE_TYPE;
-  }
+  });
 
   return { kind: 'block', stmts: typedStmts, type: blockType, span: block.span };
 };
@@ -191,7 +230,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       if (!isInvalidType(typedCond.type) && typedCond.type.kind !== 'Bool') {
         diagnostics.error({ code: 'T0004', span: stmt.cond.span, data: { actual: typeToString(typedCond.type) } });
       }
-      const typedBody = inferBlock(stmt.body, env, diagnostics);
+      const typedBody = inferBlock(stmt.body, env, diagnostics, true);
       return { kind: 'while', cond: typedCond, body: typedBody, span: stmt.span };
     }
 
@@ -219,12 +258,24 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       // its own child under this, so the binding is visible throughout it.
       const inner = env.child();
       inner.set(stmt.name, elemType, 'fix', stmt.nameSpan);
-      const typedBody = inferBlock(stmt.body, inner, diagnostics);
+      const typedBody = inferBlock(stmt.body, inner, diagnostics, true);
       return { kind: 'for', name: stmt.name, elemType, iterable: typedIterable, body: typedBody, span: stmt.span };
     }
 
     case 'expr': {
       return { kind: 'expr', expr: synth(stmt.expr, env, diagnostics), span: stmt.span };
+    }
+
+    case 'void': {
+      // 'void expr' discards a real value on purpose. A Done-typed operand has
+      // no value to discard (T0027) — an already-effectful 'print' or loop
+      // needs no 'void'. Invalid/Never already carry their own story, so stay
+      // quiet there. The statement itself always yields Done.
+      const typedExpr = synth(stmt.expr, env, diagnostics);
+      if (typedExpr.type.kind === 'Done') {
+        diagnostics.error({ code: 'T0027', span: stmt.expr.span });
+      }
+      return { kind: 'void', expr: typedExpr, span: stmt.span };
     }
   }
 };

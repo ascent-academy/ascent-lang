@@ -100,6 +100,11 @@ export type Statement = (
   // for now; unions arrive later.
   | { kind: 'typeDecl'; name: string; nameSpan: Span; fields: FieldDecl[]; span: Span }
   | { kind: 'expr'; expr: Expr; span: Span }
+  // 'void expr' — evaluates `expr` for its effect and discards its value, so
+  // the statement itself yields Done (whitepaper §2). It's a statement, not an
+  // expression operator: it only ever stands in statement position, and taking
+  // a full expression is what makes 'void x + 1' discard 'x + 1', not '(void x) + 1'.
+  | { kind: 'void'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
   // 'for name in iterable { … }' — iterates the values of a List or the
   // numbers of a Range (design.md §5), binding each to `name` in the body.

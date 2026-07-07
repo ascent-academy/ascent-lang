@@ -96,7 +96,9 @@ describe('Ranges and for loops', () => {
     });
 
     it('a for loop is a statement yielding Done', () => {
-      assert.deepEqual(evalOk('for i in 0..3 { i; }'), { type: 'Done' });
+      // The body ends in a non-Done value the loop would discard, so it must be
+      // discarded on purpose with 'void' (§2); the loop itself still yields Done.
+      assert.deepEqual(evalOk('for i in 0..3 { void i; }'), { type: 'Done' });
     });
 
     it('the loop variable is a fixed binding — reassigning it is N0002', () => {

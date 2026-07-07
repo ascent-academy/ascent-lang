@@ -147,6 +147,8 @@ const stmtLines = (stmt: Statement): string[] => {
     }
     case 'expr':
       return exprLines(stmt.expr);
+    case 'void':
+      return [`${chalk.cyan('Void')}`, ...branch(exprLines(stmt.expr), true)];
     case 'while': {
       const cond = branch(exprLines(stmt.cond), false);
       const body = branch(exprLines(stmt.body), true);

@@ -126,6 +126,8 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
     }
     case 'expr':
       return typedExprLines(stmt.expr);
+    case 'void':
+      return [`${chalk.cyan('Void')}`, ...branch(typedExprLines(stmt.expr), true)];
     case 'while': {
       const condLines = branch(typedExprLines(stmt.cond), false);
       const bodyLines = branch(typedExprLines(stmt.body), true);

@@ -201,6 +201,11 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       return DONE;
     case 'expr':
       return evaluateExpr(stmt.expr, env);
+    case 'void':
+      // Evaluate for its effect, then throw the value away — the statement
+      // yields Done (whitepaper §2).
+      evaluateExpr(stmt.expr, env);
+      return DONE;
     case 'while': {
       // Each iteration evaluates the body as a block, giving it a fresh
       // child scope — a 'fix' from one iteration doesn't leak into the next.

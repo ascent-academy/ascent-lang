@@ -242,7 +242,24 @@ function parseAssign(ts: TokenStream): Statement | null {
   };
 }
 
+// 'void expr' — evaluates `expr` for effect and discards its value (§2). A
+// statement, not a prefix operator: it takes a *full* expression, so
+// 'void x + 1' discards 'x + 1' rather than parsing as '(void x) + 1'.
+function parseVoid(ts: TokenStream): Statement | null {
+  const voidTok = ts.advance(); // consume 'void'
+
+  const expr = parseExpr(ts);
+  if (expr === null) {
+    return null;
+  }
+
+  return { kind: 'void', expr, span: { start: voidTok.span.start, end: expr.span.end } };
+}
+
 export function parseStmt(ts: TokenStream): Statement | null {
+  if (ts.peek().kind === 'KW_VOID') {
+    return parseVoid(ts);
+  }
   if (ts.peek().kind === 'KW_FIX') {
     return parseDecl(ts, 'fix');
   }
