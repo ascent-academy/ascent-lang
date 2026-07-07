@@ -101,6 +101,26 @@ describe('Type variants (end-to-end)', () => {
     });
   });
 
+  describe('branch-join', () => {
+    it('joins two variants of a union to the union type in an if', () => {
+      const src = `${SHAPE} fix c = True; if (c) { Circle{ radius: 1.0 } } else { Square{ side: 2.0 } };`;
+      assert.equal(typeOfLast(src), 'Shape');
+    });
+
+    it('joins two variants of a union to the union type in a match', () => {
+      const src = `${SHAPE} fix n = 1; match (n) { 1 -> Circle{ radius: 1.0 }; else -> Square{ side: 2.0 } };`;
+      assert.equal(typeOfLast(src), 'Shape');
+    });
+
+    it('evaluates the joined if to the value of the taken branch', () => {
+      const src = `${SHAPE} fix c = True; if (c) { Circle{ radius: 1.0 } } else { Square{ side: 2.0 } };`;
+      assert.deepEqual(evalOk(src), {
+        type: 'Record', name: 'Circle',
+        fields: new Map<string, RuntimeValue>([['radius', { type: 'Float', value: 1 }]]),
+      });
+    });
+  });
+
   describe('field-access rule', () => {
     it('reports T0032 for reading a field on a multi-variant union', () => {
       assert.deepEqual(errorCodes(`${SHAPE} fix s = Circle{ radius: 2.0 }; s.radius;`), ['T0032']);
