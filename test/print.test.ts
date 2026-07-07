@@ -3,62 +3,64 @@ import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
 
-// Runs a program expected to typecheck and evaluate cleanly, returning the
-// whole sequence of values it emitted to the output sink — every `print` call
-// in order, followed by the program's final value (unless that's Done, which
-// executeProgram doesn't emit). This is what a host (the CLI's stdout, a
-// browser console panel, this array) receives.
-function outputsOf(src: string): RuntimeValue[] {
+// Runs a clean program, returning both the lines it emitted to the output sink
+// (each already rendered to text by the interpreter — every print call, then
+// the final value unless it's Done) and the structured final value it returns.
+// The two are complementary: the text is what a host displays, the value is the
+// programmatic result.
+function run(src: string): { output: string[]; value: RuntimeValue } {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const outputs: RuntimeValue[] = [];
-  const result = executeProgram(program, v => outputs.push(v));
+  const output: string[] = [];
+  const result = executeProgram(program, { stdout: text => output.push(text) });
   assert.equal(result.kind, 'ok');
-  return outputs;
+  if (result.kind !== 'ok') throw new Error('unreachable');
+  return { output, value: result.value };
 }
 
 function errorCodes(src: string): string[] {
   return parse(src).diagnostics.map(d => d.code);
 }
 
-const str = (value: string): RuntimeValue => ({ type: 'String', value });
-const int = (value: bigint): RuntimeValue => ({ type: 'Int', value });
-
 describe('print (end-to-end)', () => {
-  describe('output', () => {
+  describe('sink output', () => {
     it('emits its String argument to the sink', () => {
-      assert.deepEqual(outputsOf('print("hi");'), [str('hi')]);
+      assert.deepEqual(run('print("hi");').output, ['hi']);
     });
 
     it('emits an empty String too', () => {
-      assert.deepEqual(outputsOf('print("");'), [str('')]);
+      assert.deepEqual(run('print("");').output, ['']);
     });
 
     it('emits once per call, in order', () => {
-      assert.deepEqual(outputsOf('print("a"); print("b"); print("c");'), [str('a'), str('b'), str('c')]);
+      assert.deepEqual(run('print("a"); print("b"); print("c");').output, ['a', 'b', 'c']);
     });
 
-    it('interpolates before emitting — the sink sees the finished String', () => {
-      assert.deepEqual(outputsOf('fix n = 3; print("n is ${n}");'), [str('n is 3')]);
+    it('interpolates before emitting — the sink sees the finished text', () => {
+      assert.deepEqual(run('fix n = 3; print("n is ${n}");').output, ['n is 3']);
     });
 
-    it('yields Done, so a lone print emits only its argument (no trailing value)', () => {
-      assert.deepEqual(outputsOf('print("only");'), [str('only')]);
-    });
-  });
-
-  describe('alongside the program\'s final value', () => {
-    it('emits prints first, then the final value', () => {
-      assert.deepEqual(outputsOf('print("side"); 42;'), [str('side'), int(42n)]);
+    it('emits prints first, then the final value as text', () => {
+      assert.deepEqual(run('print("side"); 42;').output, ['side', '42']);
     });
 
     it('emits the final value on its own when nothing prints', () => {
-      assert.deepEqual(outputsOf('1 + 2;'), [int(3n)]);
+      assert.deepEqual(run('1 + 2;').output, ['3']);
     });
 
     it('emits nothing when the program ends in a Done-valued statement and never prints', () => {
-      assert.deepEqual(outputsOf('mut x = 1;'), []);
+      assert.deepEqual(run('mut x = 1;').output, []);
+    });
+  });
+
+  describe('return value', () => {
+    it('still returns the structured final value alongside the emitted text', () => {
+      assert.deepEqual(run('40 + 2;').value, { type: 'Int', value: 42n });
+    });
+
+    it('yields Done for a print call itself (a side effect has no result)', () => {
+      assert.deepEqual(run('print("hi");').value, { type: 'Done' });
     });
   });
 

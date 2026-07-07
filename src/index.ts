@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
 import { parse, parseTokens } from './parser/index.js';
 import { typecheck, TypeEnv } from './check/index.js';
-import { formatValue, valueToString } from './parser/printer.js';
+import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue, OutputSink } from './interpreter.js';
 import { elaborate } from './errors/elaborate.js';
@@ -18,10 +18,10 @@ import type { ProgramArg } from './parser/ast.js';
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
 
 // A program's output — its `print` calls and its final value — written to
-// stdout, one value per line. valueToString is the plain canonical form, so a
-// String prints raw (no quotes), which is what `print` means; a List/Range/etc.
-// prints in its literal shape.
-const stdoutSink: OutputSink = value => process.stdout.write(valueToString(value) + '\n');
+// stdout, one line each. The interpreter has already rendered each value to
+// text (a String arrives raw, a List in its literal shape), so the sink only
+// adds the newline and hands it to stdout.
+const stdoutSink: OutputSink = { stdout: text => process.stdout.write(text + '\n') };
 
 // Parses '--name value' pairs from argv into a name→raw-string map.
 const parseCliFlags = (argv: string[]): Map<string, string> => {

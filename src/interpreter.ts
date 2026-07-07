@@ -1,5 +1,8 @@
 import type { ProgramArg } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram } from './parser/typed-ast.js';
+// valueToString (plain, no colour) is how Ascent renders a runtime value to
+// its output text — the language owns this, so the host's sink takes strings.
+import { valueToString } from './parser/printer.js';
 import { RuntimeError } from './errors/runtime-error.js';
 import {
   coerce, scalarToString,
@@ -51,9 +54,10 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       if (expr.callee === 'print') {
         const arg = args[0]!;
         if (arg.type !== 'String') throw new Error('internal: print arg not String');
-        // Hand the String value to the host's sink and yield Done — a
-        // side-effecting call has no meaningful result (whitepaper §7).
-        env.output(arg);
+        // The argument is already a String, so its text is its value — emit it
+        // and yield Done, since a side-effecting call has no meaningful result
+        // (whitepaper §7).
+        env.output(arg.value);
         return DONE;
       }
       throw new Error(`internal: unknown built-in '${expr.callee}'`);
@@ -265,15 +269,16 @@ export class ProgramInputs {
   }
 }
 
-// The outcome of a whole program run: it ran to completion, or the
-// RuntimeError (§9's bug tier) crashed it. The program's *output* — its final
-// value and any `print`s along the way — goes to the `output` sink as it runs,
-// not back through this result, so a caller reads `kind` only to tell success
-// from a crash. An internal invariant violation (a plain Error, not a
-// RuntimeError) still propagates as an exception, since that's a bug in the
-// interpreter, not a modeled outcome.
+// The outcome of a whole program run: the final value it produced, or the
+// RuntimeError (§9's bug tier) that crashed it. The program's *output* — that
+// same final value and any `print`s along the way — is also streamed as text to
+// the `output` sink as it runs (that's what a host displays); `value` is the
+// structured result for a programmatic caller, so the two are complementary, not
+// a choice. An internal invariant violation (a plain Error, not a RuntimeError)
+// still propagates as an exception, since that's a bug in the interpreter, not a
+// modeled outcome.
 export type RuntimeResult =
-  | { kind: 'ok' }
+  | { kind: 'ok'; value: RuntimeValue }
   | { kind: 'error'; error: RuntimeError };
 
 // Creates the top-level Environment itself, wiring in the output sink and
@@ -298,8 +303,12 @@ export const executeProgram = (
     for (const stmt of program.stmts) {
       result = executeStmt(stmt, env);
     }
-    if (result.type !== 'Done') env.output(result);
-    return { kind: 'ok' };
+    // Ascent renders the final value to its display string (whitepaper §2's
+    // block-value output) and streams it to the sink; the sink only ever sees
+    // text. Done — the "no information" value — is nothing to output. The value
+    // itself is still returned for a programmatic caller.
+    if (result.type !== 'Done') env.output(valueToString(result));
+    return { kind: 'ok', value: result };
   } catch (e) {
     if (e instanceof RuntimeError) return { kind: 'error', error: e };
     throw e;

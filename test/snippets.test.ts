@@ -4,8 +4,6 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
-import type { RuntimeValue } from '../src/interpreter.js';
-import { valueToString } from '../src/parser/printer.js';
 
 // Runs every *.asc file under test/snippets/, recursively — each
 // subdirectory becomes a nested describe(), each file becomes one it().
@@ -15,8 +13,9 @@ import { valueToString } from '../src/parser/printer.js';
 // (e.g. via 'npm start test/snippets/basics/arithmetic.asc'). Three forms:
 //
 //   # expect: value = 42
-//     Typechecks and runs cleanly; the last statement's value, compared via
-//     valueToString (e.g. Bool is 'True'/'False', Float always shows a '.',
+//     Typechecks and runs cleanly; the text the program emits — its `print`
+//     lines and/or its final value, each rendered by the interpreter and joined
+//     by newlines (e.g. Bool is 'True'/'False', Float always shows a '.',
 //     String has no surrounding quotes).
 //
 //   # expect: errors = T0003, T0009
@@ -58,8 +57,8 @@ const runSnippet = (src: string, expectation: Expectation): void => {
 
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the snippet to typecheck');
-  const outputs: RuntimeValue[] = [];
-  const result = executeProgram(program, v => outputs.push(v));
+  const outputs: string[] = [];
+  const result = executeProgram(program, { stdout: text => outputs.push(text) });
 
   if (expectation.kind === 'runtime-error') {
     assert.equal(result.kind, 'error');
@@ -70,10 +69,10 @@ const runSnippet = (src: string, expectation: Expectation): void => {
 
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
-  // The snippet's `value` is its final output (its last statement's value, or a
-  // lone `print`'s argument) — the last thing emitted to the sink.
-  const value = outputs.at(-1) ?? ({ type: 'Done' } as RuntimeValue);
-  assert.equal(valueToString(value), expectation.text);
+  // The snippet's `value` is what running it emits: each line — a `print` call,
+  // or the final value's text (both already rendered by the interpreter) —
+  // joined as it appears on the console.
+  assert.equal(outputs.join('\n'), expectation.text);
 };
 
 const registerDir = (dir: string): void => {

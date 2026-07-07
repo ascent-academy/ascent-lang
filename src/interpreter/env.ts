@@ -9,13 +9,17 @@ type Binding = { value: RuntimeValue; mutable: boolean };
 export type AssignResult = 'ok' | 'immutable' | 'undeclared';
 
 // Where a program's output goes — the one external effect the tree walk can
-// perform. Both a `print(...)` call and the program's final value are handed
-// to it as RuntimeValues (never the "no information" value Done), so a host
-// renders them however its environment demands: the CLI writes each to stdout,
-// a browser playground appends it to a console panel, a test captures it into
-// an array. Injecting the sink (rather than hard-wiring stdout) is what lets
-// the same interpreter run in all of those places.
-export type OutputSink = (value: RuntimeValue) => void;
+// perform. Ascent formats every value to its display string itself (so the
+// language, not the host, decides how a List or a Float looks); the sink only
+// ever receives finished text. A host just decides where that text lands: the
+// CLI writes each line to stdout, a browser playground appends it to a console
+// panel, a test captures it into an array. Injecting the sink (rather than
+// hard-wiring stdout) is what lets the same interpreter run in all of those
+// places. It's an interface, not a bare function, so more streams (e.g. a
+// separate stderr) can be added later without changing the shape everywhere.
+export interface OutputSink {
+  stdout(text: string): void;
+}
 
 // A chain of scopes, one per block. A lookup (or assignment) walks
 // outward through parents; a declaration always writes to the current
@@ -39,12 +43,13 @@ export class Environment {
     return this.vars.get(name)?.value ?? this.parent?.get(name);
   }
 
-  // Emit one program output value (a `print` argument, or the program's final
-  // value). Walks outward to the sink established at the root — a child never
-  // carries its own, so output is uniform across every scope.
-  public output(value: RuntimeValue): void {
-    if (this.sink !== null) { this.sink(value); return; }
-    this.parent?.output(value);
+  // Emit one line of already-formatted program output (a `print` argument, or
+  // the program's final value, rendered to text by the caller). Walks outward
+  // to the sink established at the root — a child never carries its own, so
+  // output is uniform across every scope.
+  public output(text: string): void {
+    if (this.sink !== null) { this.sink.stdout(text); return; }
+    this.parent?.output(text);
   }
 
   public declare(name: string, value: RuntimeValue, mutable: boolean): void {
