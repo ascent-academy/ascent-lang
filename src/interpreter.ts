@@ -76,6 +76,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       }
       return applyFunction(fn, args, expr.args.map(a => a.type));
     }
+    case 'apply': {
+      // Calling a computed function value: evaluate the callee, then apply it.
+      // The checker proved it's a function, so anything else is an internal bug.
+      const fn = evaluateExpr(expr.callee, env);
+      const args = expr.args.map(a => evaluateExpr(a, env));
+      if (fn.type !== 'Function') throw new Error('internal: apply of a non-function value');
+      return applyFunction(fn, args, expr.args.map(a => a.type));
+    }
     case 'fn': {
       // Build the function value, snapshotting the outer names its body uses
       // (the checker's `captures`) by value *now* — capture-by-value (§5). The

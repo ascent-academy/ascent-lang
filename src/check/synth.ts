@@ -46,6 +46,26 @@ export const joinElementTypes = (typedElements: TypedExpr[], span: Span, diagnos
   return elemType;
 };
 
+// Check a call's arguments against a function type: arity (T0007), then each
+// argument assignable to its parameter (T0008 — assignable, not exact, so an Int
+// widens into a Float parameter, the one-way rule of §5). Returns the function's
+// result type, or Invalid on the first failure. Shared by a by-name call
+// ('call') and a computed call ('apply').
+export const checkApplication = (
+  fn: Extract<AscentType, { kind: 'Function' }>,
+  argTypes: AscentType[],
+  diagnostics: Diagnostics,
+  span: Span,
+): AscentType => {
+  if (!requireArity(fn.params.length, argTypes.length, diagnostics, span)) return INVALID_TYPE;
+  for (let i = 0; i < fn.params.length; i++) {
+    if (!isAssignableTo(argTypes[i]!, fn.params[i]!)) {
+      return typeMismatch('T0008', diagnostics, span, fn.params[i]!, argTypes[i]!);
+    }
+  }
+  return fn.result;
+};
+
 export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): TypedExpr => {
   switch (expr.kind) {
     case 'literal': {
@@ -142,19 +162,27 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       }
       if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
 
-      const fn = binding.ty;
-      if (!requireArity(fn.params.length, typedArgs.length, diagnostics, expr.span)) return invalid();
-      for (let i = 0; i < fn.params.length; i++) {
-        const param = fn.params[i]!;
-        const argType = typedArgs[i]!.type;
-        // Assignable, not exact — an Int argument widens into a Float parameter
-        // (the interpreter coerces), the same one-way rule a binding uses (§5).
-        if (!isAssignableTo(argType, param)) {
-          typeMismatch('T0008', diagnostics, expr.span, param, argType);
-          return invalid();
-        }
+      const result = checkApplication(binding.ty, typedArgs.map(a => a.type), diagnostics, expr.span);
+      return { kind: 'call', callee: expr.callee, args: typedArgs, type: result, span: expr.span };
+    }
+
+    case 'apply': {
+      // Calling a *computed* function value (whitepaper §5 — functions are
+      // ordinary values). Synthesize the callee, require it to be a function,
+      // then check the arguments against it just like a by-name call.
+      const typedCallee = synth(expr.callee, env, diagnostics);
+      const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
+      const invalid = (): TypedExpr => ({ kind: 'apply', callee: typedCallee, args: typedArgs, type: INVALID_TYPE, span: expr.span });
+
+      if (isInvalidType(typedCallee.type) || typedArgs.some(a => isInvalidType(a.type))) return invalid();
+      if (typedCallee.type.kind !== 'Function') {
+        // The callee is a value that isn't a function, so it can't be called
+        // (T0038 — the nameless twin of T0035 for a by-name call).
+        diagnostics.error({ code: 'T0038', span: expr.callee.span, data: { type: typeToString(typedCallee.type) } });
+        return invalid();
       }
-      return { kind: 'call', callee: expr.callee, args: typedArgs, type: fn.result, span: expr.span };
+      const result = checkApplication(typedCallee.type, typedArgs.map(a => a.type), diagnostics, expr.span);
+      return { kind: 'apply', callee: typedCallee, args: typedArgs, type: result, span: expr.span };
     }
 
     case 'fn': {

@@ -261,15 +261,20 @@ after `program` (even `; …`) is S0030.
 
 ## Decisions
 
-**1. Call syntax — name-based now, or call-any-expression?**
-Recommend **`callee: string` (name-based)** for these stages. It matches every
-call in the whitepaper (`double(5)`, `f(n - 1)`) and keeps `print`'s
-`Display`-genericity clean. Higher-order *usage* still works, because a bare slot
-reference not followed by `(` is already a `slot` node carrying a `Function` type
-(`xs.map(double)`). The only thing it cannot do is call an expression *result*
-directly — `getAdder(3)(4)`, `(fn…)(5)`, `funcs[0](x)` — which is rare in beginner
-code and a clean follow-up (add an `apply` postfix, or migrate `callee` to `Expr`,
-once `print` genericity is factored out). Power is opt-in and late (§principle 7).
+**1. Call syntax — name-based, plus computed callees. (Both DONE.)**
+Bare-name calls stay a `call` node (`callee: string`), which keeps `print`'s
+`Display`-genericity and the by-name user-function path simple. Calling a
+*computed* callee — `adder(3)(4)`, `(fn…)(5)`, `fns[0](x)`, `make()(10)` — is a
+separate **`apply`** node (`callee: Expr`), added as an `LPAREN` postfix operator
+in the Pratt loop; `parseAtom` still consumes a bare name's first `(`, so only
+non-name / chained callees become `apply`. The checker shares one
+`checkApplication` helper between `call` and `apply` (arity T0007, args T0008,
+result = the function's result); a non-function computed callee is **T0038** (the
+nameless twin of T0035). `(print)(x)` is the one wart — it routes through `apply`
+and reports N0001, since `print` is not a real binding; writing `print(x)` is the
+supported form. Closures capture through an `apply` callee (captures.ts visits
+it). Tests in the "calling a computed function (apply)" block of
+[test/functions.test.ts](../test/functions.test.ts).
 
 **2. Explicitly out of scope** (deferred, consistent with the whitepaper):
 methods / `self` (build-path stage 5, its own feature), `async`, generics/traits

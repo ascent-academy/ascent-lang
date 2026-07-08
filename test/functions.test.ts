@@ -101,6 +101,44 @@ describe('functions (end-to-end)', () => {
     });
   });
 
+  describe('calling a computed function (apply)', () => {
+    it('curries — chains calls directly without a named intermediate', () => {
+      assert.deepEqual(run('fix adder = fn(n: Int) -> fn(Int) -> Int { fn(x: Int) -> Int { x + n } }; adder(3)(4);').value, int(7n));
+    });
+
+    it('applies an inline lambda', () => {
+      assert.deepEqual(run('(fn(x: Int) -> Int { x * 2 })(21);').value, int(42n));
+    });
+
+    it('applies a function pulled from a list', () => {
+      assert.deepEqual(run('fix fns = [fn(x: Int) -> Int { x + 1 }, fn(x: Int) -> Int { x * 10 }]; fns[1](5);').value, int(50n));
+    });
+
+    it('applies a function returned by a call', () => {
+      assert.deepEqual(run('fix make = fn() -> fn(Int) -> Int { fn(x: Int) -> Int { x - 1 } }; make()(10);').value, int(9n));
+    });
+
+    it('widens an Int argument into a Float parameter, like a by-name call', () => {
+      assert.deepEqual(run('(fn(x: Float) -> Float { x + 1.0 })(3);').value, { type: 'Float', value: 4 });
+    });
+
+    it('captures by value through a computed callee', () => {
+      assert.deepEqual(run('fix add = fn(n: Int) -> fn(Int) -> Int { fn(x: Int) -> Int { x + n } }; fix add5 = add(5); fix f = fn() -> Int { add5(10) }; f();').value, int(15n));
+    });
+
+    it('rejects calling a value that is not a function (T0038)', () => {
+      assert.deepEqual(errorCodes('fix x = 5; (x)(3);'), ['T0038']);
+    });
+
+    it('rejects a wrong argument count on a computed callee (T0007)', () => {
+      assert.deepEqual(errorCodes('(fn(x: Int) -> Int { x })(1, 2);'), ['T0007']);
+    });
+
+    it('rejects a wrong argument type on a computed callee (T0008)', () => {
+      assert.deepEqual(errorCodes('(fn(x: Int) -> Int { x })("s");'), ['T0008']);
+    });
+  });
+
   describe('function types', () => {
     it('accepts a function value against a matching function-type annotation', () => {
       assert.deepEqual(run('fix f: fn(Int) -> Int = fn(x: Int) -> Int { x * 2 }; f(4);').value, int(8n));

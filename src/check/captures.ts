@@ -98,6 +98,11 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
       if (!BUILTIN_CALLEES.has(expr.callee) && !bound.has(expr.callee)) out.add(expr.callee);
       for (const a of expr.args) visitExpr(a, bound, out);
       return;
+    case 'apply':
+      // The callee is an ordinary expression — any free name in it is captured.
+      visitExpr(expr.callee, bound, out);
+      for (const a of expr.args) visitExpr(a, bound, out);
+      return;
     case 'fn': {
       // A nested function's free variables (relative to *this* scope) are its
       // body's, minus its own parameters — so an outer name the nested body uses

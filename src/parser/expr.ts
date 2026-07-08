@@ -98,6 +98,11 @@ const INFIX_OPS: Partial<Record<TokenKind, { op: BinaryOp; bp: number; assoc: 'l
 const POSTFIX_OPS: Partial<Record<TokenKind, { bp: number }>> = {
   DOT: { bp: BP.POSTFIX },
   LBRACKET: { bp: BP.POSTFIX },
+  // A call is a postfix operator too — '(' after a value applies it. A bare
+  // name's first call is already consumed by parseAtom as a 'call'; this catches
+  // every other callee (a chained call 'f()()', a list element 'fns[0]()', a
+  // parenthesized lambda) as an 'apply'.
+  LPAREN: { bp: BP.POSTFIX },
 };
 
 // Prefix table — the Pratt parser's other operator kind (a "nud" that
@@ -130,7 +135,9 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
     const postfix = POSTFIX_OPS[kind];
     if (postfix !== undefined) {
       if (postfix.bp < minBp) break;
-      left = kind === 'DOT' ? parseDotAccess(ts, left) : parseIndex(ts, left);
+      left = kind === 'DOT' ? parseDotAccess(ts, left)
+        : kind === 'LBRACKET' ? parseIndex(ts, left)
+        : parseApply(ts, left);
       if (left === null) return null;
       continue;
     }
@@ -229,6 +236,23 @@ function parseDotAccess(ts: TokenStream, receiver: Expr): Expr | null {
     method: memberTok.value,
     args: parsed.items,
     span: { start: receiver.span.start, end: parsed.close.span.end },
+  };
+}
+
+// 'callee(args)' — LPAREN already confirmed on lookahead by the Pratt loop, and
+// `callee` is the value already parsed to its left (a chained call, a list
+// element, a parenthesized lambda). A bare-name call reaches parseCall in
+// parseAtom instead, so this only ever wraps a computed callee in an 'apply'.
+function parseApply(ts: TokenStream, callee: Expr): Expr | null {
+  const openParen = ts.advance(); // consume '('
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, openParen.span);
+  if (parsed === null) return null;
+
+  return {
+    kind: 'apply',
+    callee,
+    args: parsed.items,
+    span: { start: callee.span.start, end: parsed.close.span.end },
   };
 }
 

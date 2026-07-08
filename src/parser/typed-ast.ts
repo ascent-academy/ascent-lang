@@ -29,6 +29,9 @@ export type TypedExpr = (
   | TypedTemplate
   | { kind: 'slot'; name: string; type: AscentType; span: Span }
   | { kind: 'call'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
+  // Calling a computed function value (see Expr's 'apply' in ast.ts). `callee`
+  // is checked to a Function type; `type` is that function's result.
+  | { kind: 'apply'; callee: TypedExpr; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'construct'; typeName: string; fields: TypedFieldInit[]; type: AscentType; span: Span }
   | { kind: 'fieldAccess'; receiver: TypedExpr; field: string; type: AscentType; span: Span }

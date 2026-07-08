@@ -104,6 +104,12 @@ export type Expr = (
   | Template
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
+  // 'callee(args)' where `callee` is a *computed* expression, not a bare name —
+  // currying ('adder(3)(4)'), a function pulled from a collection ('fns[0](x)'),
+  // or an inline lambda applied ('(fn(x: Int) -> Int { x })(5)'). A bare-name
+  // call 'f(args)' stays a 'call' (parseAtom), which is also where the builtin
+  // 'print' lives; every other callee shape becomes an 'apply' (parseApply).
+  | { kind: 'apply'; callee: Expr; args: Expr[]; span: Span }
   // 'fn(params) -> Ret { body }' — a first-class function value (whitepaper §5).
   // Made only this way ('fix f = fn(...)'); there is no 'fn name(...)'
   // declaration form. The body is an ordinary block whose last statement is the

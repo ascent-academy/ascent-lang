@@ -38,6 +38,13 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       );
       return [`${chalk.cyan('Call')} ${chalk.green(expr.callee)}${t}`, ...argLines];
     }
+    case 'apply': {
+      const children = [expr.callee, ...expr.args];
+      const childLines = children.flatMap((child, i) =>
+        branch(typedExprLines(child), i === children.length - 1)
+      );
+      return [`${chalk.cyan('Apply')}${t}`, ...childLines];
+    }
     case 'fn': {
       const sig = `(${expr.params.map(p => `${p.name}: ${typeToString(p.type)}`).join(', ')})`;
       const bodyLines = branch(typedExprLines(expr.body), true);

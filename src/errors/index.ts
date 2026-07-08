@@ -904,6 +904,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A 'return' was written outside any function.",
     "message": "'return' can only be used inside a function.",
     "explanation": "'return' leaves the function it is in, handing back a value — so it only makes sense inside one, like 'fn(x: Int) -> Int { return x }'. Here there is no enclosing function to return from. At the top level, a program's value is simply its last statement (no 'return' needed)."
+  },
+  {
+    "code": "T0038",
+    "name": "not-callable-value",
+    "category": "type",
+    "summary": "A value that isn't a function is being called.",
+    "message": "This is a {type}, not a function, so it can't be called.",
+    "explanation": "Only a function can be called with '(…)'. This value is a {type}, which isn't a function, so there is nothing to call. (Calling a name that isn't a function is the same mistake, reported as its own message.)"
   }
 ];
 
