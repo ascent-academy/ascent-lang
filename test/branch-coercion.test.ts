@@ -59,26 +59,26 @@ describe('branch-join value coercion (if / match)', () => {
 
   describe('match', () => {
     it('widens the taken Int arm to the Float join', () => {
-      assert.deepEqual(evalOk('match 0 { 0 -> 1; else -> 2.5 };'), { type: 'Float', value: 1 });
-      assert.deepEqual(evalOk('match 9 { 0 -> 1; else -> 2.5 };'), { type: 'Float', value: 2.5 });
+      assert.deepEqual(evalOk('match 0 { 0 -> 1, else -> 2.5 };'), { type: 'Float', value: 1 });
+      assert.deepEqual(evalOk('match 9 { 0 -> 1, else -> 2.5 };'), { type: 'Float', value: 2.5 });
     });
 
     it('a printed match shows the joined (Float) form, not the raw Int', () => {
-      assert.equal(evalOut('print(match 0 { 0 -> 1; else -> 2.5 });'), '1.0');
+      assert.equal(evalOut('print(match 0 { 0 -> 1, else -> 2.5 });'), '1.0');
     });
 
     it('widens list elements covariantly', () => {
-      assert.deepEqual(evalOk('match 0 { 0 -> [1]; else -> [2.5] };'),
+      assert.deepEqual(evalOk('match 0 { 0 -> [1], else -> [2.5] };'),
         { type: 'List', elements: [{ type: 'Float', value: 1 }] });
     });
 
     it('is a no-op when the arm already has the join type', () => {
-      assert.deepEqual(evalOk('match 0 { 0 -> 1; else -> 2 };'), { type: 'Int', value: 1n });
+      assert.deepEqual(evalOk('match 0 { 0 -> 1, else -> 2 };'), { type: 'Int', value: 1n });
     });
 
     it('still coerces further into a wider declared slot', () => {
       // Arms join to Int; the Float slot then widens the whole result.
-      assert.deepEqual(evalOk('fix x: Float = match 0 { 0 -> 1; else -> 2 }; x;'),
+      assert.deepEqual(evalOk('fix x: Float = match 0 { 0 -> 1, else -> 2 }; x;'),
         { type: 'Float', value: 1 });
     });
   });

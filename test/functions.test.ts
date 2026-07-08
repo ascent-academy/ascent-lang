@@ -233,7 +233,7 @@ describe('functions (end-to-end)', () => {
     });
 
     it('returns from a match arm', () => {
-      assert.deepEqual(run('fix f = fn(n: Int) -> Int { match n { 0 -> return 100; else -> n } }; f(0);').value, int(100n));
+      assert.deepEqual(run('fix f = fn(n: Int) -> Int { match n { 0 -> return 100, else -> n } }; f(0);').value, int(100n));
     });
 
     // 'return' is an expression (type Never, §7), so it composes in value

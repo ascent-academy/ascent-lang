@@ -334,9 +334,10 @@
   message: "This arm can never be reached."
   explanation: >-
     The arms of a 'match' are tried in order, and an earlier arm already handles
-    every value this one would — either it comes after an 'else' (which matches
-    everything), or an earlier arm has the very same pattern. So this arm never
-    runs. Remove it, or change what it matches.
+    every value this one would — it comes after a catch-all (an 'else' or a name,
+    which match everything left), it repeats an earlier pattern, or the arms above
+    it already cover every possible case, leaving nothing for a catch-all. So this
+    arm never runs. Remove it, or change what it matches.
   related:
     - key: shadow
       label: "this earlier arm already matches it"
@@ -443,6 +444,11 @@
   related:
     - key: subject
       label: "this value is {actual}"
+  # Retired: a bare name in a 'match' arm is now a general catch-all that binds
+  # the residual (whitepaper §5), legal on any subject — not Optional-only. On a
+  # non-optional it simply binds the value, the same as 'else' but keeping it. A
+  # catch-all after full coverage is unreachable (T0031) instead.
+  retired: true
 
 - code: T0042
   name: optional-match-not-exhaustive

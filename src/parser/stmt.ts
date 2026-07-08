@@ -99,7 +99,10 @@ export function parseMatch(ts: TokenStream): Match | null {
   const open = ts.expect('LBRACE', 'S0024');
   if (open === null) return null;
 
-  const parsed = ts.parseSeparated(() => parseMatchArm(ts), 'SEMICOLON', 'RBRACE', 'S0005', false, open.span);
+  // Arms are separated by commas (like a record's fields or a list's items) —
+  // not semicolons — with a trailing comma allowed (design.md §5). A ';' inside
+  // an arm still terminates statements within a '{ … }' block body as usual.
+  const parsed = ts.parseSeparated(() => parseMatchArm(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
   if (parsed === null) return null;
 
   return {
@@ -111,7 +114,7 @@ export function parseMatch(ts: TokenStream): Match | null {
 }
 
 // One 'pattern -> body' arm. The body is a full expression (a bare value or a
-// '{ … }' block), parsed with the ordinary parseExpr — it stops at the ';' or
+// '{ … }' block), parsed with the ordinary parseExpr — it stops at the ',' or
 // '}' that ends the arm, neither of which is an operator.
 function parseMatchArm(ts: TokenStream): MatchArm | null {
   const pattern = parsePattern(ts);

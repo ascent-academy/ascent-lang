@@ -113,7 +113,7 @@ describe('Type variants (end-to-end)', () => {
     });
 
     it('joins two variants of a union to the union type in a match', () => {
-      const src = `${SHAPE} fix n = 1; match (n) { 1 -> Circle{ radius: 1.0 }; else -> Square{ side: 2.0 } };`;
+      const src = `${SHAPE} fix n = 1; match (n) { 1 -> Circle{ radius: 1.0 }, else -> Square{ side: 2.0 } };`;
       assert.equal(typeOfLast(src), 'Shape');
     });
 

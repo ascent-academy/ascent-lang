@@ -151,16 +151,44 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
 
   const typedArms: TypedMatchArm[] = [];
   const seen = new Map<string, Span>();      // literal/variant pattern key → its first arm
-  let elseSpan: Span | null = null;          // the 'else' arm's span, once one is seen
-  let noneSpan: Span | null = null;          // a 'None' arm's span (Optional's absent case)
-  let presentSpan: Span | null = null;       // a binding arm's span (Optional's present catch-all)
-  const coveredTags = new Set<string>();     // union variant tags a reachable arm handles
+  let noneSpan: Span | null = null;          // a 'None' arm (Optional's absent case)
+  let catchAllSpan: Span | null = null;      // the one catch-all — an 'else' or a binding
+  const coveredTags = new Set<string>();     // union variant tags a listed arm handles
 
-  // A pattern that matches a *present* value (never None): a literal, a variant,
-  // or a binding. Used for reachability — such a pattern after a binding (which
-  // already catches every present value) is unreachable.
-  const matchesPresent = (k: string): boolean =>
-    k === 'litPattern' || k === 'variantPattern' || k === 'bindingPattern';
+  // The finite set of cases a type's value can take, and which are still
+  // uncovered by the arms seen so far — or null when the type is *infinite*
+  // (Int/Float/String/List/Range), which no finite list of patterns can exhaust.
+  // Bool is finite (True | False) and a union is finite in its tags (design.md §2
+  // treats Bool as the union True | False). Reads `seen`/`coveredTags`, so it
+  // reflects coverage at the point it is called.
+  const domainOf = (type: AscentType): { label: string; all: string[]; missing: string[] } | null => {
+    if (type.kind === 'Bool') {
+      const cases: [string, string][] = [['True', 'Bool:true'], ['False', 'Bool:false']];
+      return { label: 'Bool', all: cases.map(([c]) => c), missing: cases.filter(([, k]) => !seen.has(k)).map(([c]) => c) };
+    }
+    if (type.kind === 'Named') {
+      const info = env.getType(type.name);
+      if (info === null) return null;
+      const all = info.variants.map(v => v.tag);
+      return { label: info.name, all, missing: all.filter(tag => !coveredTags.has(tag)) };
+    }
+    return null;
+  };
+
+  // True when every case the subject can take is already listed — the *residual*
+  // (whitepaper §5) is empty, so a catch-all here would match nothing (its
+  // residual narrows to Never) and is dead. Only a finite domain reaches this: an
+  // Optional when None *and* its element's finite cases are all listed, a plain
+  // finite type when its own cases are. An infinite domain never does, so a
+  // catch-all there is always legal.
+  const residualEmpty = (): boolean => {
+    if (subjectType.kind === 'Optional') {
+      const d = domainOf(subjectType.elem);
+      return noneSpan !== null && d !== null && d.missing.length === 0;
+    }
+    const d = domainOf(subjectType);
+    return d !== null && d.missing.length === 0;
+  };
 
   // The reachable arms' body types, joined into the match's own type below. An
   // unreachable arm still gets synth'd (so errors inside its body surface) but
@@ -171,8 +199,8 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
   for (const arm of expr.arms) {
     // Set up the arm's scope and its pattern's type before synthing the body, so
     // a variant/binding pattern's bound name(s) are in scope inside it.
-    // `patternType` is what the pattern compares as (null for 'else'/a binding,
-    // which match without a value comparison).
+    // `patternType` is what the pattern compares as (null for a catch-all, which
+    // matches without a value comparison).
     const pat = arm.pattern;
     let armEnv: TypeEnv = env;
     let patternType: AscentType | null = null;
@@ -202,52 +230,53 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       // on a T? subject (None widens into T?) and rejects it on any other.
       patternType = NONE_TYPE;
     } else if (pat.kind === 'bindingPattern') {
+      // A bare name is a *catch-all that binds the residual* (whitepaper §5). Its
+      // type is that residual: for a T? whose None case a prior arm already took,
+      // it is the narrowed element T (§7); otherwise the whole subject (a T? with
+      // None still in play — the name may itself be None — or any other type). Its
+      // last-ness / reachability is handled below alongside 'else'.
       armEnv = env.child();
-      // The present value of an Optional, narrowed to its element type T
-      // (whitepaper §7). On a non-Optional subject a name pattern is meaningless
-      // (T0041) — 'else' is the way to catch any value. Bind the name either way
-      // (as T, or Invalid) so the arm body doesn't cascade into N0001.
-      let boundType: AscentType = INVALID_TYPE;
-      if (subjectType.kind === 'Optional') {
-        boundType = subjectType.elem;
-      } else if (!isInvalidType(subjectType)) {
-        diagnostics.error({
-          code: 'T0041', span: pat.span,
-          data: { actual: typeToString(subjectType) },
-          related: [{ key: 'subject', span: expr.subject.span }],
-        });
-      }
+      const boundType = subjectType.kind === 'Optional' && noneSpan !== null
+        ? subjectType.elem
+        : subjectType;
       armEnv.set(pat.name, boundType, 'fix', pat.nameSpan);
     }
 
     const typedBody = synth(arm.body, armEnv, diagnostics);
     typedArms.push({ pattern: pat, body: typedBody, span: arm.span });
 
-    // Reachability: is this arm already covered by an earlier catch-all? A prior
-    // 'else' covers everything; None + a binding together cover an Optional
-    // entirely; a binding alone catches every present value.
-    let shadowSpan: Span | null = null;
-    if (elseSpan !== null) {
-      shadowSpan = elseSpan;
-    } else if (noneSpan !== null && presentSpan !== null) {
-      shadowSpan = presentSpan;                                 // Optional fully covered
-    } else if (presentSpan !== null && matchesPresent(pat.kind)) {
-      shadowSpan = presentSpan;                                 // a present value after the catch-all
-    } else if (noneSpan !== null && pat.kind === 'nonePattern') {
-      shadowSpan = noneSpan;                                    // a repeated 'None'
-    }
-    if (shadowSpan !== null) {
-      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: shadowSpan }] });
+    // Reachability. A catch-all is last (whitepaper §5), so any arm after one is
+    // dead — this one check also enforces "at most one catch-all" (a second is
+    // just an arm after the first).
+    if (catchAllSpan !== null) {
+      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: catchAllSpan }] });
       continue;
     }
 
-    // Record what this arm covers, and catch repeated literals/variants.
-    if (pat.kind === 'elsePattern') {
-      elseSpan = arm.span;
-    } else if (pat.kind === 'nonePattern') {
+    if (pat.kind === 'elsePattern' || pat.kind === 'bindingPattern') {
+      // A catch-all whose residual is already empty (every case listed above)
+      // matches nothing — dead code (whitepaper §5: its residual is Never). A
+      // finite domain listed in full forbids a masking catch-all, which is what
+      // makes adding a variant later re-trigger the exhaustiveness check. No
+      // `related` span: there's no single shadowing arm — the arms *together*
+      // cover everything.
+      if (residualEmpty()) {
+        diagnostics.error({ code: 'T0031', span: arm.span });
+      } else {
+        bodyTypes.push({ type: typedBody.type, span: arm.span });
+      }
+      catchAllSpan = arm.span;   // it is still the catch-all: anything after is dead
+      continue;
+    }
+
+    // A specific pattern (None / literal / variant): reject a repeat, then record
+    // what it covers.
+    if (pat.kind === 'nonePattern') {
+      if (noneSpan !== null) {
+        diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: noneSpan }] });
+        continue;
+      }
       noneSpan = arm.span;
-    } else if (pat.kind === 'bindingPattern') {
-      presentSpan = arm.span;
     } else {
       const firstSpan = seen.get(key!);
       if (firstSpan !== undefined) {
@@ -258,9 +287,8 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       if (pat.kind === 'variantPattern') coveredTags.add(pat.tag);
     }
 
-    // The pattern is compared against the subject, so it has to be something the
-    // subject could be — the same "a common type exists" rule '==' uses. An
-    // already-Invalid subject or pattern is absorbed without a second error.
+    // The pattern must be something the subject could be — the '==' rule (a
+    // common type exists). Invalid on either side is absorbed quietly.
     if (!isInvalidType(subjectType) && patternType !== null && leastCommonType(subjectType, patternType) === null) {
       diagnostics.error({
         code: 'T0028', span: pat.span,
@@ -272,52 +300,31 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     bodyTypes.push({ type: typedBody.type, span: arm.span });
   }
 
-  // Exhaustiveness (whitepaper §5): a 'match' must handle every case, listing
-  // them or supplying an 'else'. A *finite* domain is exhausted by its own
-  // patterns with no 'else' needed — Bool by True and False, a union by all its
-  // tags (design.md §2 treats Bool as the union True | False). An *infinite*
-  // domain (Int/Float/String/List/Range) can't be, so it needs an 'else'
-  // (T0029). An Optional adds the None case on top of its element's domain
-  // (T0042): a 'Bool?' is exhausted by True/False/None, while an 'Int?' still
-  // needs a binding (or 'else') for its infinite present side. `domainOf` gives a
-  // type's finite case set and which cases are still uncovered, or null when the
-  // type is infinite. An 'else' satisfies everything; an Invalid subject is quiet.
-  const domainOf = (type: AscentType): { label: string; all: string[]; missing: string[] } | null => {
-    if (type.kind === 'Bool') {
-      const cases: [string, string][] = [['True', 'Bool:true'], ['False', 'Bool:false']];
-      return { label: 'Bool', all: cases.map(([c]) => c), missing: cases.filter(([, k]) => !seen.has(k)).map(([c]) => c) };
-    }
-    if (type.kind === 'Named') {
-      const info = env.getType(type.name);
-      if (info === null) return null;
-      const all = info.variants.map(v => v.tag);
-      return { label: info.name, all, missing: all.filter(tag => !coveredTags.has(tag)) };
-    }
-    return null;
-  };
-
-  if (elseSpan === null) {
+  // Exhaustiveness (whitepaper §5): with no catch-all, the subject's every case
+  // must be listed. An infinite domain (Int/Float/String/…) can't be, so it needs
+  // a catch-all outright (T0029). A finite one is covered by listing its cases —
+  // every variant of a union or Bool's True/False (T0034). An Optional adds the
+  // None case on top of its element's domain (T0042): a 'Bool?' is exhausted by
+  // True/False/None, while an 'Int?' still needs a catch-all for its infinite
+  // present side. A catch-all satisfies everything; an Invalid subject is quiet.
+  if (catchAllSpan === null) {
     if (subjectType.kind === 'Optional') {
       const missing: string[] = [];
       if (noneSpan === null) missing.push('None');
-      if (presentSpan === null) {
-        // The present side isn't caught by a binding — a finite element domain
-        // can still be fully covered by its own patterns; an infinite one can't.
-        const domain = domainOf(subjectType.elem);
-        if (domain === null) missing.push('a value');
-        else missing.push(...domain.missing);
-      }
+      const d = domainOf(subjectType.elem);
+      if (d === null) missing.push('a value');
+      else missing.push(...d.missing);
       if (missing.length > 0) {
         diagnostics.error({ code: 'T0042', span: expr.span, data: { type: typeToString(subjectType), missing: missing.join(' and ') } });
       }
     } else {
-      const domain = domainOf(subjectType);
-      if (domain === null) {
+      const d = domainOf(subjectType);
+      if (d === null) {
         if (!isInvalidType(subjectType)) diagnostics.error({ code: 'T0029', span: expr.span });
-      } else if (domain.missing.length > 0) {
+      } else if (d.missing.length > 0) {
         diagnostics.error({
           code: 'T0034', span: expr.span,
-          data: { type: domain.label, variants: domain.all.join(', '), missing: domain.missing.join(', ') },
+          data: { type: d.label, variants: d.all.join(', '), missing: d.missing.join(', ') },
         });
       }
     }

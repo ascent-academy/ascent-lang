@@ -37,51 +37,51 @@ function errorCodes(src: string): string[] {
 describe('match — scalar literal patterns', () => {
   describe('evaluation', () => {
     it('takes the first arm whose literal equals the subject', () => {
-      assert.deepEqual(evalOk('fix n = 1; match n { 0 -> "zero"; 1 -> "one"; else -> "many" };'),
+      assert.deepEqual(evalOk('fix n = 1; match n { 0 -> "zero", 1 -> "one", else -> "many" };'),
         { type: 'String', value: 'one' });
     });
 
     it('falls through to else when nothing matches', () => {
-      assert.deepEqual(evalOk('match 5 { 0 -> "zero"; 1 -> "one"; else -> "many" };'),
+      assert.deepEqual(evalOk('match 5 { 0 -> "zero", 1 -> "one", else -> "many" };'),
         { type: 'String', value: 'many' });
     });
 
     it('matches String subjects', () => {
-      assert.deepEqual(evalOk('fix s = "b"; match s { "a" -> 1; "b" -> 2; else -> 0 };'),
+      assert.deepEqual(evalOk('fix s = "b"; match s { "a" -> 1, "b" -> 2, else -> 0 };'),
         { type: 'Int', value: 2n });
     });
 
     it('matches Bool subjects (True/False are exhaustive, no else needed)', () => {
-      assert.deepEqual(evalOk('match True { True -> "yes"; False -> "no" };'),
+      assert.deepEqual(evalOk('match True { True -> "yes", False -> "no" };'),
         { type: 'String', value: 'yes' });
     });
 
     it('matches Float subjects', () => {
-      assert.deepEqual(evalOk('fix x = 1.5; match x { 1.5 -> "a"; else -> "b" };'),
+      assert.deepEqual(evalOk('fix x = 1.5; match x { 1.5 -> "a", else -> "b" };'),
         { type: 'String', value: 'a' });
     });
 
     it('matches negative number literals', () => {
-      assert.deepEqual(evalOk('fix n = -1; match n { -1 -> "neg"; 0 -> "zero"; else -> "pos" };'),
+      assert.deepEqual(evalOk('fix n = -1; match n { -1 -> "neg", 0 -> "zero", else -> "pos" };'),
         { type: 'String', value: 'neg' });
     });
 
     it('takes a compound expression as the subject (no parens needed)', () => {
-      assert.deepEqual(evalOk('fix n = 2; match n + 1 { 3 -> "three"; else -> "other" };'),
+      assert.deepEqual(evalOk('fix n = 2; match n + 1 { 3 -> "three", else -> "other" };'),
         { type: 'String', value: 'three' });
     });
 
     it('accepts (but does not require) parentheses around the subject', () => {
       // Parens are optional grouping now, not syntax — '(n)' is just an
       // expression that happens to be the subject.
-      assert.deepEqual(evalOk('fix n = 1; match (n) { 1 -> "a"; else -> "b" };'),
+      assert.deepEqual(evalOk('fix n = 1; match (n) { 1 -> "a", else -> "b" };'),
         { type: 'String', value: 'a' });
     });
 
     it('compares across the Int/Float tower, like ==', () => {
       // Subject 0 is an Int, the pattern 0.0 a Float; '0 == 0.0' is True, so it
       // matches — the same one-way numeric promotion '==' uses.
-      assert.deepEqual(evalOk('match 0 { 0.0 -> "z"; else -> "n" };'),
+      assert.deepEqual(evalOk('match 0 { 0.0 -> "z", else -> "n" };'),
         { type: 'String', value: 'z' });
     });
 
@@ -91,61 +91,61 @@ describe('match — scalar literal patterns', () => {
     });
 
     it('allows a block as an arm body', () => {
-      assert.deepEqual(evalOk('fix n = 2; match n { 0 -> { 100 }; else -> { fix m = n + 1; m } };'),
+      assert.deepEqual(evalOk('fix n = 2; match n { 0 -> { 100 }, else -> { fix m = n + 1; m } };'),
         { type: 'Int', value: 3n });
     });
 
     it('is an expression — its result can take a method call', () => {
-      assert.deepEqual(evalOk('match 1 { 0 -> "zero"; else -> "many" }.length();'),
+      assert.deepEqual(evalOk('match 1 { 0 -> "zero", else -> "many" }.length();'),
         { type: 'Int', value: 4n });
     });
   });
 
   describe('type checking', () => {
     it('accepts arms whose bodies share a common type (Int/Float widen)', () => {
-      assert.deepEqual(errorCodes('fix x: Float = match 1 { 0 -> 1; else -> 2.5 };'), []);
+      assert.deepEqual(errorCodes('fix x: Float = match 1 { 0 -> 1, else -> 2.5 };'), []);
     });
 
     it('T0028 — a pattern that can never equal the subject', () => {
-      assert.deepEqual(errorCodes('match "hi" { 0 -> "a"; else -> "b" };'), ['T0028']);
+      assert.deepEqual(errorCodes('match "hi" { 0 -> "a", else -> "b" };'), ['T0028']);
     });
 
     it('T0029 — no else, so not every value is covered', () => {
-      assert.deepEqual(errorCodes('fix n = 1; match n { 0 -> "z"; 1 -> "o" };'), ['T0029']);
+      assert.deepEqual(errorCodes('fix n = 1; match n { 0 -> "z", 1 -> "o" };'), ['T0029']);
     });
 
     it('a Bool match covering True and False is exhaustive (no else)', () => {
-      assert.deepEqual(errorCodes('match True { True -> 1; False -> 2 };'), []);
+      assert.deepEqual(errorCodes('match True { True -> 1, False -> 2 };'), []);
     });
 
     it('T0034 — a Bool match missing a case (finite domain)', () => {
       assert.deepEqual(errorCodes('match True { True -> 1 };'), ['T0034']);
     });
 
-    it('a redundant else after full Bool coverage is still allowed', () => {
-      assert.deepEqual(errorCodes('match True { True -> 1; False -> 2; else -> 3 };'), []);
+    it('T0031 — an else after full Bool coverage is unreachable (residual is Never)', () => {
+      assert.deepEqual(errorCodes('match True { True -> 1, False -> 2, else -> 3 };'), ['T0031']);
     });
 
     it('T0030 — arms produce unrelated types', () => {
-      assert.deepEqual(errorCodes('match 1 { 0 -> "zero"; else -> 5 };'), ['T0030']);
+      assert.deepEqual(errorCodes('match 1 { 0 -> "zero", else -> 5 };'), ['T0030']);
     });
 
     it('T0031 — an arm after else is unreachable', () => {
-      assert.deepEqual(errorCodes('match 1 { else -> "a"; 0 -> "b" };'), ['T0031']);
+      assert.deepEqual(errorCodes('match 1 { else -> "a", 0 -> "b" };'), ['T0031']);
     });
 
     it('T0031 — a duplicate literal pattern is unreachable', () => {
-      assert.deepEqual(errorCodes('match 1 { 0 -> "a"; 0 -> "b"; else -> "c" };'), ['T0031']);
+      assert.deepEqual(errorCodes('match 1 { 0 -> "a", 0 -> "b", else -> "c" };'), ['T0031']);
     });
   });
 
   describe('the dropped-value rule (whitepaper §2) applies to a statement-position match', () => {
     it('T0025 — a non-final match yielding a value is dropped', () => {
-      assert.deepEqual(errorCodes('match 1 { 0 -> 1; else -> 2 }; 3;'), ['T0025']);
+      assert.deepEqual(errorCodes('match 1 { 0 -> 1, else -> 2 }; 3;'), ['T0025']);
     });
 
     it("'void' discards it", () => {
-      assert.deepEqual(errorCodes('void match 1 { 0 -> 1; else -> 2 }; 3;'), []);
+      assert.deepEqual(errorCodes('void match 1 { 0 -> 1, else -> 2 }; 3;'), []);
     });
   });
 
@@ -155,11 +155,11 @@ describe('match — scalar literal patterns', () => {
     });
 
     it('S0025 — an arm must start with a pattern', () => {
-      assert.ok(errorCodes('match 1 { -> 1; else -> 2 };').includes('S0025'));
+      assert.ok(errorCodes('match 1 { -> 1, else -> 2 };').includes('S0025'));
     });
 
     it('S0026 — a -> must follow the pattern', () => {
-      assert.ok(errorCodes('match 1 { 0 1; else -> 2 };').includes('S0026'));
+      assert.ok(errorCodes('match 1 { 0 1, else -> 2 };').includes('S0026'));
     });
   });
 });
@@ -174,32 +174,32 @@ const COLOR = 'type Color = Red | Green | Blue;';
 describe('match — variant patterns', () => {
   describe('evaluation', () => {
     it('matches a variant by tag and binds its field (no else needed — all variants listed)', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, Square{ side } -> side };`;
       assert.deepEqual(evalOk(src), { type: 'Float', value: 2 });
     });
 
     it('takes the arm matching the actual tag', () => {
-      const src = `${SHAPE} fix s = Square{ side: 3.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Square{ side: 3.0 }; match s { Circle{ radius } -> radius, Square{ side } -> side };`;
       assert.deepEqual(evalOk(src), { type: 'Float', value: 3 });
     });
 
     it('matches bare enum tags', () => {
-      const src = `${COLOR} fix c = Green; match c { Red -> 1; Green -> 2; Blue -> 3 };`;
+      const src = `${COLOR} fix c = Green; match c { Red -> 1, Green -> 2, Blue -> 3 };`;
       assert.deepEqual(evalOk(src), { type: 'Int', value: 2n });
     });
 
     it('renames a bound field', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius: r } -> r * 2.0; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius: r } -> r * 2.0, Square{ side } -> side };`;
       assert.deepEqual(evalOk(src), { type: 'Float', value: 4 });
     });
 
     it('a bare tag matches a fielded variant too, binding nothing', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle -> "circle"; Square -> "square" };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle -> "circle", Square -> "square" };`;
       assert.deepEqual(evalOk(src), { type: 'String', value: 'circle' });
     });
 
     it("an 'else' covers the variants not listed", () => {
-      const src = `${COLOR} fix c = Blue; match c { Red -> "red"; else -> "other" };`;
+      const src = `${COLOR} fix c = Blue; match c { Red -> "red", else -> "other" };`;
       assert.deepEqual(evalOk(src), { type: 'String', value: 'other' });
     });
 
@@ -211,7 +211,7 @@ describe('match — variant patterns', () => {
 
   describe('inference', () => {
     it('joins the arms to a common type', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, Square{ side } -> side };`;
       assert.equal(typeOfLast(src), 'Float');
     });
   });
@@ -223,157 +223,167 @@ describe('match — variant patterns', () => {
     });
 
     it("T0028 — a variant of a different union can't match this subject", () => {
-      const src = `${SHAPE} ${COLOR} fix s = Circle{ radius: 2.0 }; match s { Red -> 1; else -> 0 };`;
+      const src = `${SHAPE} ${COLOR} fix s = Circle{ radius: 2.0 }; match s { Red -> 1, else -> 0 };`;
       assert.deepEqual(errorCodes(src), ['T0028']);
     });
 
     it("T0028 — a literal can't match a union subject", () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { 0 -> 1; else -> 2 };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { 0 -> 1, else -> 2 };`;
       assert.deepEqual(errorCodes(src), ['T0028']);
     });
 
     it('N0005 — an unknown variant tag', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Blob{ x } -> 1; else -> 2 };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Blob{ x } -> 1, else -> 2 };`;
       assert.deepEqual(errorCodes(src), ['N0005']);
     });
 
     it("T0019 — a field the variant doesn't declare", () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ height } -> 1.0; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ height } -> 1.0, Square{ side } -> side };`;
       assert.deepEqual(errorCodes(src), ['T0019']);
     });
 
     it('T0020 — the same field bound twice', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius, radius } -> radius; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius, radius } -> radius, Square{ side } -> side };`;
       assert.deepEqual(errorCodes(src), ['T0020']);
     });
 
     it('T0031 — a duplicate variant arm is unreachable', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Circle{ radius } -> radius; Square{ side } -> side };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, Circle{ radius } -> radius, Square{ side } -> side };`;
       assert.deepEqual(errorCodes(src), ['T0031']);
     });
 
     it('T0031 — an arm after else is unreachable', () => {
-      const src = `${COLOR} fix c = Red; match c { else -> 0; Red -> 1 };`;
+      const src = `${COLOR} fix c = Red; match c { else -> 0, Red -> 1 };`;
       assert.deepEqual(errorCodes(src), ['T0031']);
     });
 
     it('T0030 — the arms produce unrelated types', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> "x" };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, Square{ side } -> "x" };`;
       assert.deepEqual(errorCodes(src), ['T0030']);
     });
 
     it('S0028 — empty pattern braces are banned (use the bare tag)', () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{} -> 1; else -> 2 };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{} -> 1, else -> 2 };`;
       assert.deepEqual(errorCodes(src), ['S0028']);
     });
 
     it("an 'else' with only some variants listed is allowed (masks future variants)", () => {
-      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; else -> 0.0 };`;
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, else -> 0.0 };`;
       assert.deepEqual(errorCodes(src), []);
     });
 
     it('an optional union is exhausted by every variant plus None (no else/binding)', () => {
-      const src = `${SHAPE} fix s: Shape? = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side; None -> 0.0 };`;
+      const src = `${SHAPE} fix s: Shape? = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, Square{ side } -> side, None -> 0.0 };`;
       assert.deepEqual(errorCodes(src), []);
       assert.deepEqual(evalOk(src), { type: 'Float', value: 2 });
     });
 
     it('T0042 for an optional union missing one variant', () => {
-      const src = `${SHAPE} fix s: Shape? = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; None -> 0.0 };`;
+      const src = `${SHAPE} fix s: Shape? = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius, None -> 0.0 };`;
       assert.deepEqual(errorCodes(src), ['T0042']);
     });
   });
 });
 
-// Matching an Optional (whitepaper §4/§7): 'None' matches the absent case, and a
-// lowercase name binds the present value at its narrowed element type T. Together
-// they are the two exhaustive cases of a 'T?' — no 'Some(...)' wrapper.
-describe('match — Optional (None + binding patterns)', () => {
+// Matching an Optional (whitepaper §4/§5/§7): 'None' matches the absent case, and
+// a bare name is the catch-all that binds the rest — placed last, after 'None' is
+// peeled off, it binds the present value narrowed to T. No 'Some(...)' wrapper.
+describe('match — Optional (None + binding catch-all)', () => {
   describe('evaluation', () => {
-    it('binds and returns the present value', () => {
-      assert.deepEqual(evalOk('fix x: String? = "hi"; match x { value -> value; None -> "none" };'),
+    it('binds and returns the present value (None first, binding last)', () => {
+      assert.deepEqual(evalOk('fix x: String? = "hi"; match x { None -> "none", value -> value };'),
         { type: 'String', value: 'hi' });
     });
 
     it('takes the None arm when absent', () => {
-      assert.deepEqual(evalOk('fix x: String? = None; match x { value -> value; None -> "none" };'),
+      assert.deepEqual(evalOk('fix x: String? = None; match x { None -> "none", value -> value };'),
         { type: 'String', value: 'none' });
     });
 
     it('the binding name is free (anything lowercase)', () => {
-      assert.deepEqual(evalOk('fix x: Int? = 7; match x { whatever -> whatever; None -> 0 };'),
+      assert.deepEqual(evalOk('fix x: Int? = 7; match x { None -> 0, whatever -> whatever };'),
         { type: 'Int', value: 7n });
     });
 
-    it('None may come before the binding arm', () => {
-      assert.deepEqual(evalOk('mut x: Int? = None; match x { None -> -1; n -> n };'),
-        { type: 'Int', value: -1n });
+    it('a lone binding catches everything and binds the whole optional (None included)', () => {
+      // no None arm, so `v` catches None too — binds Int? and returns it
+      assert.deepEqual(evalOk('fix x: Int? = None; match x { v -> v };'), { type: 'None' });
     });
 
-    it('a present-value literal arm can refine the present case', () => {
-      const src = 'fix x: Int? = 0; match x { 0 -> "zero"; n -> "other"; None -> "none" };';
+    it('a present-value literal arm can precede the binding catch-all', () => {
+      const src = 'fix x: Int? = 0; match x { None -> "none", 0 -> "zero", n -> "other" };';
       assert.deepEqual(evalOk(src), { type: 'String', value: 'zero' });
     });
   });
 
   describe('narrowing & typing', () => {
-    it('narrows T? to T in the binding arm (usable as a plain T)', () => {
-      // n is Int here, so n + 1 typechecks and the match is Int
-      assert.equal(typeOfLast('fix x: Int? = 5; match x { n -> n + 1; None -> 0 };'), 'Int');
+    it('narrows T? to T in the binding arm once None is peeled off', () => {
+      // n is Int here (None already handled), so n + 1 typechecks and the match is Int
+      assert.equal(typeOfLast('fix x: Int? = 5; match x { None -> 0, n -> n + 1 };'), 'Int');
+    });
+
+    it('a lone binding (no None arm) binds the whole optional T?', () => {
+      assert.equal(typeOfLast('fix x: Int? = 5; match x { v -> v };'), 'Int?');
     });
 
     it('joins the arms to their common type', () => {
-      assert.equal(typeOfLast('fix x: Int? = 5; match x { n -> n; None -> 0.5 };'), 'Float');
+      assert.equal(typeOfLast('fix x: Int? = 5; match x { None -> 0.5, n -> n };'), 'Float');
     });
   });
 
   describe('exhaustiveness & reachability', () => {
-    it('a binding + None is exhaustive (no error)', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; None -> 0 };'), []);
+    it('None + a binding catch-all is exhaustive (no error)', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0, n -> n };'), []);
     });
 
-    it('a binding + else is exhaustive (no error)', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; else -> 0 };'), []);
+    it('a lone binding catch-all is exhaustive on its own', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n };'), []);
     });
 
-    it('T0042 when the None case is missing', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n };'), ['T0042']);
-    });
-
-    it('T0042 when the present case (a binding/else) is missing', () => {
+    it('T0042 when the present case (a catch-all) is missing', () => {
       assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0 };'), ['T0042']);
     });
 
-    it('a Bool? is exhausted by True/False/None (finite present domain, no binding)', () => {
-      assert.deepEqual(evalOk('fix x: Bool? = True; match x { True -> 1; False -> 0; None -> -1 };'),
+    it('a Bool? is exhausted by None/True/False (finite present domain, no catch-all)', () => {
+      assert.deepEqual(evalOk('fix x: Bool? = True; match x { None -> -1, True -> 1, False -> 0 };'),
         { type: 'Int', value: 1n });
-      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { True -> 1; False -> 0; None -> -1 };'), []);
+      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { None -> -1, True -> 1, False -> 0 };'), []);
     });
 
-    it('T0042 for a Bool? missing a present case (True covered, False and None not)', () => {
-      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { True -> 1 };'), ['T0042']);
+    it('T0042 for a Bool? missing a present case (None+True listed, False not)', () => {
+      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { None -> -1, True -> 1 };'), ['T0042']);
     });
 
-    it('T0031 for a present-value arm after the binding catch-all', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; 0 -> 0; None -> 1 };'), ['T0031']);
+    it('T0031 — a catch-all after a Bool? is fully covered (residual is Never)', () => {
+      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { None -> -1, True -> 1, False -> 0, v -> 9 };'), ['T0031']);
+    });
+
+    it('T0031 — an arm after the binding catch-all is unreachable', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0, n -> n, 0 -> 1 };'), ['T0031']);
+    });
+
+    it('T0031 — a second catch-all (else after a binding) is unreachable', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0, n -> n, else -> 1 };'), ['T0031']);
     });
 
     it('T0031 for a repeated None arm', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; None -> 0; None -> 1 };'), ['T0031']);
-    });
-
-    it('T0031 for a repeated binding arm', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { a -> a; b -> b; None -> 0 };'), ['T0031']);
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0, None -> 1, n -> n };'), ['T0031']);
     });
   });
 
-  describe('type errors', () => {
-    it('T0041 — a name pattern on a non-Optional subject', () => {
-      assert.deepEqual(errorCodes('fix x: Int = 5; match x { n -> n; else -> 0 };'), ['T0041']);
+  describe('binding as a general catch-all (any subject)', () => {
+    it('binds the value on a non-optional subject (like else, but kept)', () => {
+      assert.deepEqual(evalOk('fix x: Int = 5; match x { 0 -> 100, rest -> rest };'),
+        { type: 'Int', value: 5n });
+    });
+
+    it('T0031 — a binding catch-all after a union is fully listed', () => {
+      const src = `${COLOR} fix c = Green; match c { Red -> 1, Green -> 2, Blue -> 3, rest -> 9 };`;
+      assert.deepEqual(errorCodes(src), ['T0031']);
     });
 
     it('T0028 — a None pattern on a non-Optional subject', () => {
-      assert.deepEqual(errorCodes('fix x: Int = 5; match x { None -> 0; else -> 1 };'), ['T0028']);
+      assert.deepEqual(errorCodes('fix x: Int = 5; match x { None -> 0, else -> 1 };'), ['T0028']);
     });
   });
 });

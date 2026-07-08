@@ -248,7 +248,7 @@
   message: "I expected a '{' here."
   explanation: >-
     A 'match' lists its arms between '{' and '}', each written as a pattern,
-    then '->', then a result — like 'match n { 0 -> "none"; else -> "some" }'.
+    then '->', then a result — like 'match n { 0 -> "none", else -> "some" }'.
     This is where that opening '{' should be.
 
 - code: S0025

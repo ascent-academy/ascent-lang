@@ -252,18 +252,19 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
 // Try to match `subject` against `pattern`. On success, return the environment
 // the arm's body runs in: for a variant/binding pattern, a child of `env` with
 // its bound name(s); for a literal/None/else arm, `env` itself (they bind
-// nothing). On failure, return null. 'else' always matches; 'None' matches the
-// absent Optional; a binding matches any *present* value (not None), binding it;
-// a literal matches when it's '=='-equal to the subject (the same structural,
-// numeric-tower-aware equality '==' uses — so an Int pattern can match a Float
-// subject); a variant matches when the subject is the record carrying that tag.
+// nothing). On failure, return null. 'else' always matches; a binding is the
+// other catch-all — it always matches too, binding the value to its name
+// (whitepaper §5); 'None' matches the absent Optional; a literal matches when
+// it's '=='-equal to the subject (the same structural, numeric-tower-aware
+// equality '==' uses — so an Int pattern can match a Float subject); a variant
+// matches when the subject is the record carrying that tag.
 const matchArm = (pattern: Pattern, subject: RuntimeValue, env: Environment): Environment | null => {
   if (pattern.kind === 'elsePattern') return env;
   if (pattern.kind === 'nonePattern') return subject.type === 'None' ? env : null;
   if (pattern.kind === 'bindingPattern') {
-    // The present case of an Optional: any non-None value, bound to the name.
-    // Optional has no wrapper (§4), so `subject` is already the unwrapped value.
-    if (subject.type === 'None') return null;
+    // A catch-all that binds: it matches every remaining value (including None,
+    // when no earlier 'None' arm took it). Optional has no wrapper (§4), so
+    // `subject` is already the value to bind.
     const armEnv = env.child();
     armEnv.declare(pattern.name, subject, false);
     return armEnv;

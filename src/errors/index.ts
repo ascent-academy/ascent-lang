@@ -495,7 +495,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A '{' was expected to open a 'match'’s arms.",
     "message": "I expected a '{' here.",
-    "explanation": "A 'match' lists its arms between '{' and '}', each written as a pattern, then '->', then a result — like 'match n { 0 -> \"none\"; else -> \"some\" }'. This is where that opening '{' should be."
+    "explanation": "A 'match' lists its arms between '{' and '}', each written as a pattern, then '->', then a result — like 'match n { 0 -> \"none\", else -> \"some\" }'. This is where that opening '{' should be."
   },
   {
     "code": "S0025",
@@ -851,7 +851,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A 'match' arm can never be reached.",
     "message": "This arm can never be reached.",
-    "explanation": "The arms of a 'match' are tried in order, and an earlier arm already handles every value this one would — either it comes after an 'else' (which matches everything), or an earlier arm has the very same pattern. So this arm never runs. Remove it, or change what it matches.",
+    "explanation": "The arms of a 'match' are tried in order, and an earlier arm already handles every value this one would — it comes after a catch-all (an 'else' or a name, which match everything left), it repeats an earlier pattern, or the arms above it already cover every possible case, leaving nothing for a catch-all. So this arm never runs. Remove it, or change what it matches.",
     "related": [
       {
         "key": "shadow",
@@ -941,7 +941,8 @@ export const ERRORS: ErrorEntry[] = [
         "key": "subject",
         "label": "this value is {actual}"
       }
-    ]
+    ],
+    "retired": true
   },
   {
     "code": "T0042",
