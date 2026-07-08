@@ -1,5 +1,6 @@
 import type { ProgramArg, Pattern, LiteralPattern } from './parser/ast.js';
 import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram, TypedBindTarget } from './parser/typed-ast.js';
+import type { AscentType } from './types/types.js';
 // valueToString (plain, no colour) is how Ascent renders a runtime value to
 // its output text — the language owns this, so the host's sink takes strings.
 import { valueToString } from './parser/printer.js';
@@ -49,7 +50,6 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       return value;
     }
     case 'call': {
-      // print is the only built-in; others are rejected by the type checker.
       const args = expr.args.map(a => evaluateExpr(a, env));
       if (expr.callee === 'print') {
         // The checker proved the argument is Display (a scalar), so it has a
@@ -59,7 +59,28 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         env.output(scalarToString(args[0]!));
         return DONE;
       }
-      throw new Error(`internal: unknown built-in '${expr.callee}'`);
+      // Otherwise a user function: the checker proved the name is a slot holding
+      // a function value, so look it up and apply it.
+      const fn = env.get(expr.callee);
+      if (fn === undefined || fn.type !== 'Function') {
+        throw new Error(`internal: call of non-function '${expr.callee}'`);
+      }
+      return applyFunction(fn, args, expr.args.map(a => a.type));
+    }
+    case 'fn': {
+      // Build the function value, snapshotting the outer names its body uses
+      // (the checker's `captures`) by value *now* — capture-by-value (§5). The
+      // Function type is always this node's own type; its `result` and the
+      // params' types ride along for coercion when the function is applied.
+      const fnType = expr.type;
+      if (fnType.kind !== 'Function') throw new Error('internal: fn node is not a Function type');
+      return {
+        type: 'Function',
+        params: expr.params,
+        result: fnType.result,
+        body: expr.body,
+        closure: env.snapshot(expr.captures),
+      };
     }
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
@@ -232,6 +253,23 @@ const evaluateBlock = (block: TypedBlock, env: Environment): RuntimeValue => {
   return result;
 };
 
+// Apply a function value to already-evaluated arguments (whitepaper §5). The
+// call runs in a scope parented on the function's *closure* — the by-value
+// snapshot taken when the 'fn' literal was made, never the caller's scope — so
+// lexical scoping and capture-by-value both hold. Each argument is coerced from
+// its static type into the parameter's declared type (Int → Float widening, the
+// one-way rule of §5), bound as a fixed slot; the body's value is coerced into
+// the declared return type. `argTypes` are the arguments' static types, needed
+// as the `from` side of each coercion witness.
+const applyFunction = (
+  fn: Extract<RuntimeValue, { type: 'Function' }>, args: RuntimeValue[], argTypes: AscentType[],
+): RuntimeValue => {
+  const callEnv = fn.closure.child();
+  fn.params.forEach((p, i) => callEnv.declare(p.name, coerce(args[i]!, argTypes[i]!, p.type), false));
+  const result = evaluateBlock(fn.body, callEnv);
+  return coerce(result, fn.body.type, fn.result);
+};
+
 // Bind `value` to a fix/mut/for target in `env`: a plain name binds the whole
 // value; a record pattern pulls each named field off it and binds those. The
 // checker proved a record target's value is that single-variant record
@@ -258,6 +296,13 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       // (handles Int → Float when the annotation says Float but the literal is
       // an Int, and any nested widening the same edge implies).
       const value = coerce(evaluateExpr(stmt.init, env), stmt.init.type, stmt.slotType);
+      // Recursion tie-the-knot: a function bound by name has itself in scope
+      // inside its own body (the recursive-let rule, §5). Inject it into its own
+      // closure so a self-call resolves at call time. Sound as value capture —
+      // the name is fixed to this very function value.
+      if (value.type === 'Function' && stmt.target.kind === 'name') {
+        value.closure.declare(stmt.target.name, value, false);
+      }
       declareTarget(stmt.target, value, env, stmt.kind === 'mut');
       return DONE;
     }

@@ -43,6 +43,35 @@ export class Environment {
     return this.vars.get(name)?.value ?? this.parent?.get(name);
   }
 
+  // The binding for `name` (value + mutability) from whichever scope owns it, or
+  // undefined if unbound. Used by snapshot() to copy a captured slot faithfully.
+  private lookup(name: string): Binding | undefined {
+    return this.vars.get(name) ?? this.parent?.lookup(name);
+  }
+
+  // The output sink in effect for this chain — walked to the root, where a host
+  // wired one up. A closure snapshot (parent-less) needs it so a 'print' inside
+  // a function body still reaches output.
+  private effectiveSink(): OutputSink | null {
+    return this.sink ?? this.parent?.effectiveSink() ?? null;
+  }
+
+  // A by-value snapshot of `names` as a fresh, parent-less scope — the closure
+  // environment for a function value (capture-by-value, whitepaper §5). Each
+  // captured binding's value *and* mutability are copied, so the closure holds
+  // its own independent slots; later changes to the outer slots are invisible to
+  // it. The sink is carried across so output from the function body still lands.
+  // A name with no binding yet (the recursive self-name, tied in afterward) is
+  // simply skipped.
+  public snapshot(names: string[]): Environment {
+    const snap = new Environment(null, this.effectiveSink());
+    for (const name of names) {
+      const binding = this.lookup(name);
+      if (binding !== undefined) snap.vars.set(name, { value: binding.value, mutable: binding.mutable });
+    }
+    return snap;
+  }
+
   // Emit one line of already-formatted program output (a `print` argument, or
   // the program's final value, rendered to text by the caller). Walks outward
   // to the sink established at the root — a child never carries its own, so

@@ -10,7 +10,12 @@ export type ListType = { kind: 'ListType'; elem: TypeExpr; span: Span };
 // 'T?' — sugar for 'Optional<T>' (design.md §4). Written as a trailing '?'
 // on any other TypeExpr, never as a spelled-out 'Optional<T>' name.
 export type OptionalType = { kind: 'OptionalType'; elem: TypeExpr; span: Span };
-export type TypeExpr = TypeName | ListType | OptionalType;
+// 'fn(Int, String) -> Bool' — a function type in annotation position
+// (whitepaper §5/§7). The parameter types are positional (no names, unlike an
+// 'fn' *literal*'s params), and the result is required — a function that
+// "returns nothing" returns 'Done', so there is always a result to write.
+export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; span: Span };
+export type TypeExpr = TypeName | ListType | OptionalType | FnType;
 
 export type Literal = (
   | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }
@@ -88,11 +93,23 @@ export type MatchArm = { pattern: Pattern; body: Expr; span: Span };
 // grammar one.
 export type Match = { kind: 'match'; subject: Expr; arms: MatchArm[]; span: Span };
 
+// One parameter of an 'fn' literal — 'name: Type' (whitepaper §5). Unlike a
+// program input (scalar-only, ProgramArg), a function parameter's type is a
+// full TypeExpr, so it may be 'List<Int>', a user type, 'Int?', or itself an
+// 'fn(...) -> ...' type. Every parameter is an ordinary fixed slot in the body.
+export type FnParam = { name: string; nameSpan: Span; type: TypeExpr; span: Span };
+
 export type Expr = (
   | Literal
   | Template
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
+  // 'fn(params) -> Ret { body }' — a first-class function value (whitepaper §5).
+  // Made only this way ('fix f = fn(...)'); there is no 'fn name(...)'
+  // declaration form. The body is an ordinary block whose last statement is the
+  // return value (the block-value rule, §2), so there is one body form and no
+  // arrow. Both the parameter types and the return type are mandatory (§7).
+  | { kind: 'fn'; params: FnParam[]; returnType: TypeExpr; body: Block; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
   // 'TypeName{ field: value, … }' — builds a value of a declared type
   // (whitepaper §6). `typeName` is the constructor: a variant tag (its own name

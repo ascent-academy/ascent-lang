@@ -26,12 +26,13 @@
 - code: S0003
   name: expected-slot-name
   category: syntactic
-  summary: "A name was expected after 'fix' or 'mut', or as a program input."
+  summary: "A name was expected after 'fix' or 'mut', as a program input, or as a function parameter."
   message: "I expected a name here."
   explanation: >-
     A name is needed here — after 'fix' or 'mut' to create one
-    ('fix count = 0'), or as the name of a program input
-    ('program (age: Int) { … }'). A name starts with a lowercase letter.
+    ('fix count = 0'), as the name of a program input
+    ('program (age: Int) { … }'), or as a function parameter
+    ('fn(x: Int) -> Int { … }'). A name starts with a lowercase letter.
 
 - code: S0004
   name: expected-equals
@@ -58,12 +59,13 @@
 - code: S0006
   name: expected-test-paren
   category: syntactic
-  summary: "A '(' was expected to open a condition or a 'program' input list."
+  summary: "A '(' was expected to open a condition, a 'program' input list, or a function's parameters."
   message: "I expected a '(' here."
   explanation: >-
-    An 'if' or 'while' condition — and the inputs listed after 'program' — go
-    inside '( )', like 'if (age >= 18) { … }' or 'program (age: Int) { … }'.
-    This is where that opening '(' should be.
+    An 'if' or 'while' condition, the inputs listed after 'program', and a
+    function's parameters all go inside '( )' — like 'if (age >= 18) { … }',
+    'program (age: Int) { … }', or 'fn(x: Int) -> Int { … }'. This is where that
+    opening '(' should be.
 
 - code: S0007
   name: expected-block
@@ -89,11 +91,12 @@
 - code: S0009
   name: expected-colon
   category: syntactic
-  summary: "A ':' was expected between a program input's name and its type."
+  summary: "A ':' was expected between a program input's or function parameter's name and its type."
   message: "I expected a ':' here."
   explanation: >-
-    Each program input is written as a name, then ':', then its type, like
-    'program (age: Int) { … }'. This is where the ':' should be.
+    A program input and a function parameter are each written as a name, then
+    ':', then its type — like 'program (age: Int) { … }' or
+    'fn(x: Int) -> Int { … }'. This is where the ':' should be.
 
 - code: S0010
   name: expected-type
@@ -309,3 +312,14 @@
   explanation: >-
     A 'program (…) { … }' block is the whole program, so nothing comes after its
     closing '}'. Everything the program does goes inside the braces.
+
+- code: S0031
+  name: expected-return-type
+  category: syntactic
+  summary: "A function's parameters weren't followed by '->' and a return type."
+  message: "I expected '->' and a return type here."
+  explanation: >-
+    A function states its return type right after its parameters, like
+    'fn(x: Int) -> Int { … }' — the '->' and then the type the function gives
+    back. Every function says what it returns; one that returns nothing returns
+    'Done'. Add '-> Type' after the ')'.

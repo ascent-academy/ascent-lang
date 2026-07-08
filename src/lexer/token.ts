@@ -30,6 +30,8 @@ export type TokenKind =
   | 'KW_TYPE'        // the keyword type — declares a user-defined type
   | 'KW_VOID'        // the keyword void — evaluates an expression and discards its value
   | 'KW_MATCH'       // the keyword match — starts a pattern-matching expression
+  | 'KW_FN'          // the keyword fn — introduces a function value or a function type
+  | 'KW_RETURN'      // the keyword return — early-exits the enclosing function
   | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates

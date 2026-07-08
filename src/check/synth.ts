@@ -3,12 +3,13 @@ import type { Span } from '../lexer/token.js';
 import type { TypedExpr, TypedTemplatePart, TypedFieldInit } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
-  listOfType, leastCommonType, typeToString, isInvalidType, namedType,
+  listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
 import { methodCallType, FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
-import { BUILTIN_TYPE_NAMES } from './formation.js';
+import { BUILTIN_TYPE_NAMES, typeFromExpr } from './formation.js';
+import { freeVariables } from './captures.js';
 import { satisfies } from './traits.js';
 import { inferBlock, inferIf, inferMatch } from './stmt.js';
 import { check } from './check.js';
@@ -97,42 +98,98 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     }
 
     case 'call': {
-      const sig = FUNCTIONS[expr.callee];
-      if (sig === undefined) {
-        diagnostics.error({ code: 'T0013', span: expr.span, data: { name: expr.callee } });
-        // Still synthesize the args so any independent errors inside them
-        // are reported too, even though there's no signature to check them
-        // against.
-        const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
-        return { kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span };
-      }
-
       const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
-      // Any argument that already failed poisons the whole call (Rule 2) —
-      // don't also run arity/type checks against it.
-      if (typedArgs.some(a => isInvalidType(a.type))) {
-        return { kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span };
+      const invalid = (): TypedExpr => ({ kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span });
+
+      // A built-in free function (print today) is checked against its own
+      // signature, which may carry a trait bound the user-function path has no
+      // notion of. Builtins take priority over a same-named slot.
+      const builtin = FUNCTIONS[expr.callee];
+      if (builtin !== undefined) {
+        // Any argument that already failed poisons the whole call (Rule 2).
+        if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
+        if (!requireArity(builtin.params.length, typedArgs.length, diagnostics, expr.span)) return invalid();
+        for (let i = 0; i < builtin.params.length; i++) {
+          const param = builtin.params[i]!;
+          const argType = typedArgs[i]!.type;
+          if (!paramAccepts(param, argType)) {
+            // A concrete parameter that doesn't match is an ordinary type
+            // mismatch (T0008); an unmet trait bound (only print's Display today)
+            // has no single "expected type" to name, so it gets its own message.
+            if (isTraitBound(param)) {
+              diagnostics.error({ code: 'T0024', span: expr.span, data: { actual: typeToString(argType) } });
+            } else {
+              typeMismatch('T0008', diagnostics, expr.span, param, argType);
+            }
+            return invalid();
+          }
+        }
+        return { kind: 'call', callee: expr.callee, args: typedArgs, type: builtin.result, span: expr.span };
       }
 
-      if (!requireArity(sig.params.length, typedArgs.length, diagnostics, expr.span)) {
-        return { kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span };
+      // Otherwise the callee must be a slot holding a function value
+      // (whitepaper §5 — functions are ordinary values, called by name).
+      const binding = env.get(expr.callee);
+      if (binding === null) {
+        diagnostics.error({ code: 'T0013', span: expr.span, data: { name: expr.callee } });
+        return invalid();
       }
-      for (let i = 0; i < sig.params.length; i++) {
-        const param = sig.params[i]!;
+      if (isInvalidType(binding.ty)) return invalid();
+      if (binding.ty.kind !== 'Function') {
+        // The name exists but isn't a function, so it can't be called.
+        diagnostics.error({ code: 'T0035', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
+        return invalid();
+      }
+      if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
+
+      const fn = binding.ty;
+      if (!requireArity(fn.params.length, typedArgs.length, diagnostics, expr.span)) return invalid();
+      for (let i = 0; i < fn.params.length; i++) {
+        const param = fn.params[i]!;
         const argType = typedArgs[i]!.type;
-        if (!paramAccepts(param, argType)) {
-          // A concrete parameter that doesn't match is an ordinary type
-          // mismatch (T0008); an unmet trait bound (only print's Display today)
-          // has no single "expected type" to name, so it gets its own message.
-          if (isTraitBound(param)) {
-            diagnostics.error({ code: 'T0024', span: expr.span, data: { actual: typeToString(argType) } });
-          } else {
-            typeMismatch('T0008', diagnostics, expr.span, param, argType);
-          }
-          return { kind: 'call', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span };
+        // Assignable, not exact — an Int argument widens into a Float parameter
+        // (the interpreter coerces), the same one-way rule a binding uses (§5).
+        if (!isAssignableTo(argType, param)) {
+          typeMismatch('T0008', diagnostics, expr.span, param, argType);
+          return invalid();
         }
       }
-      return { kind: 'call', callee: expr.callee, args: typedArgs, type: sig.result, span: expr.span };
+      return { kind: 'call', callee: expr.callee, args: typedArgs, type: fn.result, span: expr.span };
+    }
+
+    case 'fn': {
+      // The function's type is formed from its (fully explicit) signature —
+      // nothing is inferred from the body (§7). That is what makes recursion
+      // need no special case and keeps a signature error local to the signature.
+      const paramTypes = expr.params.map(p => typeFromExpr(p.type, env, diagnostics));
+      const resultType = typeFromExpr(expr.returnType, env, diagnostics);
+      const fnType = functionType(paramTypes, resultType);
+
+      // Check the body in a fresh scope with the parameters bound as fixed slots
+      // (whitepaper §5 — every parameter is an ordinary fixed slot).
+      const bodyEnv = env.child();
+      expr.params.forEach((p, i) => bodyEnv.set(p.name, paramTypes[i]!, 'fix', p.nameSpan));
+      const typedBody = inferBlock(expr.body, bodyEnv, diagnostics);
+
+      // The body's value (its last statement, §2) must fit the declared return
+      // type. isAssignableTo absorbs Invalid on either side, so a body or return
+      // type that already failed doesn't add a second, misleading diagnostic.
+      if (!isAssignableTo(typedBody.type, resultType)) {
+        diagnostics.error({
+          code: 'T0036', span: typedBody.span,
+          data: { expected: typeToString(resultType), actual: typeToString(typedBody.type) },
+          related: [{ key: 'annotation', span: expr.returnType.span }],
+        });
+      }
+
+      return {
+        kind: 'fn',
+        params: expr.params.map((p, i) => ({ name: p.name, type: paramTypes[i]! })),
+        body: typedBody,
+        captures: freeVariables(expr.body, expr.params),
+        type: fnType,
+        span: expr.span,
+      };
     }
 
     case 'unary': {
@@ -195,6 +252,13 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
             break;
           }
           case '==': case '!=': {
+            // Functions have no equality — comparing them is a compile error
+            // (whitepaper §5). Caught here because two identical arrow types
+            // otherwise share a common type and would slip through as Bool.
+            if (lt.kind === 'Function' || rt.kind === 'Function') {
+              type = operandError(diagnostics, expr.op, expr.span, lt, rt);
+              break;
+            }
             const ct = leastCommonType(lt, rt);
             type = ct === null ? operandError(diagnostics, expr.op, expr.span, lt, rt) : BOOL_TYPE;
             break;

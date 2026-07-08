@@ -37,10 +37,31 @@ export type TypedExpr = (
   | { kind: 'index'; list: TypedExpr; index: TypedExpr; type: AscentType; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; type: AscentType; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
+  | TypedFn
   | TypedMatch
   | TypedBlock
   | TypedIf
 );
+
+// One typed parameter of a function value — its name and the AscentType its
+// declared TypeExpr formed into. The interpreter binds each argument to `name`
+// (coercing into `type`) when the function is applied.
+export type TypedFnParam = { name: string; type: AscentType };
+
+// 'fn(params) -> Ret { body }' typed (whitepaper §5). `type` is the Function
+// type formed from the signature (its params/result mirror `params` and the
+// body's expected return). `captures` is the set of outer names the body uses
+// that are bound above the function — the interpreter snapshots exactly these
+// by value at closure-creation time (capture-by-value, §5), keeping the closure
+// cheap and its dependencies legible.
+export type TypedFn = {
+  kind: 'fn';
+  params: TypedFnParam[];
+  body: TypedBlock;
+  captures: string[];
+  type: AscentType;
+  span: Span;
+};
 
 // A pattern carries no inferred type of its own — a literal pattern's type is
 // evident from its own kind — so the typed arm reuses the untyped Pattern and

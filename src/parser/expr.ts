@@ -2,6 +2,7 @@ import type { Token, TokenKind } from '../lexer/token.js';
 import type { Expr, BinaryOp, UnaryOp, TemplatePart, FieldInit } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf, parseMatch } from './stmt.js';
+import { parseTypeExpr, parseFnParam } from './type-expr.js';
 import { dedent, type RawChunk } from './dedent.js';
 
 // ---- Pratt parsing ----------------------------------------------------
@@ -366,8 +367,46 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseMatch(ts);
   }
 
+  if (tok.kind === 'KW_FN') {
+    return parseFn(ts);
+  }
+
   ts.report('S0002', tok.span);
   return null;
+}
+
+// 'fn(params) -> Ret { body }' — a function value (whitepaper §5). Mirrors the
+// 'fn(T) -> R' *type* shape (parseFnType in type-expr.ts) but its parameters
+// carry names and it ends in a body block, not just a result type. There is one
+// body form (the block) and no arrow — the body's last statement is the return
+// value (the block-value rule, §2).
+function parseFn(ts: TokenStream): Expr | null {
+  const fnTok = ts.advance(); // consume 'fn'
+
+  const open = ts.expect('LPAREN', 'S0006');
+  if (open === null) return null;
+
+  const parsed = ts.parseSeparated(() => parseFnParam(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
+  if (parsed === null) return null;
+
+  if (ts.expect('ARROW', 'S0031') === null) return null;
+
+  const returnType = parseTypeExpr(ts);
+  if (returnType === null) return null;
+
+  const openBrace = ts.expect('LBRACE', 'S0007');
+  if (openBrace === null) return null;
+
+  const body = parseBlock(ts, openBrace);
+  if (body === null) return null;
+
+  return {
+    kind: 'fn',
+    params: parsed.items,
+    returnType,
+    body,
+    span: { start: fnTok.span.start, end: body.span.end },
+  };
 }
 
 // A String's chunks and holes: 'STR_PART' text, then an expression, then the

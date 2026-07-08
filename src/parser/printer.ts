@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import type { Expr, Statement, TypeExpr, Pattern } from './ast.js';
 import type { RuntimeValue } from '../interpreter.js';
+import { typeToString, functionType } from '../types/types.js';
 
 // How a 'match' arm's pattern shows in the AST dump — the constant it compares
 // against, a variant tag (with its bound fields), or 'else'. Shared by both
@@ -28,6 +29,7 @@ const formatTypeExpr = (te: TypeExpr): string => {
     case 'TypeName': return te.name;
     case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
     case 'OptionalType': return `${formatTypeExpr(te.elem)}?`;
+    case 'FnType': return `fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
   }
 };
 
@@ -68,6 +70,11 @@ const exprLines = (expr: Expr): string[] => {
         branch(exprLines(arg), i === expr.args.length - 1)
       );
       return [`${chalk.cyan('Call')} ${chalk.green(expr.callee)}`, ...argLines];
+    }
+    case 'fn': {
+      const sig = `(${expr.params.map(p => `${p.name}: ${formatTypeExpr(p.type)}`).join(', ')}) -> ${formatTypeExpr(expr.returnType)}`;
+      const bodyLines = branch(exprLines(expr.body), true);
+      return [`${chalk.cyan('Fn')} ${chalk.dim(sig)}`, ...bodyLines];
     }
     case 'methodCall': {
       const children = [expr.receiver, ...expr.args];
@@ -227,6 +234,11 @@ export const formatValue = (value: RuntimeValue): string => {
       const fields = Array.from(value.fields, ([name, v]) => `${name}: ${formatValue(v)}`).join(', ');
       return `${chalk.cyan(value.name)}{ ${fields} }`;
     }
+    // A function has no data to show — render its type (whitepaper §5: functions
+    // aren't Display, so this only surfaces in a value/AST dump, never in print
+    // or interpolation).
+    case 'Function':
+      return chalk.magenta(typeToString(functionType(value.params.map(p => p.type), value.result)));
     case 'None':
       return chalk.yellow('None');
     case 'Done':
@@ -256,6 +268,8 @@ export const valueToString = (value: RuntimeValue): string => {
       const fields = Array.from(value.fields, ([name, v]) => `${name}: ${valueToString(v)}`).join(', ');
       return `${value.name}{ ${fields} }`;
     }
+    case 'Function':
+      return typeToString(functionType(value.params.map(p => p.type), value.result));
     case 'None':
       return 'None';
     case 'Done':

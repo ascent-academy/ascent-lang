@@ -1,7 +1,7 @@
 import type { TypeExpr, ArgType } from '../parser/ast.js';
 import {
-  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, INVALID_TYPE,
-  listOfType, optionalOf, namedType,
+  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE,
+  listOfType, optionalOf, namedType, functionType,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import type { Diagnostics } from './diagnostics.js';
@@ -34,6 +34,10 @@ export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 
 export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostics): AscentType => {
   switch (te.kind) {
     case 'TypeName': {
+      // 'Done', the unit type — admitted in type position (parseTypeExpr) even
+      // though the word lexes as a value constructor. A function that returns no
+      // information writes '-> Done' (whitepaper §4).
+      if (te.name === 'Done') return DONE_TYPE;
       if (BUILTIN_SCALARS.has(te.name)) return typeFromName(te.name as ArgType);
       // A user type: it must already be declared (types are sequential, like
       // value bindings). An undeclared name is N0005; Invalid stops the failure
@@ -44,5 +48,9 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
     }
     case 'ListType': return listOfType(typeFromExpr(te.elem, env, diagnostics));
     case 'OptionalType': return optionalOf(typeFromExpr(te.elem, env, diagnostics));
+    case 'FnType': return functionType(
+      te.params.map(p => typeFromExpr(p, env, diagnostics)),
+      typeFromExpr(te.result, env, diagnostics),
+    );
   }
 };

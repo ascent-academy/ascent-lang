@@ -18,7 +18,14 @@ export type AscentType =
   // lightweight handle; its structure (variants → fields) lives in the
   // checker's type registry (src/check/env.ts's TypeEnv), looked up by name.
   // Nominal typing means two Named types relate only when their names match.
-  | { kind: 'Named'; name: string };
+  | { kind: 'Named'; name: string }
+  // whitepaper §5/§7: a first-class function value's type — `fn(Int, String) ->
+  // Bool`. Both the parameter types and the result are always known from the
+  // function's (fully explicit) signature, never inferred from its body. Unlike
+  // List/Optional this is structural in the shallow sense that two arrow types
+  // relate only when their arities and every part match exactly — arrow types
+  // are *invariant* (subtype() below), keeping §7's "no variance" intact.
+  | { kind: 'Function'; params: AscentType[]; result: AscentType };
 
 export type TypeKind = AscentType['kind'];
 
@@ -44,6 +51,7 @@ export const RANGE_TYPE: AscentType = { kind: 'Range' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
 export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
 export const namedType = (name: string): AscentType => ({ kind: 'Named', name });
+export const functionType = (params: AscentType[], result: AscentType): AscentType => ({ kind: 'Function', params, result });
 
 // design.md §4: 'T?' is surface sugar for 'Optional<T>' — render it that way
 // everywhere a type shows up (diagnostics, the REPL, the AST printers)
@@ -59,6 +67,11 @@ export const typeToString = (t: AscentType): string => {
   // 'Named' — the 'kind' is an implementation label, not user vocabulary.
   if (t.kind === 'Named') {
     return t.name;
+  }
+  // A function type shows in its source spelling: 'fn(Int, String) -> Bool',
+  // with no space before the '(' (mirroring the 'fn(...)' literal and call).
+  if (t.kind === 'Function') {
+    return `fn(${t.params.map(typeToString).join(', ')}) -> ${typeToString(t.result)}`;
   }
   return t.kind;
 };
@@ -107,6 +120,15 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
   // nominal, not structural.
   if (a.kind === 'Named' && b.kind === 'Named') {
     return a.name === b.name;
+  }
+
+  // Two function types are equal when their arities match and every parameter
+  // and the result are pairwise equal — arrow types have no widening of their
+  // own (they're invariant, see subtype() below), so equality is the whole story.
+  if (a.kind === 'Function' && b.kind === 'Function') {
+    return a.params.length === b.params.length
+      && a.params.every((p, i) => typesEqual(p, b.params[i]!))
+      && typesEqual(a.result, b.result);
   }
 
   return true;

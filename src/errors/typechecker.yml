@@ -373,3 +373,27 @@
     A 'match' has to produce a value for every case it might be given. '{type}'
     has the variants {variants}, but this 'match' has no arm for {missing}. Add
     an arm for each one it's missing, or an 'else' arm to cover the rest.
+
+- code: T0035
+  name: not-callable
+  category: type
+  summary: A name that isn't a function is being called.
+  message: "'{name}' is a {type}, not a function, so it can't be called."
+  explanation: >-
+    Only a function can be called with '(…)'. Here '{name}' holds a {type}, which
+    isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the
+    name you meant, or that it was created as a function with 'fn(…) -> … { … }'.
+
+- code: T0036
+  name: return-type-mismatch
+  category: type
+  summary: A function produces a value that doesn't match its declared return type.
+  message: "This function returns {expected}, but this value is {actual}."
+  explanation: >-
+    A function has to give back a value of the return type it declares. This one
+    is declared to return {expected}, but the value it produces here is {actual},
+    and those don't match. (An Int can go where a Float is expected, but not the
+    other way around.) Produce a {expected}, or change the declared return type.
+  related:
+    - key: annotation
+      label: "the return type was set to {expected} here"

@@ -1,4 +1,6 @@
 import { subtype, type AscentType, type Coercion } from '../types/types.js';
+import type { TypedBlock } from '../parser/typed-ast.js';
+import type { Environment } from './env.js';
 
 // The runtime value domain — the interpreter's twin of types/types.ts's
 // AscentType. Everything here operates on a RuntimeValue independent of the
@@ -23,6 +25,14 @@ export type RuntimeValue = (
   // declaration order (a Map preserves insertion order), so '==' and display
   // are a straight field-by-field walk.
   | { type: 'Record'; name: string; fields: Map<string, RuntimeValue> }
+  // A function value (whitepaper §5). `params` carries each parameter's name and
+  // declared type (for binding + coercing arguments); `result` the declared
+  // return type (for coercing the body's value). `closure` is the by-value
+  // snapshot of the outer names the body uses, captured when the 'fn' literal
+  // was evaluated — never a live reference to the defining scope (§5), which is
+  // what makes the loop-footgun impossible. Applying the function parents a call
+  // scope on `closure` and runs `body`.
+  | { type: 'Function'; params: { name: string; type: AscentType }[]; result: AscentType; body: TypedBlock; closure: Environment }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -117,6 +127,11 @@ export const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean =>
       : asFloat(left) === asFloat(right);
   }
   if (left.type !== right.type) return false;
+  // Functions have no equality (§5). The checker rejects comparing them
+  // directly; a function reaching here only via a nested record field is
+  // treated as never-equal rather than silently "equal" (the singleton
+  // fallthrough below), the honest answer for values with no structural sense.
+  if (left.type === 'Function') return false;
   if (left.type === 'Bool' && right.type === 'Bool') return left.value === right.value;
   if (left.type === 'String' && right.type === 'String') return left.value === right.value;
   // Two ranges are equal when they carry the same bounds — structural, like

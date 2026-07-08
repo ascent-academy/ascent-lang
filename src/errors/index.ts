@@ -304,9 +304,9 @@ export const ERRORS: ErrorEntry[] = [
     "code": "S0003",
     "name": "expected-slot-name",
     "category": "syntactic",
-    "summary": "A name was expected after 'fix' or 'mut', or as a program input.",
+    "summary": "A name was expected after 'fix' or 'mut', as a program input, or as a function parameter.",
     "message": "I expected a name here.",
-    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), or as the name of a program input ('program (age: Int) { … }'). A name starts with a lowercase letter."
+    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), as the name of a program input ('program (age: Int) { … }'), or as a function parameter ('fn(x: Int) -> Int { … }'). A name starts with a lowercase letter."
   },
   {
     "code": "S0004",
@@ -334,9 +334,9 @@ export const ERRORS: ErrorEntry[] = [
     "code": "S0006",
     "name": "expected-test-paren",
     "category": "syntactic",
-    "summary": "A '(' was expected to open a condition or a 'program' input list.",
+    "summary": "A '(' was expected to open a condition, a 'program' input list, or a function's parameters.",
     "message": "I expected a '(' here.",
-    "explanation": "An 'if' or 'while' condition — and the inputs listed after 'program' — go inside '( )', like 'if (age >= 18) { … }' or 'program (age: Int) { … }'. This is where that opening '(' should be."
+    "explanation": "An 'if' or 'while' condition, the inputs listed after 'program', and a function's parameters all go inside '( )' — like 'if (age >= 18) { … }', 'program (age: Int) { … }', or 'fn(x: Int) -> Int { … }'. This is where that opening '(' should be."
   },
   {
     "code": "S0007",
@@ -358,9 +358,9 @@ export const ERRORS: ErrorEntry[] = [
     "code": "S0009",
     "name": "expected-colon",
     "category": "syntactic",
-    "summary": "A ':' was expected between a program input's name and its type.",
+    "summary": "A ':' was expected between a program input's or function parameter's name and its type.",
     "message": "I expected a ':' here.",
-    "explanation": "Each program input is written as a name, then ':', then its type, like 'program (age: Int) { … }'. This is where the ':' should be."
+    "explanation": "A program input and a function parameter are each written as a name, then ':', then its type — like 'program (age: Int) { … }' or 'fn(x: Int) -> Int { … }'. This is where the ':' should be."
   },
   {
     "code": "S0010",
@@ -536,6 +536,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "Something was written after the 'program' block.",
     "message": "I expected the file to end after the 'program' block.",
     "explanation": "A 'program (…) { … }' block is the whole program, so nothing comes after its closing '}'. Everything the program does goes inside the braces."
+  },
+  {
+    "code": "S0031",
+    "name": "expected-return-type",
+    "category": "syntactic",
+    "summary": "A function's parameters weren't followed by '->' and a return type.",
+    "message": "I expected '->' and a return type here.",
+    "explanation": "A function states its return type right after its parameters, like 'fn(x: Int) -> Int { … }' — the '->' and then the type the function gives back. Every function says what it returns; one that returns nothing returns 'Done'. Add '-> Type' after the ')'."
   },
   {
     "code": "T0001",
@@ -858,6 +866,28 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A 'match' on a union doesn't handle every variant.",
     "message": "This 'match' doesn't handle {missing}.",
     "explanation": "A 'match' has to produce a value for every case it might be given. '{type}' has the variants {variants}, but this 'match' has no arm for {missing}. Add an arm for each one it's missing, or an 'else' arm to cover the rest."
+  },
+  {
+    "code": "T0035",
+    "name": "not-callable",
+    "category": "type",
+    "summary": "A name that isn't a function is being called.",
+    "message": "'{name}' is a {type}, not a function, so it can't be called.",
+    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…) -> … { … }'."
+  },
+  {
+    "code": "T0036",
+    "name": "return-type-mismatch",
+    "category": "type",
+    "summary": "A function produces a value that doesn't match its declared return type.",
+    "message": "This function returns {expected}, but this value is {actual}.",
+    "explanation": "A function has to give back a value of the return type it declares. This one is declared to return {expected}, but the value it produces here is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.) Produce a {expected}, or change the declared return type.",
+    "related": [
+      {
+        "key": "annotation",
+        "label": "the return type was set to {expected} here"
+      }
+    ]
   }
 ];
 

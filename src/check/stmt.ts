@@ -1,7 +1,7 @@
 import type { Statement, Block, If, Match, LiteralPattern, BindTarget, FieldPattern } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
 import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern, TypedBindTarget } from '../parser/typed-ast.js';
-import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType } from '../types/types.js';
+import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType, functionType } from '../types/types.js';
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
@@ -390,6 +390,25 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       }
       const name = stmt.target.name;
       const annotation = stmt.typeAnnotation !== null ? typeFromExpr(stmt.typeAnnotation, env, diagnostics) : null;
+
+      // Recursive 'fix'/'mut': the name is in scope within its own initializer
+      // (the recursive-let rule, §5). When the initializer is a function
+      // literal, its type is fully known from the signature (or the annotation)
+      // without checking the body, so bind the name *first* — a self-reference
+      // in the body then resolves to it. The final env.set below overwrites this
+      // with the identical formed type. (An eager, non-function self-reference
+      // like 'fix x = x + 1' is the "used before initialized" case — still
+      // reported as N0001 by the slot lookup, an acceptable Stage-1 message.)
+      if (stmt.init.kind === 'fn') {
+        // Form the signature type quietly here — the real diagnostics for any
+        // bad type name in the signature surface when the init is checked below,
+        // so a throwaway sink avoids double-reporting them.
+        const preType = annotation ?? functionType(
+          stmt.init.params.map(p => typeFromExpr(p.type, env, new Diagnostics())),
+          typeFromExpr(stmt.init.returnType, env, new Diagnostics()),
+        );
+        env.set(name, preType, stmt.kind, stmt.span);
+      }
 
       let typedInit: TypedExpr;
       let slotType: AscentType;
