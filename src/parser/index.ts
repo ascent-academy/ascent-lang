@@ -41,6 +41,13 @@ const parseProgramForm = (ts: TokenStream, leading: Statement[]): Program | null
   const body = parseBlock(ts, openBrace);
   if (body === null) return null;
 
+  // The body must do something: an empty '{ }' runs nothing and uses none of the
+  // inputs, so it's banned (S0032) — the counterpart of the empty-input ban
+  // (S0029). Reported but not fatal, so a trailing-content error can still fire.
+  if (body.stmts.length === 0) {
+    ts.report('S0032', body.span);
+  }
+
   // Nothing follows the 'program' block — anything can go *before* it, nothing
   // after (its closing '}' ends the file).
   if (ts.peek().kind !== 'EOF') {

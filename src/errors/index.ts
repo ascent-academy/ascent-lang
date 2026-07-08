@@ -546,6 +546,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A function states its return type right after its parameters, like 'fn(x: Int) -> Int { … }' — the '->' and then the type the function gives back. Every function says what it returns; one that returns nothing returns 'Done'. Add '-> Type' after the ')'."
   },
   {
+    "code": "S0032",
+    "name": "empty-program-body",
+    "category": "syntactic",
+    "summary": "A 'program' block has no statements.",
+    "message": "A 'program' block needs at least one statement.",
+    "explanation": "The 'program (…) { … }' block is where a program does its work, so it needs at least one statement between its braces. An empty '{ }' runs nothing and uses none of the inputs it declares. Add the statements the program should run."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",

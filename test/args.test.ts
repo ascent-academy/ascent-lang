@@ -97,6 +97,16 @@ describe('program inputs (program (…) { … } header)', () => {
       // The 'program' block is the whole program; nothing follows its '}'.
       assert.deepEqual(errorCodes('program (age: Int) { age } 1'), ['S0030']);
     });
+
+    it('reports S0032 for an empty program body', () => {
+      // A 'program' block with nothing in it runs nothing and uses no inputs —
+      // the counterpart of the empty-input ban (S0029).
+      assert.deepEqual(errorCodes('program (age: Int) { }'), ['S0032']);
+    });
+
+    it('checks the empty inputs first when both parens and body are empty', () => {
+      assert.deepEqual(errorCodes('program () { }'), ['S0029']);
+    });
   });
 
   // The rule: anything may go *before* 'program', nothing after. Statements
@@ -137,18 +147,8 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.deepEqual(errorCodes('fix d = n * 2; program (n: Int) { d }'), ['N0001']);
     });
 
-    it('runs leading statements even when the program body is empty, yielding Done', () => {
-      const output: string[] = [];
-      const { program, diagnostics } = parse('print("setup"); program (n: Int) { }');
-      assert.deepEqual(diagnostics, []);
-      assert.ok(program !== null);
-      const inputs = new ProgramInputs(program.args);
-      inputs.set('n', { type: 'Int', value: 1n });
-      const result = executeProgram(program, { stdout: t => output.push(t) }, inputs);
-      assert.equal(result.kind, 'ok');
-      if (result.kind !== 'ok') throw new Error('unreachable');
-      assert.deepEqual(output, ['setup']);
-      assert.deepEqual(result.value, { type: 'Done' });
+    it('rejects an empty program body, even with leading statements (S0032)', () => {
+      assert.deepEqual(errorCodes('print("setup"); program (n: Int) { }'), ['S0032']);
     });
 
     it('still requires a semicolon before program, like any statement (S0011)', () => {

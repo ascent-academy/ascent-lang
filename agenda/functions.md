@@ -215,7 +215,10 @@ Early return; return-type mismatch; `return` outside a function (T0037); bare
 in a `program (…) { … }` form. Everything before `program` runs first; the
 program body holds the output (its last value). `program` is always the last
 thing — **S0030** still fires for anything after its block (even with a
-separating `;`).
+separating `;`). The explicit form must be non-degenerate: empty inputs
+`program ()` are **S0029** and an empty body `program (…) { }` is **S0032** (it
+would run nothing and use none of its inputs). An empty *bare* program (an empty
+file / blank REPL line) stays valid — only the explicit form is checked.
 
 - Parser only ([src/parser/index.ts](../src/parser/index.ts),
   [token-stream.ts](../src/parser/token-stream.ts)): `parseSeparated` gained a
