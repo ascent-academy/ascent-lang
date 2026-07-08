@@ -149,7 +149,10 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
       return [`${chalk.cyan('While')}`, ...condLines, ...bodyLines];
     }
     case 'for': {
-      const nameLabel = `${chalk.green(stmt.name)}${ty(typeToString(stmt.elemType))}`;
+      const target = stmt.target.kind === 'name'
+        ? stmt.target.name
+        : `${stmt.target.typeName}{ ${stmt.target.fields.map(f => f.field === f.bind ? f.field : `${f.field}: ${f.bind}`).join(', ')} }`;
+      const nameLabel = `${chalk.green(target)}${ty(typeToString(stmt.elemType))}`;
       const iterableLines = branch(typedExprLines(stmt.iterable), false);
       const bodyLines = branch(typedExprLines(stmt.body), true);
       return [`${chalk.cyan('For')} ${nameLabel}`, ...iterableLines, ...bodyLines];

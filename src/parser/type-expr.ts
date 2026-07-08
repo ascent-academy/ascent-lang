@@ -41,11 +41,10 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
   return base;
 }
 
-// 'name: Type' — one entry in an args declaration. Unlike a slot's type
-// annotation this only allows a bare type name (no 'List<…>'), so it
-// reads the TYPE_NAME token directly rather than going through
-// parseTypeExpr.
-function parseArgDef(ts: TokenStream): ProgramArg | null {
+// 'name: Type' — one parameter in a 'program (…)' input list. Unlike a slot's
+// type annotation this only allows a bare type name (no 'List<…>'), so it
+// reads the TYPE_NAME token directly rather than going through parseTypeExpr.
+export function parseParam(ts: TokenStream): ProgramArg | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
     ts.report('S0003', nameTok.span);
@@ -55,8 +54,8 @@ function parseArgDef(ts: TokenStream): ProgramArg | null {
 
   if (ts.expect('COLON', 'S0009') === null) return null;
 
-  // args admit only the four scalars (design.md §11 — a structured value has
-  // no single input widget). Now that every UpperCamel name lexes as a
+  // A program input admits only the four scalars (whitepaper §11 — a structured
+  // value has no single input widget). Now that every UpperCamel name lexes as a
   // TYPE_NAME, 'List' and user types reach here too, so the scalar set is
   // checked explicitly rather than trusting the token kind.
   const typeTok = ts.peek();
@@ -68,22 +67,4 @@ function parseArgDef(ts: TokenStream): ProgramArg | null {
   ts.advance(); // consume type name
 
   return { name: nameTok.value, type: typeTok.value as ArgType };
-}
-
-// 'args (name: Type, …) ;' — the program's typed input declaration, if
-// present. Returns [] (not null) when there's no 'args' keyword at all;
-// null is reserved for an actual parse error.
-export function parseArgsSection(ts: TokenStream): ProgramArg[] | null {
-  if (ts.peek().kind !== 'KW_ARGS') return [];
-  ts.advance(); // consume 'args'
-
-  const open = ts.expect('LPAREN', 'S0006');
-  if (open === null) return null;
-
-  const parsed = ts.parseSeparated(() => parseArgDef(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
-  if (parsed === null) return null;
-
-  if (ts.expect('SEMICOLON', 'S0011') === null) return null;
-
-  return parsed.items;
 }

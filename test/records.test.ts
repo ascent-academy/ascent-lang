@@ -203,8 +203,8 @@ describe('Records (end-to-end)', () => {
       assert.ok(errorCodes('type P = { x: Int }; fix p = P;').includes('T0018'));
     });
 
-    it('reports S0010 for a record type in an args declaration', () => {
-      assert.ok(errorCodes('args (p: Person); 1;').includes('S0010'));
+    it('reports S0010 for a record type in a program input list', () => {
+      assert.ok(errorCodes('program (p: Person) { 1 }').includes('S0010'));
     });
   });
 });

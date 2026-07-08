@@ -1,6 +1,6 @@
 import type { Statement, Block, If, Match, LiteralPattern, BindTarget, FieldPattern } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
-import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern } from '../parser/typed-ast.js';
+import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern, TypedBindTarget } from '../parser/typed-ast.js';
 import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType } from '../types/types.js';
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
@@ -298,24 +298,24 @@ const bindPatternFields = (
   return typed;
 };
 
-// A 'fix'/'mut' whose target is a record destructuring pattern (whitepaper §5).
-// The pattern's tag must name an *irrefutable* single-variant record — a value
+// Resolve a record destructuring pattern (whitepaper §5) and bind its fields
+// into `env`. The tag must name an *irrefutable* single-variant record — a value
 // of it is always that one shape, so the destructuring can't fail. A refutable
-// tag (a case of a multi-variant union) might not match, so it's rejected here
-// (T0033) and belongs in a 'match' instead. Each named field binds a local of
-// the field's declared type; naming a subset is fine (the rest are ignored),
-// but an unknown field (T0019) or a repeat (T0020) is not.
-const inferRecordBinding = (
-  stmt: Extract<Statement, { kind: 'fix' | 'mut' }>,
+// tag (a case of a multi-variant union) might not match, so it's rejected (T0033)
+// and belongs in a 'match' instead; an unknown tag is N0005, a built-in N0012.
+// Returns `recordType` (the type the bound value must have — a real Named type
+// only when the destructuring is sound, else Invalid) plus the typed fields.
+// Shared by a fix/mut declaration and a 'for' loop's variable, which then check
+// their own source (an init, or the iterable's elements) against `recordType`.
+const resolveRecordTarget = (
   target: Extract<BindTarget, { kind: 'record' }>,
   env: TypeEnv,
+  origin: 'fix' | 'mut',
   diagnostics: Diagnostics,
-): TypedStatement => {
-  // Resolve the tag to the variant it names, and decide whether it's
-  // irrefutable. `variant` is the field set to bind against — kept even on a
-  // refutable tag, whose fields are still real, so downstream uses of the bound
-  // locals don't cascade into N0001. `recordType` is what the init is checked
-  // against: a real Named type only when the destructuring is sound.
+): { recordType: AscentType; typedFields: TypedFieldPattern[] } => {
+  // `variant` is the field set to bind against — kept even on a refutable tag,
+  // whose fields are still real, so downstream uses of the bound locals don't
+  // cascade into N0001.
   const ctor = env.getConstructor(target.typeName);
   let variant: Variant | null = null;
   let recordType: AscentType = INVALID_TYPE;
@@ -348,16 +348,28 @@ const inferRecordBinding = (
     }
   }
 
+  // Bind each named field to a local (T0019/T0020 on an unknown or repeated
+  // field), of its declared type when the variant is known.
+  const typedFields = bindPatternFields(target.fields, variant, env, origin, target.typeName, diagnostics);
+  return { recordType, typedFields };
+};
+
+// A 'fix'/'mut' whose target is a record destructuring pattern — the init must
+// have the pattern's record type (whitepaper §5).
+const inferRecordBinding = (
+  stmt: Extract<Statement, { kind: 'fix' | 'mut' }>,
+  target: Extract<BindTarget, { kind: 'record' }>,
+  env: TypeEnv,
+  diagnostics: Diagnostics,
+): TypedStatement => {
+  const { recordType, typedFields } = resolveRecordTarget(target, env, stmt.kind, diagnostics);
+
   // Check the init against the pattern's record type. On an error path
   // recordType is Invalid — synth the init directly so its own errors still
   // surface, but demand nothing of it (Invalid absorbs the comparison).
   const typedInit = isInvalidType(recordType)
     ? synth(stmt.init, env, diagnostics)
     : check(stmt.init, recordType, env, diagnostics, [{ key: 'annotation', span: target.typeNameSpan }]);
-
-  // Bind each named field to a local (T0019/T0020 on an unknown or repeated
-  // field), of its declared type when the variant is known.
-  const typedFields = bindPatternFields(target.fields, variant, env, stmt.kind, target.typeName, diagnostics);
 
   return {
     kind: stmt.kind,
@@ -565,9 +577,28 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       // the body is an N0002 error, like any other 'fix'. inferBlock opens
       // its own child under this, so the binding is visible throughout it.
       const inner = env.child();
-      inner.set(stmt.name, elemType, 'fix', stmt.nameSpan);
+      let target: TypedBindTarget;
+      if (stmt.target.kind === 'record') {
+        // A destructuring loop: each element is pulled apart as the pattern's
+        // (single-variant) record. The element type must be that record — a
+        // 'for Car{ … } in people' where the elements are Person is T0001, the
+        // same mismatch a 'fix Car{ … } = aPerson' would be. Refutable/unknown
+        // tags are handled inside resolveRecordTarget (T0033/N0005/N0012).
+        const { recordType, typedFields } = resolveRecordTarget(stmt.target, inner, 'fix', diagnostics);
+        if (!isInvalidType(recordType) && !isInvalidType(elemType) && !isAssignableTo(elemType, recordType)) {
+          diagnostics.error({
+            code: 'T0001', span: stmt.iterable.span,
+            data: { expected: typeToString(recordType), actual: typeToString(elemType) },
+            related: [{ key: 'annotation', span: stmt.target.typeNameSpan }],
+          });
+        }
+        target = { kind: 'record', typeName: stmt.target.typeName, fields: typedFields };
+      } else {
+        inner.set(stmt.target.name, elemType, 'fix', stmt.target.nameSpan);
+        target = { kind: 'name', name: stmt.target.name };
+      }
       const typedBody = inferBlock(stmt.body, inner, diagnostics, true);
-      return { kind: 'for', name: stmt.name, elemType, iterable: typedIterable, body: typedBody, span: stmt.span };
+      return { kind: 'for', target, elemType, iterable: typedIterable, body: typedBody, span: stmt.span };
     }
 
     case 'expr': {

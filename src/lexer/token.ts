@@ -26,7 +26,7 @@ export type TokenKind =
   | 'KW_WHILE'       // the keyword while — starts a condition loop
   | 'KW_FOR'         // the keyword for — starts a value-iterating loop
   | 'KW_IN'          // the keyword in — separates a for loop's variable from what it iterates
-  | 'KW_ARGS'        // the keyword args — declares the program's typed inputs
+  | 'KW_PROGRAM'     // the keyword program — wraps the entry point and its typed inputs
   | 'KW_TYPE'        // the keyword type — declares a user-defined type
   | 'KW_VOID'        // the keyword void — evaluates an expression and discards its value
   | 'KW_MATCH'       // the keyword match — starts a pattern-matching expression

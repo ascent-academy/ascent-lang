@@ -193,7 +193,10 @@ const stmtLines = (stmt: Statement): string[] => {
     case 'for': {
       const iterable = branch(exprLines(stmt.iterable), false);
       const body = branch(exprLines(stmt.body), true);
-      return [`${chalk.cyan('For')} ${chalk.green(stmt.name)}`, ...iterable, ...body];
+      const target = stmt.target.kind === 'name'
+        ? stmt.target.name
+        : `${stmt.target.typeName}{ ${stmt.target.fields.map(f => f.field === f.bind ? f.field : `${f.field}: ${f.bind}`).join(', ')} }`;
+      return [`${chalk.cyan('For')} ${chalk.green(target)}`, ...iterable, ...body];
     }
   }
 };

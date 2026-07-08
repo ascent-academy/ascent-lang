@@ -113,9 +113,10 @@ export type TypedStatement = (
   // carries no value of its own.
   | { kind: 'void'; expr: TypedExpr; span: Span }
   | { kind: 'while'; cond: TypedExpr; body: TypedBlock; span: Span }
-  // elemType is what each iteration binds `name` to: a List's element type,
-  // or Int for a Range. The interpreter reads it to type the loop variable.
-  | { kind: 'for'; name: string; elemType: AscentType; iterable: TypedExpr; body: TypedBlock; span: Span }
+  // elemType is what each iteration produces: a List's element type, or Int for
+  // a Range. For a name target it's the loop variable's type; for a record
+  // target it's the (single-variant record) type each element destructures as.
+  | { kind: 'for'; target: TypedBindTarget; elemType: AscentType; iterable: TypedExpr; body: TypedBlock; span: Span }
 );
 
 export type TypedProgram = {

@@ -15,7 +15,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   while: 'KW_WHILE',
   for: 'KW_FOR',
   in: 'KW_IN',
-  args: 'KW_ARGS',
+  program: 'KW_PROGRAM',
   type: 'KW_TYPE',
   void: 'KW_VOID',
   match: 'KW_MATCH',

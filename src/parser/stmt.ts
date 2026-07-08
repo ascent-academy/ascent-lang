@@ -236,12 +236,11 @@ function parseWhile(ts: TokenStream): Statement | null {
 function parseFor(ts: TokenStream): Statement | null {
   const forTok = ts.advance(); // consume 'for'
 
-  const nameTok = ts.peek();
-  if (nameTok.kind !== 'SLOT') {
-    ts.report('S0016', nameTok.span);
-    return null;
-  }
-  ts.advance(); // consume loop variable name
+  // The loop variable is a BindTarget — a plain name or a destructuring pattern
+  // (whitepaper §5), the same as a fix/mut binding — so 'for Point{ x, y } in ps'
+  // pulls each element's fields apart per iteration.
+  const target = parseBindTarget(ts, 'S0016');
+  if (target === null) return null;
 
   if (ts.expect('KW_IN', 'S0017') === null) return null;
 
@@ -257,8 +256,7 @@ function parseFor(ts: TokenStream): Statement | null {
 
   return {
     kind: 'for',
-    name: nameTok.value,
-    nameSpan: nameTok.span,
+    target,
     iterable,
     body,
     span: { start: forTok.span.start, end: body.span.end },
@@ -316,12 +314,14 @@ function parseRecordPattern(ts: TokenStream, typeNameTok: Token): BindTarget | n
   return { kind: 'record', typeName: typeNameTok.value, typeNameSpan: typeNameTok.span, fields: parsed.items, span };
 }
 
-// The target of a 'fix'/'mut': a plain lowercase name, or an UpperCamel record
-// pattern that destructures it (whitepaper §5). A bare name in the interpreter's
-// twin of a slot; a TYPE_NAME here always introduces a pattern (there is no
-// other meaning for one in binding position), so a missing '{' after it is an
-// S0020, not a fall-through.
-function parseBindTarget(ts: TokenStream): BindTarget | null {
+// A binding target: a plain lowercase name, or an UpperCamel record pattern that
+// destructures the bound value (whitepaper §5). Shared by a 'fix'/'mut'
+// declaration and a 'for' loop's variable — a TYPE_NAME here always introduces a
+// pattern (there is no other meaning for one in binding position), so a missing
+// '{' after it is an S0020, not a fall-through. `missingCode` is the error for a
+// token that's neither a name nor a pattern — S0003 after fix/mut, S0016 in a
+// 'for'.
+function parseBindTarget(ts: TokenStream, missingCode: string): BindTarget | null {
   const tok = ts.peek();
   if (tok.kind === 'SLOT') {
     ts.advance(); // consume slot name
@@ -331,7 +331,7 @@ function parseBindTarget(ts: TokenStream): BindTarget | null {
     ts.advance(); // consume the pattern's type tag
     return parseRecordPattern(ts, tok);
   }
-  ts.report('S0003', tok.span);
+  ts.report(missingCode, tok.span);
   return null;
 }
 
@@ -340,7 +340,7 @@ function parseBindTarget(ts: TokenStream): BindTarget | null {
 function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
   const kwTok = ts.advance(); // consume 'fix' or 'mut'
 
-  const target = parseBindTarget(ts);
+  const target = parseBindTarget(ts, 'S0003');
   if (target === null) return null;
 
   // Only a plain-name binding takes a ':' annotation — a record pattern already

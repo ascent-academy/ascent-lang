@@ -306,7 +306,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A name was expected after 'fix' or 'mut', or as a program input.",
     "message": "I expected a name here.",
-    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), or as the name of a program input ('args (age: Int)'). A name starts with a lowercase letter."
+    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), or as the name of a program input ('program (age: Int) { … }'). A name starts with a lowercase letter."
   },
   {
     "code": "S0004",
@@ -334,9 +334,9 @@ export const ERRORS: ErrorEntry[] = [
     "code": "S0006",
     "name": "expected-test-paren",
     "category": "syntactic",
-    "summary": "A '(' was expected to open a condition or an 'args' list.",
+    "summary": "A '(' was expected to open a condition or a 'program' input list.",
     "message": "I expected a '(' here.",
-    "explanation": "An 'if' or 'while' condition — and the inputs listed after 'args' — go inside '( )', like 'if (age >= 18) { … }'. This is where that opening '(' should be."
+    "explanation": "An 'if' or 'while' condition — and the inputs listed after 'program' — go inside '( )', like 'if (age >= 18) { … }' or 'program (age: Int) { … }'. This is where that opening '(' should be."
   },
   {
     "code": "S0007",
@@ -344,7 +344,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A block ('{ … }') was expected here.",
     "message": "I expected a '{' here.",
-    "explanation": "The body of an 'if', 'else', or 'while' is always a block between '{' and '}', even when it holds a single line, as in 'if (ok) { … }'."
+    "explanation": "The body of an 'if', 'else', 'while', or 'program' is always a block between '{' and '}', even when it holds a single line, as in 'if (ok) { … }' or 'program (age: Int) { … }'."
   },
   {
     "code": "S0008",
@@ -360,7 +360,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A ':' was expected between a program input's name and its type.",
     "message": "I expected a ':' here.",
-    "explanation": "Each program input is written as a name, then ':', then its type, like 'args (age: Int)'. This is where the ':' should be."
+    "explanation": "Each program input is written as a name, then ':', then its type, like 'program (age: Int) { … }'. This is where the ':' should be."
   },
   {
     "code": "S0010",
@@ -421,8 +421,8 @@ export const ERRORS: ErrorEntry[] = [
     "name": "expected-loop-name",
     "category": "syntactic",
     "summary": "A loop variable name was expected after 'for'.",
-    "message": "I expected a name here.",
-    "explanation": "A 'for' loop names each item as it goes, like 'for item in items' or 'for i in 0..n'. The name comes right after 'for', and it starts with a lowercase letter."
+    "message": "I expected a name or a pattern here.",
+    "explanation": "A 'for' loop names each item as it goes, like 'for item in items' or 'for i in 0..n'. The name comes right after 'for', and it starts with a lowercase letter. It can also destructure each item into its fields with a pattern, like 'for Point{ x, y } in points'."
   },
   {
     "code": "S0017",
@@ -520,6 +520,22 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "Empty braces '{}' were written where a name with no fields belongs.",
     "message": "Empty braces '{}' aren't allowed here.",
     "explanation": "A variant with no fields is written as just its name, like 'Red' in 'type Light = Red | Green', and it's built the same way — 'fix c = Red'. Empty braces would be a second spelling for that same no-fields case, so they're not allowed. Drop the '{}', or add the fields it should hold."
+  },
+  {
+    "code": "S0029",
+    "name": "empty-program-inputs",
+    "category": "syntactic",
+    "summary": "A 'program (…)' was written with no inputs between its '( )'.",
+    "message": "A 'program' needs at least one input here.",
+    "explanation": "The 'program (…) { … }' form is for a program that takes named inputs, so it lists at least one, like 'program (age: Int) { … }'. A program that takes no inputs doesn't use 'program' at all — it's just a sequence of statements on their own. Add an input like 'name: Type', or drop the 'program (…) { … }' wrapper and leave the statements bare."
+  },
+  {
+    "code": "S0030",
+    "name": "content-after-program",
+    "category": "syntactic",
+    "summary": "Something was written after the 'program' block.",
+    "message": "I expected the file to end after the 'program' block.",
+    "explanation": "A 'program (…) { … }' block is the whole program, so nothing comes after its closing '}'. Everything the program does goes inside the braces."
   },
   {
     "code": "T0001",

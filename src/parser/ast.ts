@@ -169,10 +169,12 @@ export type Statement = (
   // a full expression is what makes 'void x + 1' discard 'x + 1', not '(void x) + 1'.
   | { kind: 'void'; expr: Expr; span: Span }
   | { kind: 'while'; cond: Expr; body: Block; span: Span }
-  // 'for name in iterable { … }' — iterates the values of a List or the
-  // numbers of a Range (design.md §5), binding each to `name` in the body.
-  // No parens (it has no test); `name` is a fresh, per-iteration binding.
-  | { kind: 'for'; name: string; nameSpan: Span; iterable: Expr; body: Block; span: Span }
+  // 'for target in iterable { … }' — iterates the values of a List or the
+  // numbers of a Range (design.md §5), binding each to `target` in the body.
+  // No parens (it has no test); `target` is a fresh, per-iteration binding —
+  // a plain name, or a record pattern that destructures each element (§5), the
+  // same BindTarget a fix/mut declaration takes.
+  | { kind: 'for'; target: BindTarget; iterable: Expr; body: Block; span: Span }
 );
 
 export type ArgType = 'Int' | 'Float' | 'Bool' | 'String';
