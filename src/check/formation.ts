@@ -26,6 +26,11 @@ export const typeFromName = (name: ArgType): AscentType => {
 
 const BUILTIN_SCALARS: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String']);
 
+// Every built-in type name — the scalars plus List. One source of truth: a
+// 'type' declaration can't reuse one (N0008), and none can be used as a value
+// (N0012). Shared by the checker's stmt/synth passes.
+export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List']);
+
 export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostics): AscentType => {
   switch (te.kind) {
     case 'TypeName': {

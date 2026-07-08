@@ -295,21 +295,26 @@ function parseFieldDecl(ts: TokenStream): FieldDecl | null {
 }
 
 // The '{ field: Type, … }' body shared by both the record-sugar head and every
-// union variant: the fields between '{' and '}'. The opening '{' is already
-// confirmed on lookahead by the caller. Returns the fields and the '}' token
-// (for the enclosing node's end span), or null if the body is malformed.
+// fielded union variant: the fields between '{' and '}'. The opening '{' is
+// already confirmed on lookahead by the caller. Empty braces are rejected
+// (S0028) — a variant with no fields is written without braces at all (its
+// braceless enum form) — but the fields (empty) are still returned so parsing
+// carries on. Returns the fields and the '}' token, or null if malformed.
 function parseFields(ts: TokenStream): { fields: FieldDecl[]; close: Token } | null {
   const open = ts.expect('LBRACE', 'S0020');
   if (open === null) return null;
   const parsed = ts.parseSeparated(() => parseFieldDecl(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
   if (parsed === null) return null;
+  if (parsed.items.length === 0) {
+    ts.report('S0028', { start: open.span.start, end: parsed.close.span.end });
+  }
   return { fields: parsed.items, close: parsed.close };
 }
 
-// One 'Tag{ field: Type, … }' variant of a union. The tag is an UpperCamel
-// constructor name; its fields (possibly empty) follow in braces (whitepaper
-// §6). A braceless enum variant ('Red') isn't parsed yet — every variant
-// carries its brace body, so construction stays uniformly 'Tag{ … }'.
+// One variant of a union: a bare 'Tag' (a zero-field enum case) or 'Tag{ field:
+// Type, … }' (a case that carries fields) — whitepaper §6. The tag is an
+// UpperCamel constructor name; a '{' after it introduces its fields, and its
+// absence makes it a braceless enum case.
 function parseVariantDecl(ts: TokenStream): VariantDecl | null {
   const tagTok = ts.peek();
   if (tagTok.kind !== 'TYPE_NAME') {
@@ -317,6 +322,11 @@ function parseVariantDecl(ts: TokenStream): VariantDecl | null {
     return null;
   }
   ts.advance(); // consume variant tag
+
+  if (ts.peek().kind !== 'LBRACE') {
+    // Braceless: a zero-field enum case, ending at the tag itself.
+    return { tag: tagTok.value, tagSpan: tagTok.span, fields: [], span: tagTok.span };
+  }
 
   const body = parseFields(ts);
   if (body === null) return null;

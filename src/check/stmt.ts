@@ -5,14 +5,13 @@ import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, IN
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
-import { typeFromExpr } from './formation.js';
+import { typeFromExpr, BUILTIN_TYPE_NAMES } from './formation.js';
 import { synth } from './synth.js';
 import { check } from './check.js';
 
-// The type names the language already owns — a 'type' declaration can't
-// redeclare one (N0008). None/Done/True/False aren't here: they lex as value
+// The built-in type names (formation.ts) are what a 'type' declaration can't
+// redeclare (N0008). None/Done/True/False aren't among them: they lex as value
 // constructors, never TYPE_NAME, so they can't reach a type-name position.
-const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List']);
 
 // The "value must go somewhere" rule (whitepaper §2). A statement in a
 // *Done-required* position — one whose value nothing consumes — may not leave

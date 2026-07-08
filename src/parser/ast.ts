@@ -86,11 +86,13 @@ export type Expr = (
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
-  // 'TypeName{ field: value, … }' — builds a record value of a declared type
-  // (design.md §6). The only way to make one; there are no anonymous record
-  // literals. `typeName` is the constructor, which for a single-variant record
-  // is the type's own name.
-  | { kind: 'construct'; typeName: string; typeNameSpan: Span; fields: FieldInit[]; span: Span }
+  // 'TypeName{ field: value, … }' — builds a value of a declared type
+  // (whitepaper §6). `typeName` is the constructor: a variant tag (its own name
+  // for a single-variant record). `braces` records whether a '{ … }' body was
+  // written — false for a bare zero-field-variant construction ('Red'), true for
+  // 'Tag{ … }'. The checker uses it to tell an empty-brace 'Red{}' (banned,
+  // S0028) apart from the bare 'Red', since both carry no fields.
+  | { kind: 'construct'; typeName: string; typeNameSpan: Span; fields: FieldInit[]; braces: boolean; span: Span }
   // 'e.field' — reads one field of a record (design.md §6). Legal only when
   // e's type has exactly one variant; the checker enforces that. The '.method()'
   // form stays a 'methodCall' — the parser splits on whether a '(' follows.

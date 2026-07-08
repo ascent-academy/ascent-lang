@@ -196,8 +196,11 @@ describe('Records (end-to-end)', () => {
   });
 
   describe('syntax errors', () => {
-    it('reports S0023 for a type name used as a value without braces', () => {
-      assert.ok(errorCodes('type P = { x: Int }; fix p = P;').includes('S0023'));
+    it('reports T0018 for a record built bare, without its fields', () => {
+      // A bare UpperCamel name is a zero-field construction now (braceless enum
+      // case), so 'P' — a record that declares fields — is a missing-field
+      // mistake, not the retired S0023 "needs braces".
+      assert.ok(errorCodes('type P = { x: Int }; fix p = P;').includes('T0018'));
     });
 
     it('reports S0010 for a record type in an args declaration', () => {

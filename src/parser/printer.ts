@@ -209,6 +209,9 @@ export const formatValue = (value: RuntimeValue): string => {
     case 'Range':
       return chalk.yellow(`${value.lo}..${value.hi}`);
     case 'Record': {
+      // A zero-field variant (an enum case) shows as its bare name — the same
+      // braceless spelling it's written with (whitepaper §6).
+      if (value.fields.size === 0) return chalk.cyan(value.name);
       const fields = Array.from(value.fields, ([name, v]) => `${name}: ${formatValue(v)}`).join(', ');
       return `${chalk.cyan(value.name)}{ ${fields} }`;
     }
@@ -237,6 +240,7 @@ export const valueToString = (value: RuntimeValue): string => {
     case 'Range':
       return `${value.lo}..${value.hi}`;
     case 'Record': {
+      if (value.fields.size === 0) return value.name;
       const fields = Array.from(value.fields, ([name, v]) => `${name}: ${valueToString(v)}`).join(', ');
       return `${value.name}{ ${fields} }`;
     }

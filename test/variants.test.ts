@@ -64,8 +64,13 @@ describe('Type variants (end-to-end)', () => {
       );
     });
 
-    it('supports a zero-field variant written with empty braces', () => {
-      assert.equal(typeOfLast('type Toggle = On{} | Off{}; On{};'), 'Toggle');
+    it('supports a braceless zero-field variant (an enum case)', () => {
+      assert.equal(typeOfLast('type Toggle = On | Off; On;'), 'Toggle');
+    });
+
+    it('mixes braceless and fielded variants in one union', () => {
+      assert.equal(typeOfLast('type Tree = Empty | Node{ value: Int }; Node{ value: 3 };'), 'Tree');
+      assert.equal(typeOfLast('type Tree = Empty | Node{ value: Int }; Empty;'), 'Tree');
     });
 
     it('treats the explicit single-variant form like the record sugar', () => {
@@ -121,6 +126,32 @@ describe('Type variants (end-to-end)', () => {
     });
   });
 
+  describe('enums (braceless zero-field variants)', () => {
+    it('constructs a bare enum case, tagged by its name, with no fields', () => {
+      assert.deepEqual(
+        evalOk('type Color = Red | Green | Blue; Green;'),
+        { type: 'Record', name: 'Green', fields: new Map<string, RuntimeValue>() },
+      );
+    });
+
+    it('gives every case the enum type', () => {
+      assert.equal(typeOfLast('type Color = Red | Green | Blue; Red;'), 'Color');
+    });
+
+    it('compares enum cases structurally with ==', () => {
+      assert.deepEqual(evalOk('type Color = Red | Green | Blue; Red == Red;'), { type: 'Bool', value: true });
+      assert.deepEqual(evalOk('type Color = Red | Green | Blue; Red == Green;'), { type: 'Bool', value: false });
+    });
+
+    it('collects enum cases into a List of the enum type', () => {
+      assert.equal(typeOfLast('type Color = Red | Green | Blue; [Red, Green, Blue];'), 'List<Color>');
+    });
+
+    it('supports a single braceless variant (a unit type)', () => {
+      assert.equal(typeOfLast('type Unit = Unit; Unit;'), 'Unit');
+    });
+  });
+
   describe('field-access rule', () => {
     it('reports T0032 for reading a field on a multi-variant union', () => {
       assert.deepEqual(errorCodes(`${SHAPE} fix s = Circle{ radius: 2.0 }; s.radius;`), ['T0032']);
@@ -138,6 +169,11 @@ describe('Type variants (end-to-end)', () => {
 
     it('reports N0005 for an unknown constructor', () => {
       assert.deepEqual(errorCodes(`${SHAPE} Triangle{ base: 1.0 };`), ['N0005']);
+    });
+
+    it('reports N0012 for a built-in type name used as a value', () => {
+      assert.deepEqual(errorCodes('fix x = Int; 1;'), ['N0012']);
+      assert.deepEqual(errorCodes('List{ x: 1 };'), ['N0012']);
     });
 
     it('reports T0018 for a missing field in a variant', () => {
@@ -188,9 +224,25 @@ describe('Type variants (end-to-end)', () => {
     it('reports S0027 when the right-hand side is neither a brace nor a variant', () => {
       assert.ok(errorCodes('type T = 5;').includes('S0027'));
     });
+  });
 
-    it('reports S0020 for a braceless variant (enum sugar is not parsed yet)', () => {
-      assert.ok(errorCodes('type Color = Red | Green | Blue;').includes('S0020'));
+  describe('empty braces are banned (one way to write a zero-field variant)', () => {
+    it('reports S0028 for an empty-brace variant in a declaration', () => {
+      assert.deepEqual(errorCodes('type Color = Red{} | Green{};'), ['S0028', 'S0028']);
+    });
+
+    it('reports S0028 for an empty-brace record head', () => {
+      assert.deepEqual(errorCodes('type Empty = {};'), ['S0028']);
+    });
+
+    it('reports S0028 for building a zero-field variant with empty braces', () => {
+      assert.deepEqual(errorCodes('type Color = Red | Green; Red{};'), ['S0028']);
+    });
+
+    it('still reports T0018 (not S0028) for a fielded variant built with empty braces', () => {
+      // 'Circle{}' looks the same as 'Red{}' but Circle declares fields, so the
+      // mistake is a missing field, not empty-braces.
+      assert.deepEqual(errorCodes(`${SHAPE} Circle{};`), ['T0018']);
     });
   });
 });

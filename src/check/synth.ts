@@ -8,6 +8,7 @@ import {
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
 import { methodCallType, FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
+import { BUILTIN_TYPE_NAMES } from './formation.js';
 import { satisfies } from './traits.js';
 import { inferBlock, inferIf, inferMatch } from './stmt.js';
 import { check } from './check.js';
@@ -298,15 +299,18 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // equals the type name and for a union is one of its variants ('Circle').
       const ctor = env.getConstructor(expr.typeName);
       if (ctor === null) {
-        // The name isn't a constructor. If it's nonetheless a declared type, it
-        // must be a multi-variant one (a single-variant type registers its own
-        // name as a constructor) — you build one of *its* variants, not the type
-        // itself (N0011). Otherwise there's simply no such type (N0005). Either
-        // way, still synth every field value so independent errors inside them
-        // surface (nothing here can widen or adopt without a declared field).
+        // The name isn't a constructor. Three ways that happens: it's a declared
+        // *type* but multi-variant (a single-variant type registers its own name
+        // as a constructor), so you build one of its variants (N0011); it's a
+        // built-in type (Int, List, …), which is a shape, not a value (N0012);
+        // or there's simply no such type (N0005). Either way, still synth every
+        // field value so independent errors inside them surface (nothing here
+        // can widen or adopt without a declared field).
         const asType = env.getType(expr.typeName);
         if (asType !== null) {
           diagnostics.error({ code: 'N0011', span: expr.typeNameSpan, data: { name: expr.typeName, variants: asType.variants.map(v => v.tag).join(', ') } });
+        } else if (BUILTIN_TYPE_NAMES.has(expr.typeName)) {
+          diagnostics.error({ code: 'N0012', span: expr.typeNameSpan, data: { name: expr.typeName } });
         } else {
           diagnostics.error({ code: 'N0005', span: expr.typeNameSpan, data: { name: expr.typeName } });
         }
@@ -319,6 +323,15 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // what the provided fields are checked against.
       const declaredFields = ctor.variant.fields;
       const declaredNames = new Set(declaredFields.map(d => d.name));
+
+      // A zero-field variant is written bare ('Red'), never 'Red{}' — empty
+      // braces are banned (S0028), the one-spelling rule. This is the only
+      // place the check can live: 'Circle{}' looks identical but its variant
+      // *does* declare fields, so it's a missing-field mistake (T0018), not this
+      // one. Reported here; the build itself is otherwise fine, so we carry on.
+      if (expr.braces && declaredFields.length === 0 && expr.fields.length === 0) {
+        diagnostics.error({ code: 'S0028', span: expr.span });
+      }
 
       // Pass 1: record the first init for each field name, and flag the
       // provided fields that won't be checked in pass 2 — a duplicate (T0020)

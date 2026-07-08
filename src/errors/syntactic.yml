@@ -230,6 +230,11 @@
     A name that starts with an uppercase letter is a type. To make a value of
     it, follow it with its fields in braces, like 'Person{ name: \"Ann\", age:
     30 }'. On its own, '{found}' isn't a value yet.
+  # Retired: a bare UpperCamel name in value position is now a zero-field
+  # variant construction (an enum case like 'Red'), not an error. A name that
+  # needs fields but is built bare is instead a missing-field error (T0018);
+  # a multi-variant type built directly is N0011.
+  retired: true
 
 - code: S0024
   name: expected-match-brace
@@ -270,3 +275,14 @@
     an uppercase letter, followed by its fields in braces, like the 'Circle' in
     'type Shape = Circle{ radius: Float } | Square{ side: Float }'. Variants are
     separated by '|'. This is where a variant name should be.
+
+- code: S0028
+  name: empty-braces
+  category: syntactic
+  summary: "Empty braces '{}' were written where a name with no fields belongs."
+  message: "Empty braces '{}' aren't allowed here."
+  explanation: >-
+    A variant with no fields is written as just its name, like 'Red' in
+    'type Light = Red | Green', and it's built the same way — 'fix c = Red'.
+    Empty braces would be a second spelling for that same no-fields case, so
+    they're not allowed. Drop the '{}', or add the fields it should hold.

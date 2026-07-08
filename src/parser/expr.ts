@@ -317,12 +317,11 @@ function parseAtom(ts: TokenStream): Expr | null {
     if (ts.peek().kind === 'LBRACE') {
       return parseConstruct(ts, tok);
     }
-    // A bare UpperCamel name in value position isn't a value on its own — it
-    // names a type/constructor, which builds a value only with '{ … }'
-    // (design.md §6). (Zero-field constructors like enum variants aren't a
-    // thing yet.)
-    ts.report('S0023', tok.span);
-    return null;
+    // A bare UpperCamel name in value position builds a zero-field variant — an
+    // enum case like 'Red' (whitepaper §6). Whether the name really is a
+    // zero-field constructor (and not, say, a record that needs fields) is a
+    // checker question; the parser just records a braceless construction.
+    return { kind: 'construct', typeName: tok.value, typeNameSpan: tok.span, fields: [], braces: false, span: tok.span };
   }
 
   if (tok.kind === 'LPAREN') {
@@ -506,6 +505,7 @@ function parseConstruct(ts: TokenStream, typeNameTok: Token): Expr | null {
     typeName: typeNameTok.value,
     typeNameSpan: typeNameTok.span,
     fields: parsed.items,
+    braces: true,
     span: { start: typeNameTok.span.start, end: parsed.close.span.end },
   };
 }

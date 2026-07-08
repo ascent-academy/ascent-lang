@@ -206,6 +206,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A type with several variants isn't built directly — you build one of its variants, since each carries its own fields. '{name}' has these variants: {variants}. Write one of those names in place of '{name}' here, like 'Circle{ radius: 2.0 }'."
   },
   {
+    "code": "N0012",
+    "name": "builtin-type-as-value",
+    "category": "name",
+    "summary": "A built-in type name was used where a value belongs.",
+    "message": "'{name}' is a built-in type, not a value.",
+    "explanation": "'{name}' names one of the built-in types (Int, Float, Bool, String, List). A type is the shape a value has, not a value itself, so it can't stand where a value is expected. To make a value, write one directly — a number like 42, a string like \"hi\", or a list like [1, 2]."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",
@@ -470,7 +478,8 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A type name was used as a value without '{ … }'.",
     "message": "'{found}' names a type, so it needs '{ … }' to build a value.",
-    "explanation": "A name that starts with an uppercase letter is a type. To make a value of it, follow it with its fields in braces, like 'Person{ name: \\\"Ann\\\", age: 30 }'. On its own, '{found}' isn't a value yet."
+    "explanation": "A name that starts with an uppercase letter is a type. To make a value of it, follow it with its fields in braces, like 'Person{ name: \\\"Ann\\\", age: 30 }'. On its own, '{found}' isn't a value yet.",
+    "retired": true
   },
   {
     "code": "S0024",
@@ -503,6 +512,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A variant name was expected in a 'type' declaration.",
     "message": "I expected a variant name here.",
     "explanation": "After the '=' of a 'type', each case is a variant — a name that starts with an uppercase letter, followed by its fields in braces, like the 'Circle' in 'type Shape = Circle{ radius: Float } | Square{ side: Float }'. Variants are separated by '|'. This is where a variant name should be."
+  },
+  {
+    "code": "S0028",
+    "name": "empty-braces",
+    "category": "syntactic",
+    "summary": "Empty braces '{}' were written where a name with no fields belongs.",
+    "message": "Empty braces '{}' aren't allowed here.",
+    "explanation": "A variant with no fields is written as just its name, like 'Red' in 'type Light = Red | Green', and it's built the same way — 'fix c = Red'. Empty braces would be a second spelling for that same no-fields case, so they're not allowed. Drop the '{}', or add the fields it should hold."
   },
   {
     "code": "T0001",
