@@ -272,32 +272,53 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     bodyTypes.push({ type: typedBody.type, span: arm.span });
   }
 
-  // Exhaustiveness (whitepaper §5): a 'match' must handle every case. An Optional
-  // is None-or-a-value, so it needs a 'None' arm *and* a binding arm that catches
-  // the present value (T0042), or an 'else'. A union subject is covered by listing
-  // all its variants; a missing one is T0034. Any other subject (a scalar) has no
-  // finite list of values, so it needs an 'else' outright (T0029). An 'else'
-  // satisfies all of them, and an Invalid subject is quiet.
+  // Exhaustiveness (whitepaper §5): a 'match' must handle every case, listing
+  // them or supplying an 'else'. A *finite* domain is exhausted by its own
+  // patterns with no 'else' needed — Bool by True and False, a union by all its
+  // tags (design.md §2 treats Bool as the union True | False). An *infinite*
+  // domain (Int/Float/String/List/Range) can't be, so it needs an 'else'
+  // (T0029). An Optional adds the None case on top of its element's domain
+  // (T0042): a 'Bool?' is exhausted by True/False/None, while an 'Int?' still
+  // needs a binding (or 'else') for its infinite present side. `domainOf` gives a
+  // type's finite case set and which cases are still uncovered, or null when the
+  // type is infinite. An 'else' satisfies everything; an Invalid subject is quiet.
+  const domainOf = (type: AscentType): { label: string; all: string[]; missing: string[] } | null => {
+    if (type.kind === 'Bool') {
+      const cases: [string, string][] = [['True', 'Bool:true'], ['False', 'Bool:false']];
+      return { label: 'Bool', all: cases.map(([c]) => c), missing: cases.filter(([, k]) => !seen.has(k)).map(([c]) => c) };
+    }
+    if (type.kind === 'Named') {
+      const info = env.getType(type.name);
+      if (info === null) return null;
+      const all = info.variants.map(v => v.tag);
+      return { label: info.name, all, missing: all.filter(tag => !coveredTags.has(tag)) };
+    }
+    return null;
+  };
+
   if (elseSpan === null) {
     if (subjectType.kind === 'Optional') {
       const missing: string[] = [];
       if (noneSpan === null) missing.push('None');
-      if (presentSpan === null) missing.push('a value');
+      if (presentSpan === null) {
+        // The present side isn't caught by a binding — a finite element domain
+        // can still be fully covered by its own patterns; an infinite one can't.
+        const domain = domainOf(subjectType.elem);
+        if (domain === null) missing.push('a value');
+        else missing.push(...domain.missing);
+      }
       if (missing.length > 0) {
         diagnostics.error({ code: 'T0042', span: expr.span, data: { type: typeToString(subjectType), missing: missing.join(' and ') } });
       }
     } else {
-      const info = subjectType.kind === 'Named' ? env.getType(subjectType.name) : null;
-      if (info !== null) {
-        const missing = info.variants.map(v => v.tag).filter(tag => !coveredTags.has(tag));
-        if (missing.length > 0) {
-          diagnostics.error({
-            code: 'T0034', span: expr.span,
-            data: { type: info.name, variants: info.variants.map(v => v.tag).join(', '), missing: missing.join(', ') },
-          });
-        }
-      } else if (!isInvalidType(subjectType)) {
-        diagnostics.error({ code: 'T0029', span: expr.span });
+      const domain = domainOf(subjectType);
+      if (domain === null) {
+        if (!isInvalidType(subjectType)) diagnostics.error({ code: 'T0029', span: expr.span });
+      } else if (domain.missing.length > 0) {
+        diagnostics.error({
+          code: 'T0034', span: expr.span,
+          data: { type: domain.label, variants: domain.all.join(', '), missing: domain.missing.join(', ') },
+        });
       }
     }
   }

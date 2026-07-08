@@ -51,8 +51,8 @@ describe('match — scalar literal patterns', () => {
         { type: 'Int', value: 2n });
     });
 
-    it('matches Bool subjects (else still required in stage 1)', () => {
-      assert.deepEqual(evalOk('match True { True -> "yes"; False -> "no"; else -> "?" };'),
+    it('matches Bool subjects (True/False are exhaustive, no else needed)', () => {
+      assert.deepEqual(evalOk('match True { True -> "yes"; False -> "no" };'),
         { type: 'String', value: 'yes' });
     });
 
@@ -114,8 +114,16 @@ describe('match — scalar literal patterns', () => {
       assert.deepEqual(errorCodes('fix n = 1; match n { 0 -> "z"; 1 -> "o" };'), ['T0029']);
     });
 
-    it('T0029 — a Bool match still needs an else in stage 1', () => {
-      assert.deepEqual(errorCodes('match True { True -> 1; False -> 2 };'), ['T0029']);
+    it('a Bool match covering True and False is exhaustive (no else)', () => {
+      assert.deepEqual(errorCodes('match True { True -> 1; False -> 2 };'), []);
+    });
+
+    it('T0034 — a Bool match missing a case (finite domain)', () => {
+      assert.deepEqual(errorCodes('match True { True -> 1 };'), ['T0034']);
+    });
+
+    it('a redundant else after full Bool coverage is still allowed', () => {
+      assert.deepEqual(errorCodes('match True { True -> 1; False -> 2; else -> 3 };'), []);
     });
 
     it('T0030 — arms produce unrelated types', () => {
@@ -263,6 +271,17 @@ describe('match — variant patterns', () => {
       const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; else -> 0.0 };`;
       assert.deepEqual(errorCodes(src), []);
     });
+
+    it('an optional union is exhausted by every variant plus None (no else/binding)', () => {
+      const src = `${SHAPE} fix s: Shape? = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side; None -> 0.0 };`;
+      assert.deepEqual(errorCodes(src), []);
+      assert.deepEqual(evalOk(src), { type: 'Float', value: 2 });
+    });
+
+    it('T0042 for an optional union missing one variant', () => {
+      const src = `${SHAPE} fix s: Shape? = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; None -> 0.0 };`;
+      assert.deepEqual(errorCodes(src), ['T0042']);
+    });
   });
 });
 
@@ -323,6 +342,16 @@ describe('match — Optional (None + binding patterns)', () => {
 
     it('T0042 when the present case (a binding/else) is missing', () => {
       assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0 };'), ['T0042']);
+    });
+
+    it('a Bool? is exhausted by True/False/None (finite present domain, no binding)', () => {
+      assert.deepEqual(evalOk('fix x: Bool? = True; match x { True -> 1; False -> 0; None -> -1 };'),
+        { type: 'Int', value: 1n });
+      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { True -> 1; False -> 0; None -> -1 };'), []);
+    });
+
+    it('T0042 for a Bool? missing a present case (True covered, False and None not)', () => {
+      assert.deepEqual(errorCodes('fix x: Bool? = True; match x { True -> 1 };'), ['T0042']);
     });
 
     it('T0031 for a present-value arm after the binding catch-all', () => {
