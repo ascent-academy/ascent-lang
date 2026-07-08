@@ -124,9 +124,29 @@ export type FieldDecl = { name: string; nameSpan: Span; type: TypeExpr; span: Sp
 // just the one-variant case whose tag is auto-named after the type.
 export type VariantDecl = { tag: string; tagSpan: Span; fields: FieldDecl[]; span: Span };
 
+// One field entry of a record destructuring pattern (whitepaper §5). `field` is
+// the declared field name read off the value; `bind` is the local it's bound to
+// — equal to `field` when punned ('{ name }'), a different name when renamed
+// ('{ name: local }'). Shallow: a field binds a plain name, never a nested
+// pattern (v1 patterns don't nest), so this reuses the exact match-arm field
+// syntax, just in binding position.
+export type FieldPattern = { field: string; fieldSpan: Span; bind: string; bindSpan: Span; span: Span };
+
+// The binding target of a 'fix'/'mut' — either a plain name, or an irrefutable
+// record pattern that destructures a single-variant record's fields into locals
+// in one statement (whitepaper §5, the honest replacement for tuples). Naming a
+// *subset* of fields is fine — the rest are ignored. A refutable pattern (a
+// multi-variant union's case, which might not match) is rejected by the checker
+// (T0033); a plain name always binds. Only a name target may carry a ':' type
+// annotation — a record pattern already names its type.
+export type BindTarget = (
+  | { kind: 'name'; name: string; nameSpan: Span; span: Span }
+  | { kind: 'record'; typeName: string; typeNameSpan: Span; fields: FieldPattern[]; span: Span }
+);
+
 export type Statement = (
-  | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
-  | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
+  | { kind: 'fix'; target: BindTarget; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
+  | { kind: 'mut'; target: BindTarget; typeAnnotation: TypeExpr | null; init: Expr; span: Span }
   | { kind: 'assign'; name: string; nameSpan: Span; value: Expr; span: Span }
   // 'type Name = Variant{ … } | Variant{ … };' — declares a tagged-union type
   // (whitepaper §6). A record ('type Name = { … }') is the single-variant case,

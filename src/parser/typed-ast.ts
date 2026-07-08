@@ -87,9 +87,24 @@ export type TypedFieldDecl = { name: string; type: AscentType };
 // erased before the tree walk.
 export type TypedVariantDecl = { tag: string; fields: TypedFieldDecl[] };
 
+// A typed field of a record destructuring pattern — the declared field to read
+// and the local it binds, with the field's resolved type (what the local slot
+// holds). The interpreter reads `field`/`bind` to pull the value out of the
+// record and declare it; `type` is carried for the printer / tooling.
+export type TypedFieldPattern = { field: string; bind: string; type: AscentType };
+
+// The typed twin of a BindTarget: a plain name, or a record pattern whose fields
+// have been resolved against the destructured type. For a record target,
+// `slotType` on the fix/mut node below is the record's own type (what the init
+// is checked against); each field's local type lives here.
+export type TypedBindTarget = (
+  | { kind: 'name'; name: string }
+  | { kind: 'record'; typeName: string; fields: TypedFieldPattern[] }
+);
+
 export type TypedStatement = (
-  | { kind: 'fix'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
-  | { kind: 'mut'; name: string; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
+  | { kind: 'fix'; target: TypedBindTarget; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
+  | { kind: 'mut'; target: TypedBindTarget; typeAnnotation: TypeExpr | null; slotType: AscentType; init: TypedExpr; span: Span }
   | { kind: 'assign'; name: string; slotType: AscentType; value: TypedExpr; span: Span }
   | { kind: 'typeDecl'; name: string; variants: TypedVariantDecl[]; span: Span }
   | { kind: 'expr'; expr: TypedExpr; span: Span }

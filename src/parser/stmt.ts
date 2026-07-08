@@ -1,5 +1,5 @@
 import type { Token } from '../lexer/token.js';
-import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl, VariantDecl } from './ast.js';
+import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl, VariantDecl, BindTarget, FieldPattern } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseExpr } from './expr.js';
 import { parseTypeExpr } from './type-expr.js';
@@ -240,20 +240,88 @@ function parseFor(ts: TokenStream): Statement | null {
   };
 }
 
+// One field entry inside a record destructuring pattern: 'name' (punned — the
+// field binds a local of the same name) or 'name: local' (renamed). The field
+// name and the local are both lowercase slot names (design.md §2's casing);
+// unlike a construction's 'field: value', the right of ':' is a *binding name*,
+// not an expression, so there are no nested patterns here (v1 patterns are
+// shallow).
+function parseFieldPattern(ts: TokenStream): FieldPattern | null {
+  const nameTok = ts.peek();
+  if (nameTok.kind !== 'SLOT') {
+    ts.report('S0021', nameTok.span);
+    return null;
+  }
+  ts.advance(); // consume field name
+
+  let bindTok = nameTok; // punned by default: the local is named for the field
+  if (ts.peek().kind === 'COLON') {
+    ts.advance(); // consume ':'
+    const renamed = ts.peek();
+    if (renamed.kind !== 'SLOT') {
+      ts.report('S0003', renamed.span);
+      return null;
+    }
+    ts.advance(); // consume the renamed local
+    bindTok = renamed;
+  }
+
+  return {
+    field: nameTok.value, fieldSpan: nameTok.span,
+    bind: bindTok.value, bindSpan: bindTok.span,
+    span: { start: nameTok.span.start, end: bindTok.span.end },
+  };
+}
+
+// 'TypeName{ field, field: local, … }' in binding position — a record
+// destructuring pattern (whitepaper §5). The tag is already consumed by
+// parseBindTarget and a '{' confirmed on lookahead. Whether the tag really
+// names an *irrefutable* single-variant record (and not a refutable union case)
+// is a checker question (T0033); the parser only records the shape. Empty braces
+// bind nothing, so they're the same one-spelling ban as everywhere else (S0028).
+function parseRecordPattern(ts: TokenStream, typeNameTok: Token): BindTarget | null {
+  const open = ts.expect('LBRACE', 'S0020');
+  if (open === null) return null;
+  const parsed = ts.parseSeparated(() => parseFieldPattern(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  if (parsed === null) return null;
+  const span = { start: typeNameTok.span.start, end: parsed.close.span.end };
+  if (parsed.items.length === 0) {
+    ts.report('S0028', span);
+  }
+  return { kind: 'record', typeName: typeNameTok.value, typeNameSpan: typeNameTok.span, fields: parsed.items, span };
+}
+
+// The target of a 'fix'/'mut': a plain lowercase name, or an UpperCamel record
+// pattern that destructures it (whitepaper §5). A bare name in the interpreter's
+// twin of a slot; a TYPE_NAME here always introduces a pattern (there is no
+// other meaning for one in binding position), so a missing '{' after it is an
+// S0020, not a fall-through.
+function parseBindTarget(ts: TokenStream): BindTarget | null {
+  const tok = ts.peek();
+  if (tok.kind === 'SLOT') {
+    ts.advance(); // consume slot name
+    return { kind: 'name', name: tok.value, nameSpan: tok.span, span: tok.span };
+  }
+  if (tok.kind === 'TYPE_NAME') {
+    ts.advance(); // consume the pattern's type tag
+    return parseRecordPattern(ts, tok);
+  }
+  ts.report('S0003', tok.span);
+  return null;
+}
+
 // 'fix' and 'mut' share every rule but the keyword itself and the
 // mutability it grants — one parse method, told which by 'kind'.
 function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
   const kwTok = ts.advance(); // consume 'fix' or 'mut'
 
-  const nameTok = ts.peek();
-  if (nameTok.kind !== 'SLOT') {
-    ts.report('S0003', nameTok.span);
-    return null;
-  }
-  ts.advance(); // consume slot name
+  const target = parseBindTarget(ts);
+  if (target === null) return null;
 
+  // Only a plain-name binding takes a ':' annotation — a record pattern already
+  // names its type, so an annotation there would be redundant.
   let typeAnnotation: TypeExpr | null = null;
-  if (ts.peek().kind === 'COLON') {
+  if (target.kind === 'name' && ts.peek().kind === 'COLON') {
     ts.advance(); // consume ':'
     typeAnnotation = parseTypeExpr(ts);
     if (typeAnnotation === null) return null;
@@ -268,7 +336,7 @@ function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
 
   return {
     kind,
-    name: nameTok.value,
+    target,
     typeAnnotation,
     init,
     span: { start: kwTok.span.start, end: init.span.end },

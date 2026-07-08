@@ -224,7 +224,21 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       // (handles Int → Float when the annotation says Float but the literal is
       // an Int, and any nested widening the same edge implies).
       const value = coerce(evaluateExpr(stmt.init, env), stmt.init.type, stmt.slotType);
-      env.declare(stmt.name, value, stmt.kind === 'mut');
+      const mutable = stmt.kind === 'mut';
+      if (stmt.target.kind === 'name') {
+        env.declare(stmt.target.name, value, mutable);
+      } else {
+        // A record destructuring: pull each named field off the value and bind
+        // it to its local. The checker proved the value is that single-variant
+        // record (irrefutable), so a non-record or a missing field is an
+        // interpreter bug, not a program one.
+        if (value.type !== 'Record') throw new Error('internal: destructuring a non-record value');
+        for (const f of stmt.target.fields) {
+          const fieldVal = value.fields.get(f.field);
+          if (fieldVal === undefined) throw new Error(`internal: record has no field '${f.field}'`);
+          env.declare(f.bind, fieldVal, mutable);
+        }
+      }
       return DONE;
     }
     case 'assign': {

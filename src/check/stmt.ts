@@ -1,7 +1,7 @@
-import type { Statement, Block, If, Match, LiteralPattern } from '../parser/ast.js';
+import type { Statement, Block, If, Match, LiteralPattern, BindTarget } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
-import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement } from '../parser/typed-ast.js';
-import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo } from '../types/types.js';
+import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern } from '../parser/typed-ast.js';
+import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType } from '../types/types.js';
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
@@ -213,10 +213,106 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
   return { kind: 'match', subject: typedSubject, arms: typedArms, type, span: expr.span };
 };
 
+// A 'fix'/'mut' whose target is a record destructuring pattern (whitepaper §5).
+// The pattern's tag must name an *irrefutable* single-variant record — a value
+// of it is always that one shape, so the destructuring can't fail. A refutable
+// tag (a case of a multi-variant union) might not match, so it's rejected here
+// (T0033) and belongs in a 'match' instead. Each named field binds a local of
+// the field's declared type; naming a subset is fine (the rest are ignored),
+// but an unknown field (T0019) or a repeat (T0020) is not.
+const inferRecordBinding = (
+  stmt: Extract<Statement, { kind: 'fix' | 'mut' }>,
+  target: Extract<BindTarget, { kind: 'record' }>,
+  env: TypeEnv,
+  diagnostics: Diagnostics,
+): TypedStatement => {
+  // Resolve the tag to the variant it names, and decide whether it's
+  // irrefutable. `variant` is the field set to bind against — kept even on a
+  // refutable tag, whose fields are still real, so downstream uses of the bound
+  // locals don't cascade into N0001. `recordType` is what the init is checked
+  // against: a real Named type only when the destructuring is sound.
+  const ctor = env.getConstructor(target.typeName);
+  let variant: Variant | null = null;
+  let recordType: AscentType = INVALID_TYPE;
+  if (ctor !== null) {
+    if (ctor.info.variants.length === 1) {
+      variant = ctor.variant;
+      recordType = namedType(ctor.info.name);
+    } else {
+      // A union case: it might not match, so it can't be destructured in a
+      // binding — 'match' handles each case instead.
+      diagnostics.error({
+        code: 'T0033', span: target.typeNameSpan,
+        data: { type: ctor.info.name, variants: ctor.info.variants.map(v => v.tag).join(', ') },
+      });
+      variant = ctor.variant;
+    }
+  } else {
+    const asType = env.getType(target.typeName);
+    if (asType !== null) {
+      // The union's *type name* written as a pattern — refutable for the same
+      // reason: a value of it could be any of its variants.
+      diagnostics.error({
+        code: 'T0033', span: target.typeNameSpan,
+        data: { type: asType.name, variants: asType.variants.map(v => v.tag).join(', ') },
+      });
+    } else if (BUILTIN_TYPE_NAMES.has(target.typeName)) {
+      diagnostics.error({ code: 'N0012', span: target.typeNameSpan, data: { name: target.typeName } });
+    } else {
+      diagnostics.error({ code: 'N0005', span: target.typeNameSpan, data: { name: target.typeName } });
+    }
+  }
+
+  // Check the init against the pattern's record type. On an error path
+  // recordType is Invalid — synth the init directly so its own errors still
+  // surface, but demand nothing of it (Invalid absorbs the comparison).
+  const typedInit = isInvalidType(recordType)
+    ? synth(stmt.init, env, diagnostics)
+    : check(stmt.init, recordType, env, diagnostics, [{ key: 'annotation', span: target.typeNameSpan }]);
+
+  // Bind each named field to a local. A field the variant doesn't declare is
+  // T0019 (bound Invalid so later uses stay quiet); a field named twice is
+  // T0020 (the repeat is dropped).
+  const typedFields: TypedFieldPattern[] = [];
+  const seen = new Map<string, Span>();
+  for (const f of target.fields) {
+    if (seen.has(f.field)) {
+      diagnostics.error({ code: 'T0020', span: f.fieldSpan, data: { field: f.field, type: target.typeName } });
+      continue;
+    }
+    seen.set(f.field, f.fieldSpan);
+
+    let fieldType: AscentType = INVALID_TYPE;
+    if (variant !== null) {
+      const decl = variant.fields.find(d => d.name === f.field);
+      if (decl === undefined) {
+        diagnostics.error({ code: 'T0019', span: f.fieldSpan, data: { field: f.field, type: target.typeName } });
+      } else {
+        fieldType = decl.type;
+      }
+    }
+    env.set(f.bind, fieldType, stmt.kind, f.bindSpan);
+    typedFields.push({ field: f.field, bind: f.bind, type: fieldType });
+  }
+
+  return {
+    kind: stmt.kind,
+    target: { kind: 'record', typeName: target.typeName, fields: typedFields },
+    typeAnnotation: null,
+    slotType: recordType,
+    init: typedInit,
+    span: stmt.span,
+  };
+};
+
 export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostics): TypedStatement => {
   switch (stmt.kind) {
     case 'fix':
     case 'mut': {
+      if (stmt.target.kind === 'record') {
+        return inferRecordBinding(stmt, stmt.target, env, diagnostics);
+      }
+      const name = stmt.target.name;
       const annotation = stmt.typeAnnotation !== null ? typeFromExpr(stmt.typeAnnotation, env, diagnostics) : null;
 
       let typedInit: TypedExpr;
@@ -251,11 +347,11 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         slotType = typedInit.type;
       }
 
-      env.set(stmt.name, slotType, stmt.kind, stmt.span);
+      env.set(name, slotType, stmt.kind, stmt.span);
 
       return {
         kind: stmt.kind,
-        name: stmt.name,
+        target: { kind: 'name', name },
         typeAnnotation: stmt.typeAnnotation,
         slotType,
         init: typedInit,

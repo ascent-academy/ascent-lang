@@ -120,7 +120,10 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
       const label = stmt.kind === 'fix' ? 'Fix' : 'Mut';
       const slotTy = ty(typeToString(stmt.slotType));
       const initLines = branch(typedExprLines(stmt.init), true);
-      return [`${chalk.cyan(label)} ${chalk.green(stmt.name)}${slotTy}`, ...initLines];
+      const target = stmt.target.kind === 'name'
+        ? stmt.target.name
+        : `${stmt.target.typeName}{ ${stmt.target.fields.map(f => f.field === f.bind ? f.field : `${f.field}: ${f.bind}`).join(', ')} }`;
+      return [`${chalk.cyan(label)} ${chalk.green(target)}${slotTy}`, ...initLines];
     }
     case 'assign': {
       const slotTy = ty(typeToString(stmt.slotType));

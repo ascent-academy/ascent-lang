@@ -157,7 +157,10 @@ const stmtLines = (stmt: Statement): string[] => {
       const init = branch(exprLines(stmt.init), true);
       const label = stmt.kind === 'fix' ? 'Fix' : 'Mut';
       const ann = stmt.typeAnnotation !== null ? chalk.dim(`: ${formatTypeExpr(stmt.typeAnnotation)}`) : '';
-      return [`${chalk.cyan(label)} ${chalk.green(stmt.name)}${ann}`, ...init];
+      const target = stmt.target.kind === 'name'
+        ? stmt.target.name
+        : `${stmt.target.typeName}{ ${stmt.target.fields.map(f => f.field === f.bind ? f.field : `${f.field}: ${f.bind}`).join(', ')} }`;
+      return [`${chalk.cyan(label)} ${chalk.green(target)}${ann}`, ...init];
     }
     case 'assign': {
       const value = branch(exprLines(stmt.value), true);
