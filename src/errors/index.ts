@@ -214,6 +214,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'{name}' names one of the built-in types (Int, Float, Bool, String, List). A type is the shape a value has, not a value itself, so it can't stand where a value is expected. To make a value, write one directly — a number like 42, a string like \"hi\", or a list like [1, 2]."
   },
   {
+    "code": "N0013",
+    "name": "builtin-function-as-value",
+    "category": "name",
+    "summary": "A built-in function is used as a value instead of being called.",
+    "message": "'{name}' is a built-in function; call it as '{name}(…)'.",
+    "explanation": "'{name}' is one of the language's built-in functions, and a built-in can only be called — like '{name}(\"hi\")' — not passed around as a value or stored in a slot. Call it directly, or wrap it in a function where a function value is needed, like 'fn(x: String) -> Done { print(x) }'."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",

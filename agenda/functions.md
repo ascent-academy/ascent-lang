@@ -270,11 +270,16 @@ in the Pratt loop; `parseAtom` still consumes a bare name's first `(`, so only
 non-name / chained callees become `apply`. The checker shares one
 `checkApplication` helper between `call` and `apply` (arity T0007, args T0008,
 result = the function's result); a non-function computed callee is **T0038** (the
-nameless twin of T0035). `(print)(x)` is the one wart — it routes through `apply`
-and reports N0001, since `print` is not a real binding; writing `print(x)` is the
-supported form. Closures capture through an `apply` callee (captures.ts visits
-it). Tests in the "calling a computed function (apply)" block of
+nameless twin of T0035). Closures capture through an `apply` callee (captures.ts
+visits it). Tests in the "calling a computed function (apply)" block of
 [test/functions.test.ts](../test/functions.test.ts).
+
+`print` still can't be used *as a value* (`(print)(x)`, `xs.map(print)`,
+`fix f = print`) because it has no first-class type — it's `Display`-bounded and
+the lattice has no polymorphic function type. That now reports a clear **N0013**
+("`print` is a built-in function; call it as `print(…)`") in synth's `slot` case,
+rather than the misleading N0001. The real fix — builtins as first-class values —
+rides with traits/generics; tracked in a GitHub issue.
 
 **2. Explicitly out of scope** (deferred, consistent with the whitepaper):
 methods / `self` (build-path stage 5, its own feature), `async`, generics/traits

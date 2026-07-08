@@ -130,6 +130,20 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(errorCodes('fix x = 5; (x)(3);'), ['T0038']);
     });
 
+    // The builtin 'print' has no first-class type yet, so using it as a value —
+    // '(print)(x)', 'xs.map(print)', 'fix f = print' — is a clear N0013, not the
+    // misleading "undefined name" (N0001).
+    it('reports N0013 (not N0001) for the builtin print used as a value', () => {
+      assert.deepEqual(errorCodes('(print)(3);'), ['N0013']);
+      assert.deepEqual(errorCodes('["a"].map(print);'), ['N0013']);
+      assert.deepEqual(errorCodes('fix f = print;'), ['N0013']);
+    });
+
+    it('still calls print normally, and a user binding may shadow it', () => {
+      assert.deepEqual(run('print("hi");').output, ['hi']);
+      assert.deepEqual(errorCodes('fix print = fn(x: Int) -> Int { x }; print;'), []);
+    });
+
     it('rejects a wrong argument count on a computed callee (T0007)', () => {
       assert.deepEqual(errorCodes('(fn(x: Int) -> Int { x })(1, 2);'), ['T0007']);
     });

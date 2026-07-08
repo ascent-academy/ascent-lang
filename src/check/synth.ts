@@ -111,7 +111,12 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     case 'slot': {
       const binding = env.get(expr.name);
       if (binding === null) {
-        diagnostics.error({ code: 'N0001', span: expr.span });
+        // A bare built-in function name (print) in value position, not a call:
+        // it has no first-class type yet (its trait bound can't be written as a
+        // type), so this is a clearer error than "undefined name". A call
+        // 'print(x)' never reaches here — it's a 'call' node, not a 'slot'.
+        const code = FUNCTIONS[expr.name] !== undefined ? 'N0013' : 'N0001';
+        diagnostics.error({ code, span: expr.span, data: { name: expr.name } });
         return { ...expr, type: INVALID_TYPE };
       }
       return { ...expr, type: binding.ty };
