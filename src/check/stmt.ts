@@ -1,7 +1,7 @@
 import type { Statement, Block, If, Match, LiteralPattern, BindTarget, FieldPattern } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
 import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern, TypedBindTarget } from '../parser/typed-ast.js';
-import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType, functionType } from '../types/types.js';
+import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType, functionType } from '../types/types.js';
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
@@ -50,6 +50,12 @@ export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics,
   const inner = env.child();
   const typedStmts: TypedStatement[] = [];
   let blockType: AscentType = DONE_TYPE;
+  // A statement that diverges (type Never — a 'return', §7) leaves the block
+  // before its end, so everything after it is unreachable and the block as a
+  // whole diverges. Track that: the block's value type becomes Never, which is
+  // what lets 'fn() -> Int { return 5; … }' (or a branch that returns) satisfy
+  // its declared type instead of being judged by the unreachable trailing value.
+  let diverged = false;
 
   block.stmts.forEach((stmt, i) => {
     const typedStmt = inferStmt(stmt, inner, diagnostics);
@@ -60,10 +66,12 @@ export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics,
     } else if (loopBody) {
       reportDroppedValue(typedStmt, 'T0026', diagnostics);
     }
-    blockType = typedStmt.kind === 'expr' ? typedStmt.expr.type : DONE_TYPE;
+    const stmtType = typedStmt.kind === 'expr' ? typedStmt.expr.type : DONE_TYPE;
+    if (!diverged) blockType = stmtType;
+    if (stmtType.kind === 'Never') diverged = true;
   });
 
-  return { kind: 'block', stmts: typedStmts, type: blockType, span: block.span };
+  return { kind: 'block', stmts: typedStmts, type: diverged ? NEVER_TYPE : blockType, span: block.span };
 };
 
 export const inferIf = (expr: If, env: TypeEnv, diagnostics: Diagnostics): TypedIf => {

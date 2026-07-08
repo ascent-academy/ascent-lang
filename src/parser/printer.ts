@@ -76,6 +76,10 @@ const exprLines = (expr: Expr): string[] => {
       const bodyLines = branch(exprLines(expr.body), true);
       return [`${chalk.cyan('Fn')} ${chalk.dim(sig)}`, ...bodyLines];
     }
+    case 'return': {
+      if (expr.value === null) return [`${chalk.cyan('Return')}`];
+      return [`${chalk.cyan('Return')}`, ...branch(exprLines(expr.value), true)];
+    }
     case 'methodCall': {
       const children = [expr.receiver, ...expr.args];
       const childLines = children.flatMap((child, i) =>

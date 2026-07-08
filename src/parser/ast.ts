@@ -110,6 +110,12 @@ export type Expr = (
   // return value (the block-value rule, §2), so there is one body form and no
   // arrow. Both the parameter types and the return type are mandatory (§7).
   | { kind: 'fn'; params: FnParam[]; returnType: TypeExpr; body: Block; span: Span }
+  // 'return expr' — an early exit from the enclosing function (whitepaper §5).
+  // It is an *expression* (of type Never, §7), not a statement, so it composes
+  // in value position — a 'match' arm ('… -> return e') or an 'if' branch — and
+  // a block that ends in one has type Never. `value` is optional: a bare
+  // 'return' yields Done (valid only when the function returns Done).
+  | { kind: 'return'; value: Expr | null; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
   // 'TypeName{ field: value, … }' — builds a value of a declared type
   // (whitepaper §6). `typeName` is the constructor: a variant tag (its own name

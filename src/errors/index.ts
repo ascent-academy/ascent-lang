@@ -888,6 +888,14 @@ export const ERRORS: ErrorEntry[] = [
         "label": "the return type was set to {expected} here"
       }
     ]
+  },
+  {
+    "code": "T0037",
+    "name": "return-outside-function",
+    "category": "type",
+    "summary": "A 'return' was written outside any function.",
+    "message": "'return' can only be used inside a function.",
+    "explanation": "'return' leaves the function it is in, handing back a value — so it only makes sense inside one, like 'fn(x: Int) -> Int { return x }'. Here there is no enclosing function to return from. At the top level, a program's value is simply its last statement (no 'return' needed)."
   }
 ];
 

@@ -166,8 +166,9 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const fnType = functionType(paramTypes, resultType);
 
       // Check the body in a fresh scope with the parameters bound as fixed slots
-      // (whitepaper §5 — every parameter is an ordinary fixed slot).
-      const bodyEnv = env.child();
+      // (whitepaper §5 — every parameter is an ordinary fixed slot). The scope
+      // also records the declared return type so a 'return' inside resolves it.
+      const bodyEnv = env.childForFunction(resultType);
       expr.params.forEach((p, i) => bodyEnv.set(p.name, paramTypes[i]!, 'fix', p.nameSpan));
       const typedBody = inferBlock(expr.body, bodyEnv, diagnostics);
 
@@ -190,6 +191,26 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         type: fnType,
         span: expr.span,
       };
+    }
+
+    case 'return': {
+      // A 'return' diverges (whitepaper §7), so its own type is always Never —
+      // it satisfies any expected type and makes an enclosing block diverge too.
+      // Its value must fit the enclosing function's declared return type (the
+      // same T0036 the function's fall-through value uses). Outside any function
+      // there is nothing to return from (T0037). A bare 'return' yields Done.
+      const typedValue = expr.value !== null ? synth(expr.value, env, diagnostics) : null;
+      const valueType = typedValue !== null ? typedValue.type : DONE_TYPE;
+      const expected = env.enclosingReturn();
+      if (expected === null) {
+        diagnostics.error({ code: 'T0037', span: expr.span });
+      } else if (!isAssignableTo(valueType, expected)) {
+        diagnostics.error({
+          code: 'T0036', span: (expr.value ?? expr).span,
+          data: { expected: typeToString(expected), actual: typeToString(valueType) },
+        });
+      }
+      return { kind: 'return', value: typedValue, returnType: expected ?? INVALID_TYPE, type: NEVER_TYPE, span: expr.span };
     }
 
     case 'unary': {

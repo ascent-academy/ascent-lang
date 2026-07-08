@@ -22,6 +22,15 @@ export type { ScalarValue, RuntimeValue };
 export { Environment };
 export type { AssignResult, OutputSink };
 
+// A 'return' unwinds the tree walk up to the nearest function-application
+// boundary (whitepaper §5). Thrown by evaluateExpr's 'return' case and caught
+// only in applyFunction, so it can never escape a function — the checker (T0037)
+// guarantees a 'return' is always inside one. Not a RuntimeError: it is normal
+// control flow, not a crash.
+class ReturnSignal {
+  public constructor(public readonly value: RuntimeValue) { }
+}
+
 export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
   switch (expr.kind) {
     case 'literal': {
@@ -81,6 +90,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         body: expr.body,
         closure: env.snapshot(expr.captures),
       };
+    }
+    case 'return': {
+      // Coerce the returned value into the declared return type here (Int →
+      // Float, etc.), so applyFunction uses it as-is. A bare 'return' yields
+      // Done; its from-type equals the target, so the coercion is a no-op.
+      const raw = expr.value !== null ? evaluateExpr(expr.value, env) : DONE;
+      const fromType = expr.value !== null ? expr.value.type : expr.returnType;
+      throw new ReturnSignal(coerce(raw, fromType, expr.returnType));
     }
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
@@ -266,8 +283,16 @@ const applyFunction = (
 ): RuntimeValue => {
   const callEnv = fn.closure.child();
   fn.params.forEach((p, i) => callEnv.declare(p.name, coerce(args[i]!, argTypes[i]!, p.type), false));
-  const result = evaluateBlock(fn.body, callEnv);
-  return coerce(result, fn.body.type, fn.result);
+  try {
+    // Normal path: the body's fall-through value (§2), coerced to the return
+    // type. A body that always diverges throws ReturnSignal before this runs.
+    const result = evaluateBlock(fn.body, callEnv);
+    return coerce(result, fn.body.type, fn.result);
+  } catch (e) {
+    // An early 'return' lands here — its value is already coerced to fn.result.
+    if (e instanceof ReturnSignal) return e.value;
+    throw e;
+  }
 };
 
 // Bind `value` to a fix/mut/for target in `env`: a plain name binds the whole

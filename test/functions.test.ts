@@ -154,4 +154,60 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(errorCodes('fix f = fn(x: Int) -> Int { x + missing };'), ['N0001']);
     });
   });
+
+  describe('return (early exit, §5)', () => {
+    it('exits early from a guard, leaving the rest unrun', () => {
+      const f = 'fix f = fn(n: Int) -> Int { if (n < 0) { return 0 }; n * 2 };';
+      assert.deepEqual(run(`${f} f(-5);`).value, int(0n));
+      assert.deepEqual(run(`${f} f(5);`).value, int(10n));
+    });
+
+    it('returns from an if branch used as the whole body', () => {
+      assert.deepEqual(run('fix f = fn(n: Int) -> Int { if (n < 0) { return 0 } else { n } }; f(-3);').value, int(0n));
+    });
+
+    it('a bare return yields Done and skips the rest of a Done function', () => {
+      const { output, value } = run('fix f = fn(x: Int) -> Done { if (x > 0) { return }; print("neg") }; f(5);');
+      assert.deepEqual(output, []);
+      assert.deepEqual(value, { type: 'Done' });
+    });
+
+    it('coerces the returned value into the declared return type (Int → Float)', () => {
+      assert.deepEqual(run('fix f = fn(x: Int) -> Float { return x }; f(3);').value, { type: 'Float', value: 3 });
+    });
+
+    it('exits the whole function from inside a loop', () => {
+      assert.deepEqual(run('fix firstEven = fn() -> Int { for x in [1, 3, 4, 7] { if (x mod 2 == 0) { return x } }; -1 }; firstEven();').value, int(4n));
+    });
+
+    it('returns from a match arm', () => {
+      assert.deepEqual(run('fix f = fn(n: Int) -> Int { match n { 0 -> return 100; else -> n } }; f(0);').value, int(100n));
+    });
+
+    // 'return' is an expression (type Never, §7), so it composes in value
+    // position — here as the else branch of an 'if' bound to a slot.
+    it('works in expression position (a bound if branch)', () => {
+      const f = 'fix f = fn(n: Int) -> Int { fix y = if (n > 0) { n } else { return 0 }; y * 2 };';
+      assert.deepEqual(run(`${f} f(4);`).value, int(8n));
+      assert.deepEqual(run(`${f} f(-4);`).value, int(0n));
+    });
+
+    // A block that diverges (a 'return' before its end) is typed Never, so an
+    // unreachable trailing value doesn't wrongly fail the return-type check.
+    it('allows an unreachable trailing value after a return (no T0036)', () => {
+      assert.deepEqual(run('fix f = fn() -> Int { return 5; 99 }; f();').value, int(5n));
+    });
+
+    it('rejects a return outside any function (T0037)', () => {
+      assert.deepEqual(errorCodes('return 5;'), ['T0037']);
+    });
+
+    it('rejects a returned value that does not fit the return type (T0036)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int) -> Int { return "no" };'), ['T0036']);
+    });
+
+    it('rejects a bare return in a function that must return a value (T0036)', () => {
+      assert.deepEqual(errorCodes('fix f = fn() -> Int { return };'), ['T0036']);
+    });
+  });
 });

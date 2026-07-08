@@ -371,8 +371,34 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseFn(ts);
   }
 
+  if (tok.kind === 'KW_RETURN') {
+    return parseReturn(ts);
+  }
+
   ts.report('S0002', tok.span);
   return null;
+}
+
+// The tokens that can't begin a value, so a 'return' directly before one is a
+// bare 'return' (yielding Done) rather than 'return <expr>'.
+const RETURN_TERMINATORS: readonly TokenKind[] = ['SEMICOLON', 'RBRACE', 'RPAREN', 'RBRACKET', 'COMMA', 'EOF'];
+
+// 'return' or 'return expr' — an early exit from the enclosing function
+// (whitepaper §5). It's an expression (type Never), so it's a nud here like
+// 'fn': a bare 'return' before a terminator yields Done, otherwise the rest is
+// parsed as the returned value. Reusing parseExpr means 'return a + b' returns
+// the whole 'a + b', not '(return a) + b'.
+function parseReturn(ts: TokenStream): Expr | null {
+  const retTok = ts.advance(); // consume 'return'
+
+  if (RETURN_TERMINATORS.includes(ts.peek().kind)) {
+    return { kind: 'return', value: null, span: retTok.span };
+  }
+
+  const value = parseExpr(ts);
+  if (value === null) return null;
+
+  return { kind: 'return', value, span: { start: retTok.span.start, end: value.span.end } };
 }
 
 // 'fn(params) -> Ret { body }' — a function value (whitepaper §5). Mirrors the

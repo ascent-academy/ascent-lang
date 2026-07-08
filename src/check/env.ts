@@ -43,7 +43,14 @@ export interface TypeInfo {
 export class TypeEnv {
   private vars = new Map<string, Binding>();
   private types = new Map<string, TypeInfo>();
-  public constructor(private readonly parent: TypeEnv | null = null) { }
+  // The declared return type of the nearest enclosing function, if any — set
+  // only on the scope a function body runs in (childForFunction), null
+  // everywhere else. A 'return' looks it up via enclosingReturn() to check its
+  // value against it, and a 'return' with none in scope is outside any function.
+  public constructor(
+    private readonly parent: TypeEnv | null = null,
+    private readonly funcReturn: AscentType | null = null,
+  ) { }
 
   public get(name: string): Binding | null {
     return this.vars.get(name) ?? this.parent?.get(name) ?? null;
@@ -77,6 +84,20 @@ export class TypeEnv {
 
   public child(): TypeEnv {
     return new TypeEnv(this);
+  }
+
+  // The scope a function body is checked in: a child that also records the
+  // function's declared return type, so a 'return' anywhere inside resolves it
+  // (a nested function overrides it with its own). Separate from child() so only
+  // a real function boundary establishes a return target.
+  public childForFunction(returnType: AscentType): TypeEnv {
+    return new TypeEnv(this, returnType);
+  }
+
+  // The declared return type of the nearest enclosing function, or null when not
+  // inside one (a 'return' there is out of place — T0037).
+  public enclosingReturn(): AscentType | null {
+    return this.funcReturn ?? this.parent?.enclosingReturn() ?? null;
   }
 
   // The bindings declared directly in this scope (not inherited from a

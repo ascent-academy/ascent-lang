@@ -38,6 +38,7 @@ export type TypedExpr = (
   | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; type: AscentType; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
   | TypedFn
+  | TypedReturn
   | TypedMatch
   | TypedBlock
   | TypedIf
@@ -59,6 +60,20 @@ export type TypedFn = {
   params: TypedFnParam[];
   body: TypedBlock;
   captures: string[];
+  type: AscentType;
+  span: Span;
+};
+
+// 'return expr' typed (whitepaper §5). `type` is always Never — a return
+// diverges, so it satisfies any expected type and makes a block that ends in it
+// diverge too (§7). `returnType` is the enclosing function's declared return
+// type: the interpreter coerces the returned value into it (Int → Float, etc.),
+// exactly as the function's fall-through value is coerced. `value` is null for a
+// bare 'return' (which yields Done).
+export type TypedReturn = {
+  kind: 'return';
+  value: TypedExpr | null;
+  returnType: AscentType;
   type: AscentType;
   span: Span;
 };

@@ -169,6 +169,21 @@ loop-footgun snapshot — the defining behavioural test); invariant function typ
 
 ## Stage 2 — `return` (early exit)
 
+> **Status: DONE.** `return` landed as a Never-typed expression across parser →
+> checker → interpreter, with `T0037` (return outside a function) and 11 added
+> tests (functions suite 38, full suite 406 passing, `tsc` clean). Notes:
+> - **Block divergence.** `inferBlock` now types a block that contains a
+>   diverging (`Never`) statement as `Never`, so an unreachable trailing value
+>   after a `return` doesn't spuriously fail the return-type check
+>   (`fn() -> Int { return 5; 99 }` is fine). This is the minimal reachability
+>   needed; the unreachable-code *warning* is still deferred.
+> - **Enclosing return type** is threaded on `TypeEnv` (`childForFunction` /
+>   `enclosingReturn`), so a `return` in a nested function targets the inner
+>   function, verified by test.
+> - **Interpreter** uses a `ReturnSignal` thrown from the `return` case and
+>   caught only at the application boundary; the value is coerced to the declared
+>   return type at the throw site.
+
 **Goal.** `fn(n: Int) -> Int { if (n < 0) { return 0 }; n * 2 }`.
 
 - AST: `{ kind: 'return'; expr: Expr | null; span }` as an **expression** of type
