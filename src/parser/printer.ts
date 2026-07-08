@@ -3,7 +3,8 @@ import type { Expr, Statement, TypeExpr, Pattern } from './ast.js';
 import type { RuntimeValue } from '../interpreter.js';
 
 // How a 'match' arm's pattern shows in the AST dump — the constant it compares
-// against, or 'else'. Shared by both printers (this one and typed-printer).
+// against, a variant tag (with its bound fields), or 'else'. Shared by both
+// printers (this one and typed-printer).
 export const patternLabel = (pattern: Pattern): string => {
   switch (pattern.kind) {
     case 'elsePattern': return 'else';
@@ -14,6 +15,11 @@ export const patternLabel = (pattern: Pattern): string => {
         case 'Bool': return pattern.value ? 'True' : 'False';
         case 'String': return JSON.stringify(pattern.value);
       }
+    case 'variantPattern': {
+      if (pattern.fields.length === 0) return pattern.tag;
+      const fields = pattern.fields.map(f => f.field === f.bind ? f.field : `${f.field}: ${f.bind}`).join(', ');
+      return `${pattern.tag}{ ${fields} }`;
+    }
   }
 };
 

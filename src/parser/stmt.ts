@@ -129,14 +129,39 @@ function parseMatchArm(ts: TokenStream): MatchArm | null {
   return { pattern, body, span: { start: pattern.span.start, end: body.span.end } };
 }
 
-// A stage-1 pattern is either the 'else' catch-all or a scalar literal.
+// A pattern is the 'else' catch-all, a variant pattern (an UpperCamel tag, bare
+// or with a '{ … }' field list), or a scalar literal (whitepaper §5).
 function parsePattern(ts: TokenStream): Pattern | null {
   const tok = ts.peek();
   if (tok.kind === 'KW_ELSE') {
     ts.advance(); // consume 'else'
     return { kind: 'elsePattern', span: tok.span };
   }
+  if (tok.kind === 'TYPE_NAME') {
+    ts.advance(); // consume the variant tag
+    return parseVariantPattern(ts, tok);
+  }
   return parseLiteralPattern(ts);
+}
+
+// 'Tag' or 'Tag{ field, field: local, … }' in match position — a variant
+// pattern. The tag is already consumed; a '{' introduces its bound fields, and
+// its absence makes a bare tag that binds nothing (an enum case, or a fielded
+// variant matched for its tag alone). Reuses parseFieldPattern, the same field
+// syntax as a destructuring binding. Empty braces bind nothing, so they're the
+// banned redundant spelling (S0028) — write the bare tag instead.
+function parseVariantPattern(ts: TokenStream, tagTok: Token): Pattern | null {
+  if (ts.peek().kind !== 'LBRACE') {
+    return { kind: 'variantPattern', tag: tagTok.value, tagSpan: tagTok.span, fields: [], span: tagTok.span };
+  }
+  const open = ts.advance(); // consume '{'
+  const parsed = ts.parseSeparated(() => parseFieldPattern(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  if (parsed === null) return null;
+  const span = { start: tagTok.span.start, end: parsed.close.span.end };
+  if (parsed.items.length === 0) {
+    ts.report('S0028', span);
+  }
+  return { kind: 'variantPattern', tag: tagTok.value, tagSpan: tagTok.span, fields: parsed.items, span };
 }
 
 // A literal pattern is a constant to compare the subject against: an Int, Float,

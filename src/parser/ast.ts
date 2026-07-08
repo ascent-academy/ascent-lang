@@ -56,10 +56,10 @@ export type If = {
 // name, never by position).
 export type FieldInit = { name: string; nameSpan: Span; value: Expr; span: Span };
 
-// A 'match' pattern (whitepaper §5). v1 patterns are shallow, and stage 1
-// implements two of the three kinds: a literal (a scalar constant compared
-// against the subject) and the 'else' catch-all. Variant patterns arrive with
-// unions. A literal pattern is a constant, so a String one is always a plain
+// A 'match' pattern (whitepaper §5). v1 patterns are shallow, in exactly three
+// kinds: a literal (a scalar constant compared against the subject), a variant
+// (a union case matched by tag, binding a subset of its fields), and the 'else'
+// catch-all. A literal pattern is a constant, so a String one is always a plain
 // string — never an interpolation.
 export type LiteralPattern = (
   | { kind: 'litPattern'; valueType: 'Int'; value: bigint; span: Span }
@@ -67,7 +67,15 @@ export type LiteralPattern = (
   | { kind: 'litPattern'; valueType: 'Bool'; value: boolean; span: Span }
   | { kind: 'litPattern'; valueType: 'String'; value: string; span: Span }
 );
-export type Pattern = LiteralPattern | { kind: 'elsePattern'; span: Span };
+// 'Circle{ radius }' (or bare 'Red') — matches a union case by its tag and binds
+// a subset of its fields to locals (whitepaper §5). The field syntax is exactly
+// the destructuring FieldPattern (defined below), reused here. A bare tag (no
+// braces, `fields: []`) matches the variant while binding nothing — the only way
+// to match a case field-free, so it covers both a zero-field enum case ('Red')
+// and a fielded variant matched for its tag alone; empty braces 'Red{}' are the
+// banned redundant spelling (S0028), same one-spelling rule as construction.
+export type VariantPattern = { kind: 'variantPattern'; tag: string; tagSpan: Span; fields: FieldPattern[]; span: Span };
+export type Pattern = LiteralPattern | VariantPattern | { kind: 'elsePattern'; span: Span };
 
 // One arm of a 'match': the pattern to test and the expression to produce when
 // it matches. The body is any expression — a bare value or a '{ … }' block.

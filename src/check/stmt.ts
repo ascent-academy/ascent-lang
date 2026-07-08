@@ -1,4 +1,4 @@
-import type { Statement, Block, If, Match, LiteralPattern, BindTarget } from '../parser/ast.js';
+import type { Statement, Block, If, Match, LiteralPattern, BindTarget, FieldPattern } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
 import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern } from '../parser/typed-ast.js';
 import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType } from '../types/types.js';
@@ -128,18 +128,23 @@ const literalPatternKey = (p: LiteralPattern): string => {
 
 // A 'match' is an expression (whitepaper §5): it synthesizes the subject, then
 // each arm, and its type is the join of the reachable arms' bodies (every arm
-// must agree, since the whole 'match' becomes one value). Three checker rules
-// ride along: a pattern must be comparable to the subject (T0028, the '=='
-// rule), the arms must be exhaustive (T0029 — stage 1 needs an 'else', since no
-// finite list of scalar literals covers every value), and no arm may be
-// unreachable (T0031 — shadowed by an earlier 'else' or a duplicate literal).
+// must agree, since the whole 'match' becomes one value). The checker rules that
+// ride along: a pattern must be comparable to the subject (T0028 — a literal of
+// a compatible scalar type, or a variant of the subject's own union, both being
+// "a common type exists"); a variant pattern binds a subset of its variant's
+// fields into the arm's body (T0019/T0020 on an unknown or repeated field);
+// the arms must be exhaustive (list every variant of a union subject, or supply
+// an 'else' — a missing variant is T0034, a non-union subject with no 'else' is
+// T0029); and no arm may be unreachable (T0031 — after an 'else', or a repeat of
+// an earlier literal/variant).
 export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics): TypedMatch => {
   const typedSubject = synth(expr.subject, env, diagnostics);
   const subjectType = typedSubject.type;
 
   const typedArms: TypedMatchArm[] = [];
-  const seen = new Map<string, Span>(); // literal key → the first arm that used it
-  let elseSpan: Span | null = null;     // the 'else' arm's span, once one is seen
+  const seen = new Map<string, Span>();      // pattern key → the first arm that used it
+  let elseSpan: Span | null = null;          // the 'else' arm's span, once one is seen
+  const coveredTags = new Set<string>();     // union variant tags a reachable arm handles
 
   // The reachable arms' body types, joined into the match's own type below. An
   // unreachable arm still gets synth'd (so errors inside its body surface) but
@@ -148,43 +153,87 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
   const bodyTypes: { type: AscentType; span: Span }[] = [];
 
   for (const arm of expr.arms) {
-    const typedBody = synth(arm.body, env, diagnostics);
+    // Set up the arm's scope and its pattern's type before synthing the body,
+    // so a variant pattern's bound fields are in scope inside it. `patternType`
+    // is what the pattern compares as (null for 'else', which matches anything);
+    // `key` identifies the pattern for the repeat check (null for 'else').
+    let armEnv: TypeEnv = env;
+    let patternType: AscentType | null = null;
+    let key: string | null = null;
+    if (arm.pattern.kind === 'litPattern') {
+      patternType = literalPatternType(arm.pattern);
+      key = literalPatternKey(arm.pattern);
+    } else if (arm.pattern.kind === 'variantPattern') {
+      armEnv = env.child();
+      key = `variant:${arm.pattern.tag}`;
+      const ctor = env.getConstructor(arm.pattern.tag);
+      if (ctor === null) {
+        // The tag names no declared constructor — an unknown name, the same
+        // mistake as an unknown type in construction (N0005). Its fields still
+        // bind (as Invalid) so the body doesn't cascade into N0001.
+        diagnostics.error({ code: 'N0005', span: arm.pattern.tagSpan, data: { name: arm.pattern.tag } });
+        bindPatternFields(arm.pattern.fields, null, armEnv, 'fix', arm.pattern.tag, diagnostics);
+        patternType = INVALID_TYPE;
+      } else {
+        // The pattern's type is the whole union the tag belongs to — so matching
+        // 'Circle' against a 'Shape' agrees, but against a 'Color' is T0028.
+        bindPatternFields(arm.pattern.fields, ctor.variant, armEnv, 'fix', arm.pattern.tag, diagnostics);
+        patternType = namedType(ctor.info.name);
+      }
+    }
+
+    const typedBody = synth(arm.body, armEnv, diagnostics);
     typedArms.push({ pattern: arm.pattern, body: typedBody, span: arm.span });
 
     if (elseSpan !== null) {
       diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: elseSpan }] });
       continue;
     }
-
     if (arm.pattern.kind === 'elsePattern') {
       elseSpan = arm.span;
-    } else {
-      const key = literalPatternKey(arm.pattern);
-      const firstSpan = seen.get(key);
-      if (firstSpan !== undefined) {
-        diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
-        continue;
-      }
-      seen.set(key, arm.span);
-
-      // The pattern is compared against the subject, so it has to be a value
-      // that could be equal to it — exactly the rule '==' uses (a common type
-      // exists). An already-Invalid subject skips this without a second error.
-      const patternType = literalPatternType(arm.pattern);
-      if (!isInvalidType(subjectType) && leastCommonType(subjectType, patternType) === null) {
-        diagnostics.error({
-          code: 'T0028', span: arm.pattern.span,
-          data: { expected: typeToString(subjectType), actual: typeToString(patternType) },
-          related: [{ key: 'subject', span: expr.subject.span }],
-        });
-      }
+      bodyTypes.push({ type: typedBody.type, span: arm.span });
+      continue;
     }
+
+    const firstSpan = seen.get(key!);
+    if (firstSpan !== undefined) {
+      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
+      continue;
+    }
+    seen.set(key!, arm.span);
+
+    // The pattern is compared against the subject, so it has to be something the
+    // subject could be — the same "a common type exists" rule '==' uses. An
+    // already-Invalid subject or pattern is absorbed without a second error.
+    if (!isInvalidType(subjectType) && patternType !== null && leastCommonType(subjectType, patternType) === null) {
+      diagnostics.error({
+        code: 'T0028', span: arm.pattern.span,
+        data: { expected: typeToString(subjectType), actual: typeToString(patternType) },
+        related: [{ key: 'subject', span: expr.subject.span }],
+      });
+    }
+    if (arm.pattern.kind === 'variantPattern') coveredTags.add(arm.pattern.tag);
 
     bodyTypes.push({ type: typedBody.type, span: arm.span });
   }
 
+  // Exhaustiveness (whitepaper §5): a 'match' must handle every case. A union
+  // subject is covered by listing all its variants; a missing one is T0034. Any
+  // other subject (a scalar) has no finite list of values, so it needs an 'else'
+  // outright (T0029). An 'else' satisfies both, and an Invalid subject is quiet.
   if (elseSpan === null) {
-    diagnostics.error({ code: 'T0029', span: expr.span });
+    const info = subjectType.kind === 'Named' ? env.getType(subjectType.name) : null;
+    if (info !== null) {
+      const missing = info.variants.map(v => v.tag).filter(tag => !coveredTags.has(tag));
+      if (missing.length > 0) {
+        diagnostics.error({
+          code: 'T0034', span: expr.span,
+          data: { type: info.name, variants: info.variants.map(v => v.tag).join(', '), missing: missing.join(', ') },
+        });
+      }
+    } else if (!isInvalidType(subjectType)) {
+      diagnostics.error({ code: 'T0029', span: expr.span });
+    }
   }
 
   // Join the reachable arms pairwise, like a list literal's elements. On the
@@ -211,6 +260,42 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
   }
 
   return { kind: 'match', subject: typedSubject, arms: typedArms, type, span: expr.span };
+};
+
+// Bind a record/variant pattern's named fields into `env` as fixed locals,
+// resolving each against `variant`'s declared fields (whitepaper §5). Shared by
+// fix/mut destructuring and match variant patterns — the same field syntax in
+// both. A field the variant doesn't declare is T0019 (bound Invalid, so later
+// uses stay quiet instead of cascading); a field named twice is T0020 (the
+// repeat is dropped). `variant` is null when the tag couldn't be resolved —
+// then every field binds Invalid. `origin` is 'fix'/'mut' so a bound local
+// carries the right reassignment rule (match arms bind as 'fix').
+const bindPatternFields = (
+  fields: FieldPattern[], variant: Variant | null, env: TypeEnv,
+  origin: 'fix' | 'mut', typeName: string, diagnostics: Diagnostics,
+): TypedFieldPattern[] => {
+  const typed: TypedFieldPattern[] = [];
+  const seen = new Map<string, Span>();
+  for (const f of fields) {
+    if (seen.has(f.field)) {
+      diagnostics.error({ code: 'T0020', span: f.fieldSpan, data: { field: f.field, type: typeName } });
+      continue;
+    }
+    seen.set(f.field, f.fieldSpan);
+
+    let fieldType: AscentType = INVALID_TYPE;
+    if (variant !== null) {
+      const decl = variant.fields.find(d => d.name === f.field);
+      if (decl === undefined) {
+        diagnostics.error({ code: 'T0019', span: f.fieldSpan, data: { field: f.field, type: typeName } });
+      } else {
+        fieldType = decl.type;
+      }
+    }
+    env.set(f.bind, fieldType, origin, f.bindSpan);
+    typed.push({ field: f.field, bind: f.bind, type: fieldType });
+  }
+  return typed;
 };
 
 // A 'fix'/'mut' whose target is a record destructuring pattern (whitepaper §5).
@@ -270,30 +355,9 @@ const inferRecordBinding = (
     ? synth(stmt.init, env, diagnostics)
     : check(stmt.init, recordType, env, diagnostics, [{ key: 'annotation', span: target.typeNameSpan }]);
 
-  // Bind each named field to a local. A field the variant doesn't declare is
-  // T0019 (bound Invalid so later uses stay quiet); a field named twice is
-  // T0020 (the repeat is dropped).
-  const typedFields: TypedFieldPattern[] = [];
-  const seen = new Map<string, Span>();
-  for (const f of target.fields) {
-    if (seen.has(f.field)) {
-      diagnostics.error({ code: 'T0020', span: f.fieldSpan, data: { field: f.field, type: target.typeName } });
-      continue;
-    }
-    seen.set(f.field, f.fieldSpan);
-
-    let fieldType: AscentType = INVALID_TYPE;
-    if (variant !== null) {
-      const decl = variant.fields.find(d => d.name === f.field);
-      if (decl === undefined) {
-        diagnostics.error({ code: 'T0019', span: f.fieldSpan, data: { field: f.field, type: target.typeName } });
-      } else {
-        fieldType = decl.type;
-      }
-    }
-    env.set(f.bind, fieldType, stmt.kind, f.bindSpan);
-    typedFields.push({ field: f.field, bind: f.bind, type: fieldType });
-  }
+  // Bind each named field to a local (T0019/T0020 on an unknown or repeated
+  // field), of its declared type when the variant is known.
+  const typedFields = bindPatternFields(target.fields, variant, env, stmt.kind, target.typeName, diagnostics);
 
   return {
     kind: stmt.kind,

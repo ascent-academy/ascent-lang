@@ -175,12 +175,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // Try each arm in source order and take the first whose pattern matches
       // (whitepaper §5). The checker proved the match exhaustive, so some arm
       // always matches — reaching the end is an interpreter bug, not a program
-      // one. The taken arm's value is widened to the match's join type, exactly
-      // as an 'if' widens its taken branch.
+      // one. A variant arm runs in a child scope holding its bound fields; the
+      // taken arm's value is widened to the match's join type, exactly as an
+      // 'if' widens its taken branch.
       const subject = evaluateExpr(expr.subject, env);
       for (const arm of expr.arms) {
-        if (patternMatches(arm.pattern, subject)) {
-          return coerce(evaluateExpr(arm.body, env), arm.body.type, expr.type);
+        const armEnv = matchArm(arm.pattern, subject, env);
+        if (armEnv !== null) {
+          return coerce(evaluateExpr(arm.body, armEnv), arm.body.type, expr.type);
         }
       }
       throw new Error('internal: no match arm matched (checker should guarantee exhaustiveness)');
@@ -188,12 +190,26 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
   }
 };
 
-// Whether `subject` matches `pattern`: 'else' always matches; a literal matches
-// when it's '=='-equal to the subject (the same structural, numeric-tower-aware
-// equality the '==' operator uses — so an Int pattern can match a Float subject).
-const patternMatches = (pattern: Pattern, subject: RuntimeValue): boolean => {
-  if (pattern.kind === 'elsePattern') return true;
-  return valuesEqual(literalPatternValue(pattern), subject);
+// Try to match `subject` against `pattern`. On success, return the environment
+// the arm's body runs in: for a variant pattern, a child of `env` with its named
+// fields bound; for a literal/else arm, `env` itself (they bind nothing). On
+// failure, return null. 'else' always matches; a literal matches when it's
+// '=='-equal to the subject (the same structural, numeric-tower-aware equality
+// the '==' operator uses — so an Int pattern can match a Float subject); a
+// variant matches when the subject is the record carrying that tag.
+const matchArm = (pattern: Pattern, subject: RuntimeValue, env: Environment): Environment | null => {
+  if (pattern.kind === 'elsePattern') return env;
+  if (pattern.kind === 'litPattern') {
+    return valuesEqual(literalPatternValue(pattern), subject) ? env : null;
+  }
+  if (subject.type !== 'Record' || subject.name !== pattern.tag) return null;
+  const armEnv = env.child();
+  for (const f of pattern.fields) {
+    const value = subject.fields.get(f.field);
+    if (value === undefined) throw new Error(`internal: record has no field '${f.field}'`);
+    armEnv.declare(f.bind, value, false);
+  }
+  return armEnv;
 };
 
 // The runtime value a literal pattern compares against — the twin of a literal

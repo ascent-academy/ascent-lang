@@ -834,6 +834,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A union variant is destructured in a 'fix'/'mut' binding, where it might not match.",
     "message": "'{type}' has more than one variant, so this pattern might not match.",
     "explanation": "Destructuring in a 'fix' or 'mut' binding pulls fields out of a value whose shape is always the same — a record, a type with a single variant. '{type}' has more than one variant ({variants}), so a value of it could be any of them, and a pattern naming one case would not match the others. Use 'match' to handle each variant on its own."
+  },
+  {
+    "code": "T0034",
+    "name": "match-missing-variants",
+    "category": "type",
+    "summary": "A 'match' on a union doesn't handle every variant.",
+    "message": "This 'match' doesn't handle {missing}.",
+    "explanation": "A 'match' has to produce a value for every case it might be given. '{type}' has the variants {variants}, but this 'match' has no arm for {missing}. Add an arm for each one it's missing, or an 'else' arm to cover the rest."
   }
 ];
 

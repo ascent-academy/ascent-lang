@@ -363,3 +363,13 @@
     has more than one variant ({variants}), so a value of it could be any of
     them, and a pattern naming one case would not match the others. Use 'match'
     to handle each variant on its own.
+
+- code: T0034
+  name: match-missing-variants
+  category: type
+  summary: "A 'match' on a union doesn't handle every variant."
+  message: "This 'match' doesn't handle {missing}."
+  explanation: >-
+    A 'match' has to produce a value for every case it might be given. '{type}'
+    has the variants {variants}, but this 'match' has no arm for {missing}. Add
+    an arm for each one it's missing, or an 'else' arm to cover the rest.

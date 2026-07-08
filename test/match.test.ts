@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
+import { typeToString } from '../src/types/types.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue.
@@ -13,6 +14,17 @@ function evalOk(src: string): RuntimeValue {
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
+}
+
+// The inferred type of a program's last statement (which must be an expression).
+function typeOfLast(src: string): string {
+  const { program, diagnostics } = parse(src);
+  assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
+  assert.ok(program !== null, 'expected the program to typecheck');
+  const last = program.stmts[program.stmts.length - 1]!;
+  assert.equal(last.kind, 'expr');
+  if (last.kind !== 'expr') throw new Error('unreachable');
+  return typeToString(last.expr.type);
 }
 
 function errorCodes(src: string): string[] {
@@ -140,6 +152,116 @@ describe('match — scalar literal patterns', () => {
 
     it('S0026 — a -> must follow the pattern', () => {
       assert.ok(errorCodes('match 1 { 0 1; else -> 2 };').includes('S0026'));
+    });
+  });
+});
+
+const SHAPE = 'type Shape = Circle{ radius: Float } | Square{ side: Float };';
+const COLOR = 'type Color = Red | Green | Blue;';
+
+// Variant patterns (whitepaper §5) — 'match' on a tagged union: an arm names a
+// variant by its tag and binds a subset of its fields. Exhaustiveness is now
+// real (list every variant, or supply 'else'); the fields bind by name, reusing
+// the destructuring pattern syntax.
+describe('match — variant patterns', () => {
+  describe('evaluation', () => {
+    it('matches a variant by tag and binds its field (no else needed — all variants listed)', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side };`;
+      assert.deepEqual(evalOk(src), { type: 'Float', value: 2 });
+    });
+
+    it('takes the arm matching the actual tag', () => {
+      const src = `${SHAPE} fix s = Square{ side: 3.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side };`;
+      assert.deepEqual(evalOk(src), { type: 'Float', value: 3 });
+    });
+
+    it('matches bare enum tags', () => {
+      const src = `${COLOR} fix c = Green; match c { Red -> 1; Green -> 2; Blue -> 3 };`;
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 2n });
+    });
+
+    it('renames a bound field', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius: r } -> r * 2.0; Square{ side } -> side };`;
+      assert.deepEqual(evalOk(src), { type: 'Float', value: 4 });
+    });
+
+    it('a bare tag matches a fielded variant too, binding nothing', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle -> "circle"; Square -> "square" };`;
+      assert.deepEqual(evalOk(src), { type: 'String', value: 'circle' });
+    });
+
+    it("an 'else' covers the variants not listed", () => {
+      const src = `${COLOR} fix c = Blue; match c { Red -> "red"; else -> "other" };`;
+      assert.deepEqual(evalOk(src), { type: 'String', value: 'other' });
+    });
+
+    it('a single-variant record needs no else', () => {
+      const src = 'type Box = { value: Int }; fix b = Box{ value: 5 }; match b { Box{ value } -> value };';
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 5n });
+    });
+  });
+
+  describe('inference', () => {
+    it('joins the arms to a common type', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> side };`;
+      assert.equal(typeOfLast(src), 'Float');
+    });
+  });
+
+  describe('errors', () => {
+    it('T0034 — a variant is left unhandled with no else', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius };`;
+      assert.deepEqual(errorCodes(src), ['T0034']);
+    });
+
+    it("T0028 — a variant of a different union can't match this subject", () => {
+      const src = `${SHAPE} ${COLOR} fix s = Circle{ radius: 2.0 }; match s { Red -> 1; else -> 0 };`;
+      assert.deepEqual(errorCodes(src), ['T0028']);
+    });
+
+    it("T0028 — a literal can't match a union subject", () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { 0 -> 1; else -> 2 };`;
+      assert.deepEqual(errorCodes(src), ['T0028']);
+    });
+
+    it('N0005 — an unknown variant tag', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Blob{ x } -> 1; else -> 2 };`;
+      assert.deepEqual(errorCodes(src), ['N0005']);
+    });
+
+    it("T0019 — a field the variant doesn't declare", () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ height } -> 1.0; Square{ side } -> side };`;
+      assert.deepEqual(errorCodes(src), ['T0019']);
+    });
+
+    it('T0020 — the same field bound twice', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius, radius } -> radius; Square{ side } -> side };`;
+      assert.deepEqual(errorCodes(src), ['T0020']);
+    });
+
+    it('T0031 — a duplicate variant arm is unreachable', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Circle{ radius } -> radius; Square{ side } -> side };`;
+      assert.deepEqual(errorCodes(src), ['T0031']);
+    });
+
+    it('T0031 — an arm after else is unreachable', () => {
+      const src = `${COLOR} fix c = Red; match c { else -> 0; Red -> 1 };`;
+      assert.deepEqual(errorCodes(src), ['T0031']);
+    });
+
+    it('T0030 — the arms produce unrelated types', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; Square{ side } -> "x" };`;
+      assert.deepEqual(errorCodes(src), ['T0030']);
+    });
+
+    it('S0028 — empty pattern braces are banned (use the bare tag)', () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{} -> 1; else -> 2 };`;
+      assert.deepEqual(errorCodes(src), ['S0028']);
+    });
+
+    it("an 'else' with only some variants listed is allowed (masks future variants)", () => {
+      const src = `${SHAPE} fix s = Circle{ radius: 2.0 }; match s { Circle{ radius } -> radius; else -> 0.0 };`;
+      assert.deepEqual(errorCodes(src), []);
     });
   });
 });
