@@ -31,23 +31,33 @@ export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv)
   const diagnostics = new Diagnostics();
   const env = parentEnv !== undefined ? parentEnv.child() : new TypeEnv();
 
-  for (const arg of program.args) {
-    env.set(arg.name, typeFromName(arg.type), 'arg');
-  }
+  // The inputs bind right before the body begins (whitepaper §11, revised rule),
+  // so they're in scope only from `bodyStart` on — the leading setup statements
+  // above cannot see them (sequential scoping: 'program' comes after them). An
+  // empty body never reaches `bodyStart` in the loop, so bind the inputs upfront
+  // in that degenerate case (they're unused, but keeps the tree consistent).
+  const bindArgs = (): void => {
+    for (const arg of program.args) env.set(arg.name, typeFromName(arg.type), 'arg');
+  };
+  if (program.bodyStart >= program.stmts.length) bindArgs();
 
-  // The program body is a block like any other (whitepaper §2): its last
-  // statement is the program's value, but every non-final statement sits in a
-  // Done-required position, so a real value left there is dropped (T0025).
+  // The body's last statement is the program's value (whitepaper §2); every
+  // other statement — all the leading setup, and every non-final body statement
+  // — sits in a Done-required position, so a real value left there is dropped
+  // (T0025).
+  const lastIndex = program.stmts.length - 1;
   const typedStmts: TypedStatement[] = program.stmts.map((stmt, i) => {
+    if (i === program.bodyStart) bindArgs();
     const typedStmt = inferStmt(stmt, env, diagnostics);
-    if (i !== program.stmts.length - 1) {
+    const isValuePosition = i >= program.bodyStart && i === lastIndex;
+    if (!isValuePosition) {
       reportDroppedValue(typedStmt, 'T0025', diagnostics);
     }
     return typedStmt;
   });
 
   if (diagnostics.hasErrors) {
-    return { program: { args: program.args, stmts: typedStmts }, diagnostics: diagnostics.elaborate(source) };
+    return { program: { args: program.args, stmts: typedStmts, bodyStart: program.bodyStart }, diagnostics: diagnostics.elaborate(source) };
   }
 
   if (parentEnv !== undefined) {
@@ -61,5 +71,5 @@ export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv)
     }
   }
 
-  return { program: { args: program.args, stmts: typedStmts }, diagnostics: [] };
+  return { program: { args: program.args, stmts: typedStmts, bodyStart: program.bodyStart }, diagnostics: [] };
 };

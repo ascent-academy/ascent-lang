@@ -158,4 +158,8 @@ export type TypedStatement = (
 export type TypedProgram = {
   args: ProgramArg[];
   stmts: TypedStatement[];
+  // The index into `stmts` where the program body begins (see Program in
+  // ast.ts). The interpreter binds the inputs right before this point, so they
+  // are in scope only for the body, not the leading setup statements above it.
+  bodyStart: number;
 };

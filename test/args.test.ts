@@ -131,6 +131,26 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.deepEqual(errorCodes('fix x = 5; x + 1; program (n: Int) { n }'), ['T0025']);
     });
 
+    it('the inputs are NOT visible to statements before program (N0001)', () => {
+      // The inputs bind only for the body; a leading statement referencing one
+      // sees no such name (sequential scoping — 'program' comes after it).
+      assert.deepEqual(errorCodes('fix d = n * 2; program (n: Int) { d }'), ['N0001']);
+    });
+
+    it('runs leading statements even when the program body is empty, yielding Done', () => {
+      const output: string[] = [];
+      const { program, diagnostics } = parse('print("setup"); program (n: Int) { }');
+      assert.deepEqual(diagnostics, []);
+      assert.ok(program !== null);
+      const inputs = new ProgramInputs(program.args);
+      inputs.set('n', { type: 'Int', value: 1n });
+      const result = executeProgram(program, { stdout: t => output.push(t) }, inputs);
+      assert.equal(result.kind, 'ok');
+      if (result.kind !== 'ok') throw new Error('unreachable');
+      assert.deepEqual(output, ['setup']);
+      assert.deepEqual(result.value, { type: 'Done' });
+    });
+
     it('still requires a semicolon before program, like any statement (S0011)', () => {
       assert.deepEqual(errorCodes('fix a = 1 program (n: Int) { n }'), ['S0011']);
     });

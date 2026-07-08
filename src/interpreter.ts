@@ -438,16 +438,24 @@ export const executeProgram = (
   inputs: ProgramInputs = new ProgramInputs(program.args),
 ): RuntimeResult => {
   const env = new Environment(null, output);
-  for (const arg of program.args) {
-    const value = inputs.get(arg.name);
-    if (value === undefined) throw new Error(`missing input '${arg.name}'`);
-    env.declare(arg.name, value, false);
-  }
+  // Declare each input as a fixed slot from `inputs`. This happens right before
+  // the body begins (bodyStart), so the inputs are in scope only for the body,
+  // not the leading setup statements above it (whitepaper §11, revised rule).
+  const bindArgs = (): void => {
+    for (const arg of program.args) {
+      const value = inputs.get(arg.name);
+      if (value === undefined) throw new Error(`missing input '${arg.name}'`);
+      env.declare(arg.name, value, false);
+    }
+  };
+  // An empty body never reaches bodyStart in the loop below, so bind upfront.
+  if (program.bodyStart >= program.stmts.length) bindArgs();
 
   try {
     let result: RuntimeValue = DONE;
-    for (const stmt of program.stmts) {
-      result = executeStmt(stmt, env);
+    for (let i = 0; i < program.stmts.length; i++) {
+      if (i === program.bodyStart) bindArgs();
+      result = executeStmt(program.stmts[i]!, env);
     }
     // Ascent renders the final value to its display string (whitepaper §2's
     // block-value output) and streams it to the sink; the sink only ever sees

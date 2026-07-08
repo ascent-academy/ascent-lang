@@ -48,7 +48,9 @@ const parseProgramForm = (ts: TokenStream, leading: Statement[]): Program | null
     return null;
   }
 
-  return { args: parsed.items, stmts: [...leading, ...body.stmts] };
+  // The leading statements run first (Done-required setup); the body begins
+  // right after them, which is where the inputs come into scope.
+  return { args: parsed.items, stmts: [...leading, ...body.stmts], bodyStart: leading.length };
 };
 
 // A whole program is one of two shapes (whitepaper §11): a bare sequence of
@@ -67,7 +69,8 @@ const parseProgram = (ts: TokenStream): Program | null => {
     return parseProgramForm(ts, parsed.items);
   }
 
-  return { args: [], stmts: parsed.items };
+  // Bare form: no 'program', no inputs — every statement is body (bodyStart 0).
+  return { args: [], stmts: parsed.items, bodyStart: 0 };
 };
 
 export const parseTokens = (tokens: Token[]): ParseResult => {

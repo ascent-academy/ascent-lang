@@ -227,17 +227,24 @@ separating `;`).
   (`stmts = [...leading, ...body]`, `args = params`) and keeps the **S0030**
   end-of-file check. Every other `parseSeparated` caller omits `stopAt`, so their
   behaviour (and the bare-form recovery) is byte-for-byte unchanged.
-- **No AST / checker / interpreter change.** The flattened `stmts` means the
-  existing pipeline handles it: args bind first, statements run in order, the
-  dropped-value rule (T0025) applies to every non-final statement (so a bare
-  value before `program` still needs `void`), and `S0029` (empty `program ()`)
-  is untouched.
-- **Consequences noted:** (1) because the file flattens and args bind first,
-  program inputs are visible to the statements *before* `program` too (verified —
-  `fix d = n * 2; program (n: Int) { d }` works); if inputs should instead be
-  scoped only to the body, that needs the leading/body boundary kept (a follow-up).
-  (2) The no-paren `program { }` form and scalar-only params are **unchanged** —
-  not part of this rule change (`program { … }` is still S0006). The
+- **Minimal pipeline change.** `Program`/`TypedProgram` carry a `bodyStart`
+  index (the number of leading statements); the flattened `stmts` is otherwise
+  unchanged, so `program.stmts` readers (the REPL, tooling) and the bare-form
+  recovery are untouched. The checker and interpreter bind the inputs **at
+  `bodyStart`** (right before the body), not upfront — so inputs are in scope
+  only for the body (see below). The dropped-value rule (T0025) treats every
+  leading statement *and* every non-final body statement as Done-required (a bare
+  value before `program` still needs `void`); `S0029` (empty `program ()`) is
+  untouched.
+- **Inputs are body-scoped (fixed after the initial flatten approach).** A
+  statement before `program` cannot see the inputs — `fix d = n * 2;
+  program (n: Int) { d }` is **N0001**, since sequential scoping means `program`
+  and its inputs come *after* the leading statements. The body sees both the
+  leading declarations (same scope, bound earlier) and the inputs. An empty
+  program body correctly yields `Done` (the leading statements are all
+  Done-required and run for effect only).
+- **Unchanged / for the author:** the no-paren `program { }` form and scalar-only
+  params are not part of this rule change (`program { … }` is still S0006). The
   whitepaper §11 prose still describes the old "execution only inside program"
   rule and should be updated by the author to match.
 

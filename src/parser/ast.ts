@@ -203,4 +203,12 @@ export type Statement = (
 export type ArgType = 'Int' | 'Float' | 'Bool' | 'String';
 export type ProgramArg = { name: string; type: ArgType };
 
-export type Program = { args: ProgramArg[]; stmts: Statement[] };
+// `stmts` is the whole top-level statement sequence; `bodyStart` is the index
+// where the `program (…) { … }` body begins — i.e. the number of *leading*
+// statements written before 'program' (whitepaper §11, revised rule: anything
+// may precede 'program', nothing follows it). Statements before `bodyStart` are
+// Done-required setup that run first and cannot see the inputs; the inputs
+// (`args`) bind only from `bodyStart` on (the body), and the program's value is
+// the body's last statement. `bodyStart` is 0 for a bare program (no leading, no
+// inputs — every statement is body).
+export type Program = { args: ProgramArg[]; stmts: Statement[]; bodyStart: number };
