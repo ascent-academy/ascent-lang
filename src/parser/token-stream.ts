@@ -70,8 +70,9 @@ export class TokenStream {
   // parseSeparated's `recover` path calls this; it never reports a
   // diagnostic itself, since the caller already recorded one for
   // whatever failed before giving up and calling this.
-  private synchronize(sep: TokenKind, close: TokenKind): void {
+  private synchronize(sep: TokenKind, close: TokenKind, stopAt?: TokenKind): void {
     while (this.peek().kind !== sep && this.peek().kind !== close && this.peek().kind !== 'EOF') {
+      if (stopAt !== undefined && this.peek().kind === stopAt) return;
       if (TokenStream.STMT_START_KINDS.has(this.peek().kind)) return;
       this.advance();
     }
@@ -93,6 +94,13 @@ export class TokenStream {
   // `openSpan`, when given, is the span of the opening delimiter (the '(', '{'
   // or '['); it rides along on the close-token error so an unclosed group can
   // point back at where it opened.
+  //
+  // `stopAt` is an optional *soft* terminator: a token kind that ends the list
+  // without being consumed and without demanding `close`. Only parseProgram uses
+  // it (with KW_PROGRAM), so a top-level statement sequence can stop when it
+  // reaches the 'program' form that follows it; when the list stops there the
+  // returned `close` is the un-consumed stopAt token, which the caller dispatches
+  // on. Every other caller omits it, so their behaviour is exactly as before.
   public parseSeparated<T>(
     parseItem: () => T | null,
     sep: TokenKind,
@@ -100,18 +108,27 @@ export class TokenStream {
     closeCode: string,
     recover = false,
     openSpan: Span | null = null,
+    stopAt?: TokenKind,
   ): { items: T[]; close: Token } | null {
     const items: T[] = [];
-    if (this.peek().kind !== close) {
+    const atStop = (): boolean => stopAt !== undefined && this.peek().kind === stopAt;
+    // The soft terminator ends the list only where a *new item* could start —
+    // at the very beginning (empty list) or right after a separator — never in
+    // place of a missing separator, so 'a program …' still demands the ';' every
+    // other statement needs. `stopped` records that we ended there legitimately.
+    let stopped = atStop();
+    if (this.peek().kind !== close && !stopped) {
       for (; ;) {
         const item = parseItem();
         if (item === null) {
           if (!recover) return null;
-          this.synchronize(sep, close);
+          this.synchronize(sep, close, stopAt);
           if (this.peek().kind === close || this.peek().kind === 'EOF') break;
+          if (atStop()) { stopped = true; break; }
           if (this.peek().kind === sep) {
             this.advance(); // consume the separator synchronize stopped on
             if (this.peek().kind === close) break; // trailing separator after a recovered statement
+            if (atStop()) { stopped = true; break; }
           }
           continue;
         }
@@ -123,8 +140,11 @@ export class TokenStream {
         // the close-token error below instead of trying to parse another item
         // (which would spuriously demand an expression at end of file).
         if (this.peek().kind === close || this.peek().kind === 'EOF') break;
+        if (atStop()) { stopped = true; break; }
       }
     }
+    // Stopped at the soft terminator: hand it back un-consumed for the caller.
+    if (stopped) return { items, close: this.peek() };
     const related: RelatedMarker[] = openSpan !== null ? [{ key: 'opener', span: openSpan }] : [];
     const closeTok = this.expect(close, closeCode, related);
     if (closeTok === null) return null;

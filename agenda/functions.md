@@ -204,29 +204,48 @@ Early return; return-type mismatch; `return` outside a function (T0037); bare
 
 ---
 
-## Stage 3 — Unify `program` with functions
+## Stage 3 — statements before `program`
 
-**Goal.** The appendix shape: `type`s and `fix helper = fn(...)` bindings above an
-explicit `program { … }` (§11).
+> **Status: DONE**, with a **revised rule** (author's call, superseding the old
+> whitepaper-§11 plan below): **anything may go *before* `program`, nothing
+> after.** Not "declarations only" and no "second competing program" error — a
+> plain executable statement before `program` is fine and simply runs first.
 
-- Parser ([src/parser/index.ts](../src/parser/index.ts)): allow a leading run of
-  **declarations** (`type`, and `fix`/`mut` whose initializer is an `fn` literal)
-  before `program`. With an explicit `program`, a bare **executable** statement at
-  the top level (a call, a computed binding) → new **S0032** ("execution lives
-  only inside `program`"; a loose statement beside an explicit `program` would be
-  a second, competing program). Adopt the no-paren `program { body }` form for the
-  no-input entry point, and repurpose **S0029**'s prose so `program ()` says "drop
-  the `()`" instead of "add an input". **S0030** (content after the block) stays.
-- Program parameters stay **scalar-only** (§11 — they are a UI/boundary concern,
-  distinct from `fn` params, which take any type). No AST unification of
-  `ProgramArg` with `FnParam` is needed — only the surrounding top-level rules
-  relax. Module imports remain deferred (no module system yet).
-- Checker / interpreter: process the leading declarations into scope before the
-  `program` body runs.
+**The rule as built.** The top level is one statement sequence, optionally ending
+in a `program (…) { … }` form. Everything before `program` runs first; the
+program body holds the output (its last value). `program` is always the last
+thing — **S0030** still fires for anything after its block (even with a
+separating `;`).
 
-### Tests
-Helper fn above `program`; `type` above `program`; loose statement beside
-`program` → S0032; `program ()` → S0029 fix-it; `program { }` valid.
+- Parser only ([src/parser/index.ts](../src/parser/index.ts),
+  [token-stream.ts](../src/parser/token-stream.ts)): `parseSeparated` gained a
+  guarded optional **soft-stop** (`stopAt`) that ends a statement list — without
+  consuming it — when it reaches a `KW_PROGRAM` that legitimately starts a new
+  item (list start, or right after a separator). `parseProgram` parses the
+  top-level statements with `stopAt: KW_PROGRAM`; if it stopped there,
+  `parseProgramForm` folds the seen statements in ahead of the body
+  (`stmts = [...leading, ...body]`, `args = params`) and keeps the **S0030**
+  end-of-file check. Every other `parseSeparated` caller omits `stopAt`, so their
+  behaviour (and the bare-form recovery) is byte-for-byte unchanged.
+- **No AST / checker / interpreter change.** The flattened `stmts` means the
+  existing pipeline handles it: args bind first, statements run in order, the
+  dropped-value rule (T0025) applies to every non-final statement (so a bare
+  value before `program` still needs `void`), and `S0029` (empty `program ()`)
+  is untouched.
+- **Consequences noted:** (1) because the file flattens and args bind first,
+  program inputs are visible to the statements *before* `program` too (verified —
+  `fix d = n * 2; program (n: Int) { d }` works); if inputs should instead be
+  scoped only to the body, that needs the leading/body boundary kept (a follow-up).
+  (2) The no-paren `program { }` form and scalar-only params are **unchanged** —
+  not part of this rule change (`program { … }` is still S0006). The
+  whitepaper §11 prose still describes the old "execution only inside program"
+  rule and should be updated by the author to match.
+
+### Tests (in [test/args.test.ts](../test/args.test.ts))
+`type`/`fix` decls before `program` visible in the body; a helper `fn` before
+`program`; an effectful statement before `program` runs first; a bare value
+before `program` is still T0025; missing `;` before `program` is S0011; anything
+after `program` (even `; …`) is S0030.
 
 ---
 

@@ -98,4 +98,45 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.deepEqual(errorCodes('program (age: Int) { age } 1'), ['S0030']);
     });
   });
+
+  // The rule: anything may go *before* 'program', nothing after. Statements
+  // before it run first; the program body holds the output.
+  describe('statements before the program block', () => {
+    it('runs type and value declarations before program, visible in the body', () => {
+      assert.deepEqual(
+        evalWithArgs('type Point = { x: Int, y: Int }; fix origin = Point{ x: 1, y: 2 }; program (n: Int) { origin.x + n }', { n: { type: 'Int', value: 10n } }),
+        { type: 'Int', value: 11n },
+      );
+    });
+
+    it('defines a helper function before program and calls it in the body', () => {
+      assert.deepEqual(
+        evalWithArgs('fix dbl = fn(x: Int) -> Int { x * 2 }; program (n: Int) { dbl(n) }', { n: { type: 'Int', value: 7n } }),
+        { type: 'Int', value: 14n },
+      );
+    });
+
+    it('runs an effectful statement before program, then the body', () => {
+      const output: string[] = [];
+      const { program, diagnostics } = parse('print("setup"); program (n: Int) { n }');
+      assert.deepEqual(diagnostics, []);
+      assert.ok(program !== null);
+      const inputs = new ProgramInputs(program.args);
+      inputs.set('n', { type: 'Int', value: 3n });
+      executeProgram(program, { stdout: t => output.push(t) }, inputs);
+      assert.deepEqual(output, ['setup', '3']);
+    });
+
+    it('a bare non-Done value before program is still a dropped value (T0025)', () => {
+      assert.deepEqual(errorCodes('fix x = 5; x + 1; program (n: Int) { n }'), ['T0025']);
+    });
+
+    it('still requires a semicolon before program, like any statement (S0011)', () => {
+      assert.deepEqual(errorCodes('fix a = 1 program (n: Int) { n }'), ['S0011']);
+    });
+
+    it('rejects anything after program even with a separating semicolon (S0030)', () => {
+      assert.deepEqual(errorCodes('program (n: Int) { n }; fix x = 5'), ['S0030']);
+    });
+  });
 });
