@@ -9,6 +9,8 @@ import { typeToString, functionType } from '../types/types.js';
 export const patternLabel = (pattern: Pattern): string => {
   switch (pattern.kind) {
     case 'elsePattern': return 'else';
+    case 'nonePattern': return 'None';
+    case 'bindingPattern': return pattern.name;
     case 'litPattern':
       switch (pattern.valueType) {
         case 'Int': return String(pattern.value);

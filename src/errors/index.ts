@@ -503,7 +503,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A pattern was expected at the start of a 'match' arm.",
     "message": "I expected a pattern here.",
-    "explanation": "Each arm of a 'match' starts with a pattern — a plain value to compare against, like '0', '\"hi\"', or 'True', or the word 'else' for the catch-all arm. This is where that pattern should be."
+    "explanation": "Each arm of a 'match' starts with a pattern — a plain value to compare against, like '0', '\"hi\"', or 'True'; a variant like 'Circle{ radius }'; 'None' or a name like 'value' for the two cases of an optional; or the word 'else' for the catch-all arm. This is where that pattern should be."
   },
   {
     "code": "S0026",
@@ -928,6 +928,28 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "The left side of '??' isn't an optional value.",
     "message": "'??' needs an optional value on its left, but this is {actual}.",
     "explanation": "'??' supplies a value to use when an optional is None — so its left side has to be an optional (a type written with a '?', like 'String?'). This one is {actual}, which is never None, so there is nothing for '??' to fall back from. Drop the '?? …', or make the left side an optional."
+  },
+  {
+    "code": "T0041",
+    "name": "name-pattern-not-optional",
+    "category": "type",
+    "summary": "A name pattern was used to match a value that isn't an optional.",
+    "message": "A name pattern only matches an optional value, but this is {actual}.",
+    "explanation": "A name in a 'match' arm (like 'value ->') pulls the present value out of an optional — so the value being matched has to be an optional (a type written with a '?', like 'String?'). This one is {actual}. To handle any other value in one arm, use 'else' instead.",
+    "related": [
+      {
+        "key": "subject",
+        "label": "this value is {actual}"
+      }
+    ]
+  },
+  {
+    "code": "T0042",
+    "name": "optional-match-not-exhaustive",
+    "category": "type",
+    "summary": "A 'match' on an optional doesn't handle both of its cases.",
+    "message": "This 'match' on {type} doesn't handle {missing}.",
+    "explanation": "An optional is one of two cases — 'None', or a present value — and a 'match' has to produce a value for both. This one has no arm for {missing}. Add a 'None' arm for the absent case and a name arm like 'value ->' to catch the present value, or an 'else' arm to cover whatever is left."
   },
   {
     "code": "T0040",

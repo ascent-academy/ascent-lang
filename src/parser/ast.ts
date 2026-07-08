@@ -80,7 +80,17 @@ export type LiteralPattern = (
 // and a fielded variant matched for its tag alone; empty braces 'Red{}' are the
 // banned redundant spelling (S0028), same one-spelling rule as construction.
 export type VariantPattern = { kind: 'variantPattern'; tag: string; tagSpan: Span; fields: FieldPattern[]; span: Span };
-export type Pattern = LiteralPattern | VariantPattern | { kind: 'elsePattern'; span: Span };
+// A lowercase name in pattern position — the way to match an Optional's *present*
+// case and pull the value out (whitepaper §4/§7: Optional is 'None | value', with
+// no 'Some(...)' wrapper, so the present value is bare and a binding names it).
+// It matches any non-None value and binds it to `name` at the narrowed element
+// type T (from a T? subject). The name is free — 'value', 'x', anything lowercase.
+export type BindingPattern = { kind: 'bindingPattern'; name: string; nameSpan: Span; span: Span };
+// 'None' in pattern position — matches an Optional's absent case. Its own kind
+// (not a litPattern) because None isn't a scalar constant and not a variantPattern
+// because None is a built-in constructor, not a user-declared union tag.
+export type NonePattern = { kind: 'nonePattern'; span: Span };
+export type Pattern = LiteralPattern | VariantPattern | BindingPattern | NonePattern | { kind: 'elsePattern'; span: Span };
 
 // One arm of a 'match': the pattern to test and the expression to produce when
 // it matches. The body is any expression — a bare value or a '{ … }' block.

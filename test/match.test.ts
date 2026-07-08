@@ -265,3 +265,86 @@ describe('match — variant patterns', () => {
     });
   });
 });
+
+// Matching an Optional (whitepaper §4/§7): 'None' matches the absent case, and a
+// lowercase name binds the present value at its narrowed element type T. Together
+// they are the two exhaustive cases of a 'T?' — no 'Some(...)' wrapper.
+describe('match — Optional (None + binding patterns)', () => {
+  describe('evaluation', () => {
+    it('binds and returns the present value', () => {
+      assert.deepEqual(evalOk('fix x: String? = "hi"; match x { value -> value; None -> "none" };'),
+        { type: 'String', value: 'hi' });
+    });
+
+    it('takes the None arm when absent', () => {
+      assert.deepEqual(evalOk('fix x: String? = None; match x { value -> value; None -> "none" };'),
+        { type: 'String', value: 'none' });
+    });
+
+    it('the binding name is free (anything lowercase)', () => {
+      assert.deepEqual(evalOk('fix x: Int? = 7; match x { whatever -> whatever; None -> 0 };'),
+        { type: 'Int', value: 7n });
+    });
+
+    it('None may come before the binding arm', () => {
+      assert.deepEqual(evalOk('mut x: Int? = None; match x { None -> -1; n -> n };'),
+        { type: 'Int', value: -1n });
+    });
+
+    it('a present-value literal arm can refine the present case', () => {
+      const src = 'fix x: Int? = 0; match x { 0 -> "zero"; n -> "other"; None -> "none" };';
+      assert.deepEqual(evalOk(src), { type: 'String', value: 'zero' });
+    });
+  });
+
+  describe('narrowing & typing', () => {
+    it('narrows T? to T in the binding arm (usable as a plain T)', () => {
+      // n is Int here, so n + 1 typechecks and the match is Int
+      assert.equal(typeOfLast('fix x: Int? = 5; match x { n -> n + 1; None -> 0 };'), 'Int');
+    });
+
+    it('joins the arms to their common type', () => {
+      assert.equal(typeOfLast('fix x: Int? = 5; match x { n -> n; None -> 0.5 };'), 'Float');
+    });
+  });
+
+  describe('exhaustiveness & reachability', () => {
+    it('a binding + None is exhaustive (no error)', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; None -> 0 };'), []);
+    });
+
+    it('a binding + else is exhaustive (no error)', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; else -> 0 };'), []);
+    });
+
+    it('T0042 when the None case is missing', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n };'), ['T0042']);
+    });
+
+    it('T0042 when the present case (a binding/else) is missing', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { None -> 0 };'), ['T0042']);
+    });
+
+    it('T0031 for a present-value arm after the binding catch-all', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; 0 -> 0; None -> 1 };'), ['T0031']);
+    });
+
+    it('T0031 for a repeated None arm', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { n -> n; None -> 0; None -> 1 };'), ['T0031']);
+    });
+
+    it('T0031 for a repeated binding arm', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; match x { a -> a; b -> b; None -> 0 };'), ['T0031']);
+    });
+  });
+
+  describe('type errors', () => {
+    it('T0041 — a name pattern on a non-Optional subject', () => {
+      assert.deepEqual(errorCodes('fix x: Int = 5; match x { n -> n; else -> 0 };'), ['T0041']);
+    });
+
+    it('T0028 — a None pattern on a non-Optional subject', () => {
+      assert.deepEqual(errorCodes('fix x: Int = 5; match x { None -> 0; else -> 1 };'), ['T0028']);
+    });
+  });
+});

@@ -1,7 +1,7 @@
 import type { Statement, Block, If, Match, LiteralPattern, BindTarget, FieldPattern } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
 import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern, TypedBindTarget } from '../parser/typed-ast.js';
-import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType, functionType } from '../types/types.js';
+import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType, functionType } from '../types/types.js';
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
@@ -150,97 +150,155 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
   const subjectType = typedSubject.type;
 
   const typedArms: TypedMatchArm[] = [];
-  const seen = new Map<string, Span>();      // pattern key → the first arm that used it
+  const seen = new Map<string, Span>();      // literal/variant pattern key → its first arm
   let elseSpan: Span | null = null;          // the 'else' arm's span, once one is seen
+  let noneSpan: Span | null = null;          // a 'None' arm's span (Optional's absent case)
+  let presentSpan: Span | null = null;       // a binding arm's span (Optional's present catch-all)
   const coveredTags = new Set<string>();     // union variant tags a reachable arm handles
+
+  // A pattern that matches a *present* value (never None): a literal, a variant,
+  // or a binding. Used for reachability — such a pattern after a binding (which
+  // already catches every present value) is unreachable.
+  const matchesPresent = (k: string): boolean =>
+    k === 'litPattern' || k === 'variantPattern' || k === 'bindingPattern';
 
   // The reachable arms' body types, joined into the match's own type below. An
   // unreachable arm still gets synth'd (so errors inside its body surface) but
-  // is left out of the join and skips the pattern-compat check — it already
-  // carries its own T0031, and folding a shadowed arm in would only add noise.
+  // is left out of the join — it already carries its own T0031, and folding a
+  // shadowed arm in would only add noise.
   const bodyTypes: { type: AscentType; span: Span }[] = [];
 
   for (const arm of expr.arms) {
-    // Set up the arm's scope and its pattern's type before synthing the body,
-    // so a variant pattern's bound fields are in scope inside it. `patternType`
-    // is what the pattern compares as (null for 'else', which matches anything);
-    // `key` identifies the pattern for the repeat check (null for 'else').
+    // Set up the arm's scope and its pattern's type before synthing the body, so
+    // a variant/binding pattern's bound name(s) are in scope inside it.
+    // `patternType` is what the pattern compares as (null for 'else'/a binding,
+    // which match without a value comparison).
+    const pat = arm.pattern;
     let armEnv: TypeEnv = env;
     let patternType: AscentType | null = null;
     let key: string | null = null;
-    if (arm.pattern.kind === 'litPattern') {
-      patternType = literalPatternType(arm.pattern);
-      key = literalPatternKey(arm.pattern);
-    } else if (arm.pattern.kind === 'variantPattern') {
+    if (pat.kind === 'litPattern') {
+      patternType = literalPatternType(pat);
+      key = literalPatternKey(pat);
+    } else if (pat.kind === 'variantPattern') {
       armEnv = env.child();
-      key = `variant:${arm.pattern.tag}`;
-      const ctor = env.getConstructor(arm.pattern.tag);
+      key = `variant:${pat.tag}`;
+      const ctor = env.getConstructor(pat.tag);
       if (ctor === null) {
         // The tag names no declared constructor — an unknown name, the same
         // mistake as an unknown type in construction (N0005). Its fields still
         // bind (as Invalid) so the body doesn't cascade into N0001.
-        diagnostics.error({ code: 'N0005', span: arm.pattern.tagSpan, data: { name: arm.pattern.tag } });
-        bindPatternFields(arm.pattern.fields, null, armEnv, 'fix', arm.pattern.tag, diagnostics);
+        diagnostics.error({ code: 'N0005', span: pat.tagSpan, data: { name: pat.tag } });
+        bindPatternFields(pat.fields, null, armEnv, 'fix', pat.tag, diagnostics);
         patternType = INVALID_TYPE;
       } else {
         // The pattern's type is the whole union the tag belongs to — so matching
         // 'Circle' against a 'Shape' agrees, but against a 'Color' is T0028.
-        bindPatternFields(arm.pattern.fields, ctor.variant, armEnv, 'fix', arm.pattern.tag, diagnostics);
+        bindPatternFields(pat.fields, ctor.variant, armEnv, 'fix', pat.tag, diagnostics);
         patternType = namedType(ctor.info.name);
       }
+    } else if (pat.kind === 'nonePattern') {
+      // 'None' compares as the None type, so the ordinary T0028 check accepts it
+      // on a T? subject (None widens into T?) and rejects it on any other.
+      patternType = NONE_TYPE;
+    } else if (pat.kind === 'bindingPattern') {
+      armEnv = env.child();
+      // The present value of an Optional, narrowed to its element type T
+      // (whitepaper §7). On a non-Optional subject a name pattern is meaningless
+      // (T0041) — 'else' is the way to catch any value. Bind the name either way
+      // (as T, or Invalid) so the arm body doesn't cascade into N0001.
+      let boundType: AscentType = INVALID_TYPE;
+      if (subjectType.kind === 'Optional') {
+        boundType = subjectType.elem;
+      } else if (!isInvalidType(subjectType)) {
+        diagnostics.error({
+          code: 'T0041', span: pat.span,
+          data: { actual: typeToString(subjectType) },
+          related: [{ key: 'subject', span: expr.subject.span }],
+        });
+      }
+      armEnv.set(pat.name, boundType, 'fix', pat.nameSpan);
     }
 
     const typedBody = synth(arm.body, armEnv, diagnostics);
-    typedArms.push({ pattern: arm.pattern, body: typedBody, span: arm.span });
+    typedArms.push({ pattern: pat, body: typedBody, span: arm.span });
 
+    // Reachability: is this arm already covered by an earlier catch-all? A prior
+    // 'else' covers everything; None + a binding together cover an Optional
+    // entirely; a binding alone catches every present value.
+    let shadowSpan: Span | null = null;
     if (elseSpan !== null) {
-      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: elseSpan }] });
-      continue;
+      shadowSpan = elseSpan;
+    } else if (noneSpan !== null && presentSpan !== null) {
+      shadowSpan = presentSpan;                                 // Optional fully covered
+    } else if (presentSpan !== null && matchesPresent(pat.kind)) {
+      shadowSpan = presentSpan;                                 // a present value after the catch-all
+    } else if (noneSpan !== null && pat.kind === 'nonePattern') {
+      shadowSpan = noneSpan;                                    // a repeated 'None'
     }
-    if (arm.pattern.kind === 'elsePattern') {
-      elseSpan = arm.span;
-      bodyTypes.push({ type: typedBody.type, span: arm.span });
+    if (shadowSpan !== null) {
+      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: shadowSpan }] });
       continue;
     }
 
-    const firstSpan = seen.get(key!);
-    if (firstSpan !== undefined) {
-      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
-      continue;
+    // Record what this arm covers, and catch repeated literals/variants.
+    if (pat.kind === 'elsePattern') {
+      elseSpan = arm.span;
+    } else if (pat.kind === 'nonePattern') {
+      noneSpan = arm.span;
+    } else if (pat.kind === 'bindingPattern') {
+      presentSpan = arm.span;
+    } else {
+      const firstSpan = seen.get(key!);
+      if (firstSpan !== undefined) {
+        diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
+        continue;
+      }
+      seen.set(key!, arm.span);
+      if (pat.kind === 'variantPattern') coveredTags.add(pat.tag);
     }
-    seen.set(key!, arm.span);
 
     // The pattern is compared against the subject, so it has to be something the
     // subject could be — the same "a common type exists" rule '==' uses. An
     // already-Invalid subject or pattern is absorbed without a second error.
     if (!isInvalidType(subjectType) && patternType !== null && leastCommonType(subjectType, patternType) === null) {
       diagnostics.error({
-        code: 'T0028', span: arm.pattern.span,
+        code: 'T0028', span: pat.span,
         data: { expected: typeToString(subjectType), actual: typeToString(patternType) },
         related: [{ key: 'subject', span: expr.subject.span }],
       });
     }
-    if (arm.pattern.kind === 'variantPattern') coveredTags.add(arm.pattern.tag);
 
     bodyTypes.push({ type: typedBody.type, span: arm.span });
   }
 
-  // Exhaustiveness (whitepaper §5): a 'match' must handle every case. A union
-  // subject is covered by listing all its variants; a missing one is T0034. Any
-  // other subject (a scalar) has no finite list of values, so it needs an 'else'
-  // outright (T0029). An 'else' satisfies both, and an Invalid subject is quiet.
+  // Exhaustiveness (whitepaper §5): a 'match' must handle every case. An Optional
+  // is None-or-a-value, so it needs a 'None' arm *and* a binding arm that catches
+  // the present value (T0042), or an 'else'. A union subject is covered by listing
+  // all its variants; a missing one is T0034. Any other subject (a scalar) has no
+  // finite list of values, so it needs an 'else' outright (T0029). An 'else'
+  // satisfies all of them, and an Invalid subject is quiet.
   if (elseSpan === null) {
-    const info = subjectType.kind === 'Named' ? env.getType(subjectType.name) : null;
-    if (info !== null) {
-      const missing = info.variants.map(v => v.tag).filter(tag => !coveredTags.has(tag));
+    if (subjectType.kind === 'Optional') {
+      const missing: string[] = [];
+      if (noneSpan === null) missing.push('None');
+      if (presentSpan === null) missing.push('a value');
       if (missing.length > 0) {
-        diagnostics.error({
-          code: 'T0034', span: expr.span,
-          data: { type: info.name, variants: info.variants.map(v => v.tag).join(', '), missing: missing.join(', ') },
-        });
+        diagnostics.error({ code: 'T0042', span: expr.span, data: { type: typeToString(subjectType), missing: missing.join(' and ') } });
       }
-    } else if (!isInvalidType(subjectType)) {
-      diagnostics.error({ code: 'T0029', span: expr.span });
+    } else {
+      const info = subjectType.kind === 'Named' ? env.getType(subjectType.name) : null;
+      if (info !== null) {
+        const missing = info.variants.map(v => v.tag).filter(tag => !coveredTags.has(tag));
+        if (missing.length > 0) {
+          diagnostics.error({
+            code: 'T0034', span: expr.span,
+            data: { type: info.name, variants: info.variants.map(v => v.tag).join(', '), missing: missing.join(', ') },
+          });
+        }
+      } else if (!isInvalidType(subjectType)) {
+        diagnostics.error({ code: 'T0029', span: expr.span });
+      }
     }
   }
 

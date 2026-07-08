@@ -130,12 +130,25 @@ function parseMatchArm(ts: TokenStream): MatchArm | null {
 }
 
 // A pattern is the 'else' catch-all, a variant pattern (an UpperCamel tag, bare
-// or with a '{ … }' field list), or a scalar literal (whitepaper §5).
+// or with a '{ … }' field list), 'None' / a lowercase name for the two cases of
+// an Optional, or a scalar literal (whitepaper §5).
 function parsePattern(ts: TokenStream): Pattern | null {
   const tok = ts.peek();
   if (tok.kind === 'KW_ELSE') {
     ts.advance(); // consume 'else'
     return { kind: 'elsePattern', span: tok.span };
+  }
+  // 'None' matches an Optional's absent case (it lexes as NONE_LIT, its own token
+  // — not a TYPE_NAME — so it's handled here rather than as a variant pattern).
+  if (tok.kind === 'NONE_LIT') {
+    ts.advance(); // consume 'None'
+    return { kind: 'nonePattern', span: tok.span };
+  }
+  // A lowercase name binds an Optional's present value (whitepaper §7's narrowing
+  // by binding). The name is arbitrary; the checker rejects it on a non-Optional.
+  if (tok.kind === 'SLOT') {
+    ts.advance(); // consume the binding name
+    return { kind: 'bindingPattern', name: tok.value, nameSpan: tok.span, span: tok.span };
   }
   if (tok.kind === 'TYPE_NAME') {
     ts.advance(); // consume the variant tag

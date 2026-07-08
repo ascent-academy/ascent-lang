@@ -258,8 +258,9 @@
   message: "I expected a pattern here."
   explanation: >-
     Each arm of a 'match' starts with a pattern — a plain value to compare
-    against, like '0', '"hi"', or 'True', or the word 'else' for the catch-all
-    arm. This is where that pattern should be.
+    against, like '0', '"hi"', or 'True'; a variant like 'Circle{ radius }';
+    'None' or a name like 'value' for the two cases of an optional; or the word
+    'else' for the catch-all arm. This is where that pattern should be.
 
 - code: S0026
   name: expected-arrow

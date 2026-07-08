@@ -79,6 +79,8 @@ const visitArm = (arm: MatchArm, bound: ReadonlySet<string>, out: Set<string>): 
   const inner = new Set(bound);
   if (arm.pattern.kind === 'variantPattern') {
     for (const f of arm.pattern.fields) inner.add(f.bind);
+  } else if (arm.pattern.kind === 'bindingPattern') {
+    inner.add(arm.pattern.name);
   }
   visitExpr(arm.body, inner, out);
 };
