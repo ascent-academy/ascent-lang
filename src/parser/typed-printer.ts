@@ -99,6 +99,11 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       const rightLines = branch(typedExprLines(expr.right), true);
       return [`${chalk.cyan('Binary')} ${chalk.magenta(expr.op)}${t}`, ...leftLines, ...rightLines];
     }
+    case 'coalesce': {
+      const leftLines = branch(typedExprLines(expr.left), false);
+      const rightLines = branch(typedExprLines(expr.right), true);
+      return [`${chalk.cyan('Coalesce')} ${chalk.magenta('??')}${t}`, ...leftLines, ...rightLines];
+    }
     case 'block': {
       if (expr.stmts.length === 0) {
         return [`${chalk.cyan('Block')} ${chalk.dim('(empty)')}${t}`];

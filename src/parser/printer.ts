@@ -132,6 +132,11 @@ const exprLines = (expr: Expr): string[] => {
       const right = branch(exprLines(expr.right), true);
       return [`${chalk.cyan('Binary')} ${chalk.magenta(expr.op)}`, ...left, ...right];
     }
+    case 'coalesce': {
+      const left = branch(exprLines(expr.left), false);
+      const right = branch(exprLines(expr.right), true);
+      return [`${chalk.cyan('Coalesce')} ${chalk.magenta('??')}`, ...left, ...right];
+    }
     case 'block': {
       if (expr.stmts.length === 0) {
         return [`${chalk.cyan('Block')} ${chalk.dim('(empty)')}`];

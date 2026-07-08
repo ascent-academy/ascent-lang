@@ -40,6 +40,11 @@ export type TypedExpr = (
   | { kind: 'index'; list: TypedExpr; index: TypedExpr; type: AscentType; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: TypedExpr; type: AscentType; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
+  // 'opt ?? default' (design.md §9). `type` is the least common type of the
+  // optional's present type (left's Optional element) and `right`'s type — the
+  // interpreter coerces whichever branch it takes into it, exactly as an 'if'
+  // widens the branch it runs to the join type.
+  | { kind: 'coalesce'; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
   | TypedFn
   | TypedReturn
   | TypedMatch

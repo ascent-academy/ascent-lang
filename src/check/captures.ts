@@ -137,6 +137,7 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
       visitExpr(expr.operand, bound, out);
       return;
     case 'binary':
+    case 'coalesce':
       visitExpr(expr.left, bound, out);
       visitExpr(expr.right, bound, out);
       return;

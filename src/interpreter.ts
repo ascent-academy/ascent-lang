@@ -202,6 +202,19 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env), expr.span, expr.right.span,
       );
     }
+    case 'coalesce': {
+      // 'opt ?? default' short-circuits: the default is evaluated only when the
+      // optional is None (§9). On the present case the raw value flows out —
+      // Optional has no wrapper (§4), so it's already a value of the optional's
+      // element type; coerce it (and the default) to the whole '??''s join type,
+      // exactly as an 'if' widens the branch it takes.
+      const left = evaluateExpr(expr.left, env);
+      if (left.type !== 'None') {
+        const presentType = expr.left.type.kind === 'Optional' ? expr.left.type.elem : expr.left.type;
+        return coerce(left, presentType, expr.type);
+      }
+      return coerce(evaluateExpr(expr.right, env), expr.right.type, expr.type);
+    }
     case 'block': {
       return evaluateBlock(expr, env);
     }

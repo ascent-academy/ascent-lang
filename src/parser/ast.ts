@@ -141,6 +141,12 @@ export type Expr = (
   | { kind: 'index'; list: Expr; index: Expr; span: Span }
   | { kind: 'unary'; op: UnaryOp; operand: Expr; span: Span }
   | { kind: 'binary'; op: BinaryOp; left: Expr; right: Expr; span: Span }
+  // 'opt ?? default' — the Optional default operator (design.md §9). `left` must
+  // be an Optional (or None): its present value flows out, or `right` is used
+  // when it's None. Its own node (not a 'binary') because its typing is unlike
+  // any arithmetic/comparison op — the left is unwrapped, not combined — and it
+  // short-circuits (the default is only evaluated on None).
+  | { kind: 'coalesce'; left: Expr; right: Expr; span: Span }
   | Match
   | Block
   | If

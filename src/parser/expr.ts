@@ -25,11 +25,20 @@ import { dedent, type RawChunk } from './dedent.js';
 // than what: postfix (`.method()`, `[index]`) and '**' bind tightest
 // (tighter even than unary '-', per §5 of design.md — `-2 ** 2` is
 // `-(2 ** 2)`), then unary '-', then '*'/'/'/'div'/'mod', then '+'/'-',
-// then '..' (the range operator), then the comparisons, then 'not',
-// then 'and', then 'or', loosest — the word operators sit below the
-// comparisons (§5 of design.md), so `a == b and c == d` groups as
-// `(a == b) and (c == d)`, never `a == (b and c) == d`. Every table
-// below is keyed off these numbers instead of inlining its own.
+// then '..' (the range operator), then '??' (the Optional default),
+// then the comparisons, then 'not', then 'and', then 'or', loosest —
+// the word operators sit below the comparisons (§5 of design.md), so
+// `a == b and c == d` groups as `(a == b) and (c == d)`, never
+// `a == (b and c) == d`. Every table below is keyed off these numbers
+// instead of inlining its own.
+//
+// COALESCE ('??') sits just above the comparisons and below RANGE —
+// Swift's nil-coalescing placement — so `xs.at(i) ?? 0 == 0` groups as
+// `(xs.at(i) ?? 0) == 0` (a defaulted value is then compared) while
+// `a ?? b..c` groups as `a ?? (b..c)`. Like '..' it builds its own node
+// (a `coalesce`, not a `binary`), so it's matched by hand in the loop
+// below rather than via INFIX_OPS, and it is right-associative so a
+// chain `a ?? b ?? c` groups as `a ?? (b ?? c)`.
 //
 // RANGE ('..') sits just below additive so a range's bounds may be
 // arithmetic without parentheses — `a+1..b-1` groups as `(a+1)..(b-1)`
@@ -51,12 +60,13 @@ const BP = {
   AND: 2,
   NOT: 3,
   COMPARISON: 4,
-  RANGE: 5,
-  ADDITIVE: 6,
-  MULTIPLICATIVE: 7,
-  UNARY: 8,
-  POSTFIX: 8,
-  EXPONENT: 8,
+  COALESCE: 5,
+  RANGE: 6,
+  ADDITIVE: 7,
+  MULTIPLICATIVE: 8,
+  UNARY: 9,
+  POSTFIX: 9,
+  EXPONENT: 9,
 } as const;
 
 // Every binary operator this parser knows about has one row in this
@@ -154,6 +164,19 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
       const hi = parseExpr(ts, BP.RANGE + 1);
       if (hi === null) return null;
       left = { kind: 'range', lo: left, hi, span: { start: left.span.start, end: hi.span.end } };
+      continue;
+    }
+
+    // Optional default 'opt ?? default' — its own `coalesce` node (not a
+    // binary one), so it's handled here like '..'. Right-associative: the
+    // right side is parsed at BP.COALESCE (not `+ 1`), so a second '??'
+    // nests into it — `a ?? b ?? c` becomes `a ?? (b ?? c)`.
+    if (kind === 'QUESTION_QUESTION') {
+      if (BP.COALESCE < minBp) break;
+      ts.advance(); // consume '??'
+      const right = parseExpr(ts, BP.COALESCE);
+      if (right === null) return null;
+      left = { kind: 'coalesce', left, right, span: { start: left.span.start, end: right.span.end } };
       continue;
     }
 

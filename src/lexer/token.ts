@@ -53,6 +53,7 @@ export type TokenKind =
   | 'LBRACKET'       // '[' — list literal open / index open
   | 'RBRACKET'       // ']' — list literal close / index close
   | 'QUESTION'       // '?' — the Optional<T> suffix in a type annotation, e.g. 'String?'
+  | 'QUESTION_QUESTION' // '??' — the Optional default operator, as in 'nick ?? "anon"'
   | 'PIPE'           // '|' — separates the variants of a tagged-union 'type'
   | 'ERROR'          // a character or run the lexer couldn't recognise
   | 'EOF';           // the sentinel that marks the end of source

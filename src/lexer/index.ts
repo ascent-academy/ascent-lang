@@ -334,7 +334,11 @@ export class Lexer {
       }
       case '[': return this.token('LBRACKET', start);
       case ']': return this.token('RBRACKET', start);
-      case '?': return this.token('QUESTION', start);
+      case '?':
+        // '??' is the Optional default operator ('a ?? b', §9); a lone '?' is
+        // the Optional<T> type suffix ('String?', §4).
+        if (this.c.match('?')) return this.token('QUESTION_QUESTION', start);
+        return this.token('QUESTION', start);
       case '|': return this.token('PIPE', start);
       default: return this.error('L0001', this.c.spanFrom(start));
     }

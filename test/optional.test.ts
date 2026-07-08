@@ -51,6 +51,52 @@ describe('Optional (T?) (end-to-end)', () => {
     });
   });
 
+  describe('the ?? default operator', () => {
+    it('yields the value when the optional is present', () => {
+      assert.deepEqual(evalOk('fix x: String? = "hi"; x ?? "def";'), { type: 'String', value: 'hi' });
+    });
+
+    it('yields the default when the optional is None', () => {
+      assert.deepEqual(evalOk('fix x: String? = None; x ?? "def";'), { type: 'String', value: 'def' });
+    });
+
+    it('accepts a bare None on the left (always falls back)', () => {
+      assert.deepEqual(evalOk('None ?? "hi";'), { type: 'String', value: 'hi' });
+    });
+
+    it('joins the present value and the default to their common type (Int? ?? Float)', () => {
+      // present Int coerces to the Float join type
+      assert.deepEqual(evalOk('fix x: Int? = 5; x ?? 0.0;'), { type: 'Float', value: 5 });
+      // the default Int coerces to Float too
+      assert.deepEqual(evalOk('fix x: Float? = None; x ?? 3;'), { type: 'Float', value: 3 });
+    });
+
+    it('chains right-associatively — a ?? b ?? c', () => {
+      assert.deepEqual(evalOk('fix a: String? = None; fix b: String? = None; a ?? b ?? "c";'),
+        { type: 'String', value: 'c' });
+      assert.deepEqual(evalOk('fix a: String? = None; fix b: String? = "b"; a ?? b ?? "c";'),
+        { type: 'String', value: 'b' });
+    });
+
+    it('works on a method returning an optional (String.first)', () => {
+      assert.deepEqual(evalOk('"hello".first() ?? "?";'), { type: 'String', value: 'h' });
+      assert.deepEqual(evalOk('"".first() ?? "?";'), { type: 'String', value: '?' });
+    });
+
+    it('short-circuits — the default is not evaluated when the optional is present', () => {
+      // the default '[1][10]' would crash (index out of bounds) if it ran
+      assert.deepEqual(evalOk('fix x: Int? = 5; x ?? [1][10];'), { type: 'Int', value: 5n });
+    });
+
+    it('reports T0039 when the left side is not optional', () => {
+      assert.deepEqual(errorCodes('fix x: Int = 5; x ?? 0;'), ['T0039']);
+    });
+
+    it('reports T0040 when the default type does not fit the optional value', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; x ?? "hi";'), ['T0040']);
+    });
+  });
+
   describe('type errors', () => {
     it('reports T0015 for a bare None with no annotation', () => {
       assert.deepEqual(errorCodes('fix x = None;'), ['T0015']);

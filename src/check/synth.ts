@@ -339,6 +339,43 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       return { kind: 'binary', op: expr.op, left: typedLeft, right: typedRight, type, span: expr.span };
     }
 
+    case 'coalesce': {
+      // 'opt ?? default' (design.md §9). The left must be an Optional — that's
+      // the whole point ("seeing '??' tells you the left side is an Optional").
+      // A bare 'None' is allowed as the degenerate always-absent case; anything
+      // else can never be None, so '??' on it is meaningless (T0039). The result
+      // is the least common type of the optional's present value and the default
+      // — so `intOpt ?? 3.0` is a Float, just as a list or an 'if' would join.
+      const typedLeft = synth(expr.left, env, diagnostics);
+      const typedRight = synth(expr.right, env, diagnostics);
+      const lt = typedLeft.type;
+      const rt = typedRight.type;
+
+      let type: AscentType;
+      if (isInvalidType(lt) || isInvalidType(rt)) {
+        type = INVALID_TYPE;
+      } else if (lt.kind !== 'Optional' && lt.kind !== 'None') {
+        diagnostics.error({ code: 'T0039', span: expr.left.span, data: { actual: typeToString(lt) } });
+        type = INVALID_TYPE;
+      } else {
+        // The present-value type: an Optional's element, or Never for a bare
+        // None (which has no present value, so the default always wins).
+        const presentType = lt.kind === 'Optional' ? lt.elem : NEVER_TYPE;
+        const joined = leastCommonType(presentType, rt);
+        if (joined === null) {
+          diagnostics.error({
+            code: 'T0040', span: expr.span,
+            data: { value: typeToString(presentType), default: typeToString(rt) },
+            related: [{ key: 'default', span: expr.right.span }],
+          });
+          type = INVALID_TYPE;
+        } else {
+          type = joined;
+        }
+      }
+      return { kind: 'coalesce', left: typedLeft, right: typedRight, type, span: expr.span };
+    }
+
     case 'list': {
       if (expr.elements.length === 0) {
         // No context to take a type from — design.md §7: an empty list has

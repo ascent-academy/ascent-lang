@@ -920,6 +920,28 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A value that isn't a function is being called.",
     "message": "This is a {type}, not a function, so it can't be called.",
     "explanation": "Only a function can be called with '(…)'. This value is a {type}, which isn't a function, so there is nothing to call. (Calling a name that isn't a function is the same mistake, reported as its own message.)"
+  },
+  {
+    "code": "T0039",
+    "name": "coalesce-left-not-optional",
+    "category": "type",
+    "summary": "The left side of '??' isn't an optional value.",
+    "message": "'??' needs an optional value on its left, but this is {actual}.",
+    "explanation": "'??' supplies a value to use when an optional is None — so its left side has to be an optional (a type written with a '?', like 'String?'). This one is {actual}, which is never None, so there is nothing for '??' to fall back from. Drop the '?? …', or make the left side an optional."
+  },
+  {
+    "code": "T0040",
+    "name": "coalesce-default-mismatch",
+    "category": "type",
+    "summary": "The default after '??' has a type that doesn't fit the optional's value.",
+    "message": "This optional holds {value}, but the default after '??' is {default}.",
+    "explanation": "'opt ?? default' gives back either the optional's value or the default, so both have to share a type — the whole expression is one value. Here the optional holds {value} but the default is {default}, and those don't fit together. (An Int default is fine for a Float optional — the Int becomes a Float — but unrelated types like Int and String can't mix.)",
+    "related": [
+      {
+        "key": "default",
+        "label": "this default is {default}"
+      }
+    ]
   }
 ];
 
