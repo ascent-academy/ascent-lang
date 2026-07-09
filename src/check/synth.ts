@@ -1,6 +1,6 @@
 import type { Expr, FieldInit } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
-import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedTryElse } from '../parser/typed-ast.js';
+import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedFieldUpdate, TypedTryElse } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
   listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf,
@@ -669,6 +669,75 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       }
 
       return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: namedType(ctor.info.name), span: expr.span };
+    }
+
+    case 'with': {
+      const typedBase = synth(expr.base, env, diagnostics);
+
+      // 'its' refers to the base inside every update value — a contextual
+      // keyword (§6, special only here), so it's bound as an ordinary slot in a
+      // child scope the values are checked in.
+      const childEnv = env.child();
+
+      // Shared recovery for any base failure: bind 'its' to the base's type
+      // (Invalid when the base itself failed), synth each update value so
+      // errors inside them still surface, and yield an Invalid 'with' node.
+      const bail = (): TypedExpr => {
+        childEnv.set('its', typedBase.type, 'fix', null);
+        const typedUpdates = expr.updates.map(u => ({
+          field: u.field, declaredType: INVALID_TYPE, value: synth(u.value, childEnv, diagnostics),
+        }));
+        return { kind: 'with', base: typedBase, updates: typedUpdates, type: INVALID_TYPE, span: expr.span };
+      };
+
+      if (isInvalidType(typedBase.type)) return bail();
+
+      // The base must be a record — a single-variant Named type — to name
+      // fields to replace. A non-Named type (Int, List, …) has no fields at all
+      // (T0048); a multi-variant union has no single field set (T0049), its
+      // cases told apart with 'match', not updated directly.
+      if (typedBase.type.kind !== 'Named') {
+        diagnostics.error({ code: 'T0048', span: expr.base.span, data: { type: typeToString(typedBase.type) } });
+        return bail();
+      }
+      const info = env.getType(typedBase.type.name);
+      if (info !== null && info.variants.length !== 1) {
+        diagnostics.error({ code: 'T0049', span: expr.base.span, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+        return bail();
+      }
+
+      // A valid record base: bind 'its' to it and check each update against the
+      // field it names. Its type is unchanged by the update — a copy with some
+      // fields replaced is the same record type.
+      childEnv.set('its', typedBase.type, 'fix', null);
+      const declaredFields = info?.variants[0]?.fields ?? [];
+
+      const seen = new Set<string>();
+      const typedUpdates: TypedFieldUpdate[] = [];
+      for (const u of expr.updates) {
+        const decl = declaredFields.find(f => f.name === u.field);
+        if (decl === undefined) {
+          // The record's type declares no such field to update.
+          diagnostics.error({ code: 'T0050', span: u.fieldSpan, data: { type: typedBase.type.name, field: u.field } });
+          synth(u.value, childEnv, diagnostics);
+          continue;
+        }
+        if (seen.has(u.field)) {
+          // The same field is updated twice — unclear which value wins. Keep the
+          // first (as construction does with a duplicate field) and flag this one.
+          diagnostics.error({ code: 'T0051', span: u.fieldSpan, data: { field: u.field, type: typedBase.type.name } });
+          synth(u.value, childEnv, diagnostics);
+          continue;
+        }
+        seen.add(u.field);
+        // Check the new value against the field's declared type — an Int widens
+        // to a Float field, a bare '[]' adopts a List field's element type, all
+        // exactly as a construction field (T0021) does.
+        const value = check(u.value, decl.type, childEnv, diagnostics, [{ key: 'field', span: decl.span }], 'T0021');
+        typedUpdates.push({ field: u.field, declaredType: decl.type, value });
+      }
+
+      return { kind: 'with', base: typedBase, updates: typedUpdates, type: typedBase.type, span: expr.span };
     }
 
     case 'fieldAccess': {

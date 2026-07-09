@@ -369,3 +369,36 @@
     its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for
     both at once. Drop the '=>' to keep the block, or drop the braces to keep the
     single expression.
+
+- code: S0036
+  name: expected-update-field
+  category: syntactic
+  summary: "A field name was expected in a 'with' update."
+  message: "I expected a field name here."
+  explanation: >-
+    A 'with' update names the field to change, then '=', then its new value —
+    like 'user with name = \"new\"'. Several changes go in braces:
+    'user with { name = \"new\", age = 31 }'. A field name starts with a
+    lowercase letter. This is where that name should be.
+
+- code: S0037
+  name: expected-update-equals
+  category: syntactic
+  summary: "An '=' was expected after a field name in a 'with' update."
+  message: "I expected an '=' here."
+  explanation: >-
+    A 'with' update assigns a field's new value with '=', like
+    'user with name = \"new\"'. (Building a value instead uses ':', like
+    'User{ name: \"new\" }' — '=' changes a copy, ':' builds.) This is where
+    the '=' should be.
+
+- code: S0038
+  name: empty-update-braces
+  category: syntactic
+  summary: "A 'with' update was written with empty braces '{ }'."
+  message: "A 'with' update needs at least one field."
+  explanation: >-
+    A 'with' update changes one or more fields of a record, like
+    'user with { name = \"new\", age = 31 }'. Empty braces '{ }' change nothing,
+    so there is no update to make. Name at least one field to change, or drop the
+    'with' entirely.

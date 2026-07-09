@@ -23,6 +23,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   return: 'KW_RETURN',
   orfail: 'KW_ORFAIL',
   try: 'KW_TRY',
+  with: 'KW_WITH',
 };
 
 export const CONSTRUCTORS: Record<string, TokenKind> = {

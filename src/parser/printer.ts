@@ -103,6 +103,13 @@ const exprLines = (expr: Expr): string[] => {
       );
       return [`${chalk.cyan('Construct')} ${chalk.green(expr.typeName)}`, ...fieldLines];
     }
+    case 'with': {
+      const baseLines = branch(exprLines(expr.base), false);
+      const updateLines = expr.updates.flatMap((u, i) =>
+        branch([`${chalk.green(u.field)} ${chalk.dim('=')}`, ...branch(exprLines(u.value), true)], i === expr.updates.length - 1)
+      );
+      return [`${chalk.cyan('With')}`, ...baseLines, ...updateLines];
+    }
     case 'fieldAccess': {
       const receiverLines = branch(exprLines(expr.receiver), true);
       return [`${chalk.cyan('FieldAccess')} ${chalk.green('.' + expr.field)}`, ...receiverLines];

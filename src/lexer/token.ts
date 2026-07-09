@@ -34,6 +34,7 @@ export type TokenKind =
   | 'KW_RETURN'      // the keyword return — early-exits the enclosing function
   | 'KW_ORFAIL'      // the keyword orfail — the 'T orfail E' Result type operator
   | 'KW_TRY'         // the keyword try — unwrap-or-propagate an Optional/Result
+  | 'KW_WITH'        // the keyword with — 'base with field = value', an updated copy of a record
   | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates

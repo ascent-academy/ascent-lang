@@ -24,6 +24,11 @@ export type TypedTemplate = { kind: 'template'; parts: TypedTemplatePart[]; type
 // init coerces into its slotType.
 export type TypedFieldInit = { name: string; declaredType: AscentType; value: TypedExpr };
 
+// One field replacement of a typed 'with' update. `declaredType` is the field's
+// declared type — the interpreter coerces `value` into it (e.g. Int → Float),
+// exactly as a construction field or a fix/mut init does.
+export type TypedFieldUpdate = { field: string; declaredType: AscentType; value: TypedExpr };
+
 export type TypedExpr = (
   | TypedLiteral
   | TypedTemplate
@@ -34,6 +39,11 @@ export type TypedExpr = (
   | { kind: 'apply'; callee: TypedExpr; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'construct'; typeName: string; fields: TypedFieldInit[]; type: AscentType; span: Span }
+  // 'base with field = value' — an updated copy of a record (whitepaper §6).
+  // `type` is the base's (record) type, unchanged by the update. `updates` are in
+  // source order; the interpreter starts from a copy of the base and overwrites
+  // each named field.
+  | { kind: 'with'; base: TypedExpr; updates: TypedFieldUpdate[]; type: AscentType; span: Span }
   | { kind: 'fieldAccess'; receiver: TypedExpr; field: string; type: AscentType; span: Span }
   | { kind: 'list'; elements: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'range'; lo: TypedExpr; hi: TypedExpr; type: AscentType; span: Span }

@@ -1,5 +1,5 @@
 import type { Token, TokenKind, Span } from '../lexer/token.js';
-import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, TryElse } from './ast.js';
+import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, FieldUpdate, TryElse } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf, parseMatch } from './stmt.js';
 import { parseTypeExpr, parseFnParam } from './type-expr.js';
@@ -26,7 +26,9 @@ import { dedent, type RawChunk } from './dedent.js';
 // (tighter even than unary '-', per §5 of design.md — `-2 ** 2` is
 // `-(2 ** 2)`), then unary '-', then '*'/'/'/'div'/'mod', then '+'/'-',
 // then '..' (the range operator), then '??' (the Optional default),
-// then the comparisons, then 'not', then 'and', then 'or', loosest —
+// then the comparisons, then 'not', then 'and', then 'or', then
+// 'with' (the record-update operator, so its base is the whole
+// preceding expression), loosest of all —
 // the word operators sit below the comparisons (§5 of design.md), so
 // `a == b and c == d` groups as `(a == b) and (c == d)`, never
 // `a == (b and c) == d`. Every table below is keyed off these numbers
@@ -56,17 +58,18 @@ import { dedent, type RawChunk } from './dedent.js';
 // to the caller). Equal tiers let the right-hand parse swallow both a
 // further '**' and any postfix chain in one pass.
 const BP = {
-  OR: 1,
-  AND: 2,
-  NOT: 3,
-  COMPARISON: 4,
-  COALESCE: 5,
-  RANGE: 6,
-  ADDITIVE: 7,
-  MULTIPLICATIVE: 8,
-  UNARY: 9,
-  POSTFIX: 9,
-  EXPONENT: 9,
+  WITH: 1,
+  OR: 2,
+  AND: 3,
+  NOT: 4,
+  COMPARISON: 5,
+  COALESCE: 6,
+  RANGE: 7,
+  ADDITIVE: 8,
+  MULTIPLICATIVE: 9,
+  UNARY: 10,
+  POSTFIX: 10,
+  EXPONENT: 10,
 } as const;
 
 // Every binary operator this parser knows about has one row in this
@@ -177,6 +180,18 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
       const right = parseExpr(ts, BP.COALESCE);
       if (right === null) return null;
       left = { kind: 'coalesce', left, right, span: { start: left.span.start, end: right.span.end } };
+      continue;
+    }
+
+    // Record update 'base with field = value' / 'base with { … }' — its own
+    // `with` node (not a binary one), handled here like '..' and '??'. It binds
+    // loosest of all (BP.WITH), so `left` — the base — is the whole expression
+    // to its left, and parseWith consumes the update clause to its right.
+    if (kind === 'KW_WITH') {
+      if (BP.WITH < minBp) break;
+      const updated = parseWith(ts, left);
+      if (updated === null) return null;
+      left = updated;
       continue;
     }
 
@@ -689,6 +704,69 @@ function parseConstruct(ts: TokenStream, typeNameTok: Token): Expr | null {
     braces: true,
     span: { start: typeNameTok.span.start, end: parsed.close.span.end },
   };
+}
+
+// 'base with field = value' (braceless, single) or 'base with { f1 = v1, … }'
+// (braced) — an updated copy of a record (whitepaper §6). The base is already
+// parsed (it's `left` in the Pratt loop) and 'with' confirmed on lookahead. A
+// '{' right after 'with' opens the braced form (one or more comma-separated
+// updates); anything else is a single braceless update.
+function parseWith(ts: TokenStream, base: Expr): Expr | null {
+  ts.advance(); // consume 'with'
+
+  if (ts.peek().kind === 'LBRACE') {
+    const open = ts.advance(); // consume '{'
+    const parsed = ts.parseSeparated(() => parseFieldUpdate(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+    if (parsed === null) return null;
+
+    // Empty braces 'base with { }' update nothing — banned (the one-spelling
+    // rule, as S0028 bans empty construction braces); a real update names at
+    // least one field.
+    if (parsed.items.length === 0) {
+      ts.report('S0038', { start: open.span.start, end: parsed.close.span.end });
+      return null;
+    }
+
+    return {
+      kind: 'with',
+      base,
+      updates: parsed.items,
+      braces: true,
+      span: { start: base.span.start, end: parsed.close.span.end },
+    };
+  }
+
+  const update = parseFieldUpdate(ts);
+  if (update === null) return null;
+
+  return {
+    kind: 'with',
+    base,
+    updates: [update],
+    braces: false,
+    span: { start: base.span.start, end: update.span.end },
+  };
+}
+
+// One 'field = value' entry of a 'with' update. The field name is a lowercase
+// binding; '=' separates it from its new value (design.md §6 — '=' updates a
+// copy, where ':' builds). The value is a full expression, so 'its' navigation
+// and arithmetic ('count = its.count + 1') parse as one value; in the braceless
+// form it runs to the end of the statement, in the braced form to the next ','.
+function parseFieldUpdate(ts: TokenStream): FieldUpdate | null {
+  const nameTok = ts.peek();
+  if (nameTok.kind !== 'SLOT') {
+    ts.report('S0036', nameTok.span);
+    return null;
+  }
+  ts.advance(); // consume field name
+
+  if (ts.expect('EQUALS', 'S0037') === null) return null;
+
+  const value = parseExpr(ts);
+  if (value === null) return null;
+
+  return { field: nameTok.value, fieldSpan: nameTok.span, value, span: { start: nameTok.span.start, end: value.span.end } };
 }
 
 // '[' expr, expr, … ']' — list literal. Already peeked '[' in parseAtom.

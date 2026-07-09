@@ -530,3 +530,43 @@
     'try opt else e -> ...' would bind the failure's error to 'e', but an optional
     that is empty is just 'None' — there's no error value to name. Drop the name
     and write 'try opt else -> ...' to supply the error to propagate instead.
+
+- code: T0048
+  name: with-non-record
+  category: type
+  summary: "A 'with' update was written on a value that isn't a record."
+  message: "I can't update this with 'with' — it has type {type}."
+  explanation: >-
+    A 'with' update makes a copy of a record with some of its fields changed, so
+    the value before 'with' has to be a record — a value of a type declared with
+    'type Name = { … }'. This value is {type}, which has no fields to update.
+
+- code: T0049
+  name: with-on-union
+  category: type
+  summary: "A 'with' update was written on a value that has more than one variant."
+  message: "'{type}' has more than one variant, so 'with' can't update it directly."
+  explanation: >-
+    A 'with' update changes named fields of a record — a type with a single
+    variant, whose fields are always the same. '{type}' has more than one variant
+    ({variants}), so which fields it has depends on which one it is. A 'match'
+    looks at each variant on its own; build the updated value inside its arms.
+
+- code: T0050
+  name: with-unknown-field
+  category: type
+  summary: "A 'with' update names a field the record's type doesn't have."
+  message: "'{type}' has no field named '{field}'."
+  explanation: >-
+    A 'with' update can only change the fields the record's type declares.
+    '{type}' doesn't have a field '{field}' — check the spelling against the
+    type's declaration, or remove it.
+
+- code: T0051
+  name: with-duplicate-field
+  category: type
+  summary: "A 'with' update changes the same field more than once."
+  message: "'{field}' is updated more than once here."
+  explanation: >-
+    Each field of a record gets one new value in a 'with' update. '{field}' is
+    changed twice, so it isn't clear which value to keep — remove one of them.

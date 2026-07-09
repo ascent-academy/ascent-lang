@@ -131,6 +131,22 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       }
       return recordVal(expr.typeName, fields);
     }
+    case 'with': {
+      // Evaluate the base once; 'its' refers to that value inside every update.
+      const base = evaluateExpr(expr.base, env);
+      if (base.type !== 'Record') throw new Error('internal: with-update on a non-record');
+      const childEnv = env.child();
+      childEnv.declare('its', base, false);
+      // Start from a copy of the base's fields (records are immutable, so the
+      // base is untouched) and overwrite each updated one, coercing the new
+      // value into the field's declared type — the same Int → Float (and
+      // nested) widening a construction field gets.
+      const fields = new Map(base.fields);
+      for (const u of expr.updates) {
+        fields.set(u.field, coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType));
+      }
+      return recordVal(base.name, fields);
+    }
     case 'fieldAccess': {
       const receiver = evaluateExpr(expr.receiver, env);
       if (receiver.type !== 'Record') throw new Error('internal: field access on a non-record');

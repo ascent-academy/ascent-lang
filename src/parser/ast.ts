@@ -68,6 +68,13 @@ export type If = {
 // name, never by position).
 export type FieldInit = { name: string; nameSpan: Span; value: Expr; span: Span };
 
+// One 'field = value' entry of a 'with' update (whitepaper §6). Unlike a
+// FieldInit — which uses ':' and *builds* a value — an update uses '=' and
+// *assigns into a copy* of the base. `field` is the field to replace; `value`
+// its new value, in which 'its' refers to the base. v1 scope is a single field
+// name only: no nested '.field' or '[index]' path steps yet.
+export type FieldUpdate = { field: string; fieldSpan: Span; value: Expr; span: Span };
+
 // A 'match' pattern (whitepaper §5). v1 patterns are shallow, in exactly three
 // kinds: a literal (a scalar constant compared against the subject), a variant
 // (a union case matched by tag, binding a subset of its fields), and the 'else'
@@ -149,6 +156,13 @@ export type Expr = (
   // 'Tag{ … }'. The checker uses it to tell an empty-brace 'Red{}' (banned,
   // S0028) apart from the bare 'Red', since both carry no fields.
   | { kind: 'construct'; typeName: string; typeNameSpan: Span; fields: FieldInit[]; braces: boolean; span: Span }
+  // 'base with field = value' (braceless, single) or 'base with { f1 = v1, … }'
+  // (braced) — a new value derived from `base` with some fields replaced
+  // (whitepaper §6). `braces` records the braced spelling (as 'construct' does).
+  // Inside a `value`, 'its' refers to the base (an ordinary slot the checker /
+  // interpreter bind to it). v1 scope: records only, single-field updates only —
+  // no '.field'/'[index]' path steps, no list updates yet.
+  | { kind: 'with'; base: Expr; updates: FieldUpdate[]; braces: boolean; span: Span }
   // 'e.field' — reads one field of a record (design.md §6). Legal only when
   // e's type has exactly one variant; the checker enforces that. The '.method()'
   // form stays a 'methodCall' — the parser splits on whether a '(' follows.

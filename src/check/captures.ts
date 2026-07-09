@@ -121,6 +121,15 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
     case 'construct':
       for (const f of expr.fields) visitExpr(f.value, bound, out);
       return;
+    case 'with': {
+      visitExpr(expr.base, bound, out);
+      // 'its' names the base inside every update value, so it is bound there —
+      // never a free variable of an enclosing function.
+      const inner = new Set(bound);
+      inner.add('its');
+      for (const u of expr.updates) visitExpr(u.value, inner, out);
+      return;
+    }
     case 'fieldAccess':
       visitExpr(expr.receiver, bound, out);
       return;

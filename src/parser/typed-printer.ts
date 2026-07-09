@@ -67,6 +67,13 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       );
       return [`${chalk.cyan('Construct')} ${chalk.green(expr.typeName)}${t}`, ...fieldLines];
     }
+    case 'with': {
+      const baseLines = branch(typedExprLines(expr.base), false);
+      const updateLines = expr.updates.flatMap((u, i) =>
+        branch([`${chalk.green(u.field)} ${chalk.dim('=')}`, ...branch(typedExprLines(u.value), true)], i === expr.updates.length - 1)
+      );
+      return [`${chalk.cyan('With')}${t}`, ...baseLines, ...updateLines];
+    }
     case 'fieldAccess': {
       const receiverLines = branch(typedExprLines(expr.receiver), true);
       return [`${chalk.cyan('FieldAccess')} ${chalk.green('.' + expr.field)}${t}`, ...receiverLines];

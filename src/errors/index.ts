@@ -586,6 +586,30 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "The '=>' body form is for one expression, written straight after the arrow — 'fn(x: Int): Int => x + 1'. A '{ … }' block is the other form and stands on its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for both at once. Drop the '=>' to keep the block, or drop the braces to keep the single expression."
   },
   {
+    "code": "S0036",
+    "name": "expected-update-field",
+    "category": "syntactic",
+    "summary": "A field name was expected in a 'with' update.",
+    "message": "I expected a field name here.",
+    "explanation": "A 'with' update names the field to change, then '=', then its new value — like 'user with name = \\\"new\\\"'. Several changes go in braces: 'user with { name = \\\"new\\\", age = 31 }'. A field name starts with a lowercase letter. This is where that name should be."
+  },
+  {
+    "code": "S0037",
+    "name": "expected-update-equals",
+    "category": "syntactic",
+    "summary": "An '=' was expected after a field name in a 'with' update.",
+    "message": "I expected an '=' here.",
+    "explanation": "A 'with' update assigns a field's new value with '=', like 'user with name = \\\"new\\\"'. (Building a value instead uses ':', like 'User{ name: \\\"new\\\" }' — '=' changes a copy, ':' builds.) This is where the '=' should be."
+  },
+  {
+    "code": "S0038",
+    "name": "empty-update-braces",
+    "category": "syntactic",
+    "summary": "A 'with' update was written with empty braces '{ }'.",
+    "message": "A 'with' update needs at least one field.",
+    "explanation": "A 'with' update changes one or more fields of a record, like 'user with { name = \\\"new\\\", age = 31 }'. Empty braces '{ }' change nothing, so there is no update to make. Name at least one field to change, or drop the 'with' entirely."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",
@@ -1029,6 +1053,38 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A 'try … else' names an error, but the value is an optional (which has none).",
     "message": "This 'else' names an error to catch, but an optional's empty case ('None') carries no error.",
     "explanation": "'try opt else e -> ...' would bind the failure's error to 'e', but an optional that is empty is just 'None' — there's no error value to name. Drop the name and write 'try opt else -> ...' to supply the error to propagate instead."
+  },
+  {
+    "code": "T0048",
+    "name": "with-non-record",
+    "category": "type",
+    "summary": "A 'with' update was written on a value that isn't a record.",
+    "message": "I can't update this with 'with' — it has type {type}.",
+    "explanation": "A 'with' update makes a copy of a record with some of its fields changed, so the value before 'with' has to be a record — a value of a type declared with 'type Name = { … }'. This value is {type}, which has no fields to update."
+  },
+  {
+    "code": "T0049",
+    "name": "with-on-union",
+    "category": "type",
+    "summary": "A 'with' update was written on a value that has more than one variant.",
+    "message": "'{type}' has more than one variant, so 'with' can't update it directly.",
+    "explanation": "A 'with' update changes named fields of a record — a type with a single variant, whose fields are always the same. '{type}' has more than one variant ({variants}), so which fields it has depends on which one it is. A 'match' looks at each variant on its own; build the updated value inside its arms."
+  },
+  {
+    "code": "T0050",
+    "name": "with-unknown-field",
+    "category": "type",
+    "summary": "A 'with' update names a field the record's type doesn't have.",
+    "message": "'{type}' has no field named '{field}'.",
+    "explanation": "A 'with' update can only change the fields the record's type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration, or remove it."
+  },
+  {
+    "code": "T0051",
+    "name": "with-duplicate-field",
+    "category": "type",
+    "summary": "A 'with' update changes the same field more than once.",
+    "message": "'{field}' is updated more than once here.",
+    "explanation": "Each field of a record gets one new value in a 'with' update. '{field}' is changed twice, so it isn't clear which value to keep — remove one of them."
   }
 ];
 
