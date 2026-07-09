@@ -24,15 +24,19 @@ export type TypedTemplate = { kind: 'template'; parts: TypedTemplatePart[]; type
 // init coerces into its slotType.
 export type TypedFieldInit = { name: string; declaredType: AscentType; value: TypedExpr };
 
-// One step-and-value of a typed 'with' update. `declaredType` is the target
-// position's type — a field's declared type, or a list's element type — into
-// which the interpreter coerces `value` (e.g. Int → Float), exactly as a
-// construction field or a fix/mut init does. An 'index' step also carries its
-// (Int-typed) index expression.
-export type TypedWithUpdate = (
-  | { kind: 'field'; field: string; declaredType: AscentType; value: TypedExpr }
-  | { kind: 'index'; index: TypedExpr; declaredType: AscentType; value: TypedExpr }
+// One step of a typed 'with' update path — a '.field' or an '[index]' (whose
+// index expression is checked to Int). The interpreter walks these from the
+// base to reach the position to replace.
+export type TypedPathStep = (
+  | { kind: 'field'; field: string }
+  | { kind: 'index'; index: TypedExpr }
 );
+
+// One path-and-value of a typed 'with' update. `declaredType` is the leaf
+// position's type — the field/element type at the end of `path` — into which
+// the interpreter coerces `value` (e.g. Int → Float), exactly as a construction
+// field or a fix/mut init does.
+export type TypedWithUpdate = { path: TypedPathStep[]; declaredType: AscentType; value: TypedExpr };
 
 export type TypedExpr = (
   | TypedLiteral

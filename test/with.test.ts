@@ -205,21 +205,101 @@ describe("'with' record update (end-to-end)", () => {
       assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with [0] = "x";'), ['T0054']);
     });
 
-    it('rejects a field step on a list (T0052)', () => {
+    it('rejects a field step on a list, pointing to [index] (T0052)', () => {
       assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with foo = 0;'), ['T0052']);
     });
 
-    it('rejects an index step on a record (T0053)', () => {
+    it('rejects an index step on a record, pointing to a field name (T0053)', () => {
       assert.deepEqual(errorCodes(`${P} p with [0] = 2;`), ['T0053']);
     });
   });
 
+  describe('nested paths (the update path is the read path)', () => {
+    const ADDR = 'type Addr = { city: String };';
+    const USER = 'type User = { name: String, home: Addr };';
+    const MODEL = 'type Model = { users: List<User> };';
+    const M = `${ADDR} ${USER} ${MODEL} fix m = Model{ users: [User{ name: "Ada", home: Addr{ city: "London" } }, User{ name: "Bo", home: Addr{ city: "Rome" } }] };`;
+
+    it('updates a deep field/index/field path', () => {
+      assert.deepEqual(
+        evalOk(`${M} fix m2 = m with users[1].home.city = "Prague"; m2.users[1].home.city;`),
+        { type: 'String', value: 'Prague' },
+      );
+    });
+
+    it('shares the rest of the structure (only the path is copied)', () => {
+      // The sibling and the original are untouched — value semantics all the way down.
+      assert.deepEqual(
+        evalOk(`${M} fix m2 = m with users[1].home.city = "Prague"; m2.users[0].home.city;`),
+        { type: 'String', value: 'London' },
+      );
+      assert.deepEqual(
+        evalOk(`${M} fix m2 = m with users[1].home.city = "Prague"; m.users[1].home.city;`),
+        { type: 'String', value: 'Rome' },
+      );
+    });
+
+    it('updates a 2-D list position (grid[i][j])', () => {
+      const src = 'fix grid = [[1, 2], [3, 4]]; fix g = grid with [1][0] = 99; "\${g[1][0]} \${g[1][1]} \${g[0][0]}";';
+      assert.deepEqual(evalOk(src), { type: 'String', value: '99 4 1' });
+    });
+
+    it('mixes deep field and index paths in braces', () => {
+      const src = `
+        type P = { name: String, tags: List<String> };
+        fix p = P{ name: "x", tags: ["a", "b"] };
+        fix q = p with { name = "y", tags[0] = its.name };
+        "\${q.name} \${q.tags[0]} \${q.tags[1]}";
+      `;
+      assert.deepEqual(evalOk(src), { type: 'String', value: 'y x b' });
+    });
+
+    it('crashes (R0005) on an out-of-range index anywhere along the path', () => {
+      const { program } = parse(`${M} m with users[9].home.city = "x";`);
+      assert.ok(program !== null);
+      const result = executeProgram(program!, { stdout: () => {} });
+      assert.equal(result.kind, 'error');
+      if (result.kind !== 'error') throw new Error('unreachable');
+      assert.equal(result.error.marker.code, 'R0005');
+    });
+
+    it('reports a clear update error mid-path: index into a scalar (T0048)', () => {
+      assert.deepEqual(errorCodes(`${P} p with age[0] = 2;`), ['T0048']);
+    });
+
+    it('reports a clear update error mid-path: field on a scalar (T0048)', () => {
+      assert.deepEqual(errorCodes(`${P} p with age.x = 2;`), ['T0048']);
+    });
+
+    it('reports a clear update error mid-path: unknown field (T0050)', () => {
+      assert.deepEqual(errorCodes(`${M} m with users[0].nope = "x";`), ['T0050']);
+    });
+
+    it('reports a clear update error mid-path: non-Int index (T0011)', () => {
+      assert.deepEqual(errorCodes(`${M} m with users["a"].name = "x";`), ['T0011']);
+    });
+
+    it('mid-path field on a list points to [index] (T0052)', () => {
+      // 'users.name' forgot the '[i]' — a common beginner slip the error catches.
+      assert.deepEqual(errorCodes(`${M} m with users.name = "x";`), ['T0052']);
+    });
+
+    it('flags a duplicated deep path (T0051)', () => {
+      assert.deepEqual(errorCodes(`${M} m with { users[0].name = "x", users[0].name = "y" };`), ['T0051']);
+    });
+
+    it('does not flag a duplicate with a computed index (undecidable)', () => {
+      const src = 'fix i = 0; fix xs = [1, 2]; xs with { [i] = 5, [i] = 9 };';
+      assert.deepEqual(errorCodes(src), []);
+    });
+  });
+
   describe('errors', () => {
-    it('rejects a non-record, non-list base (T0048)', () => {
+    it('rejects updating inside a non-record, non-list value (T0048)', () => {
       assert.deepEqual(errorCodes('fix x = 5; x with foo = 3;'), ['T0048']);
     });
 
-    it('rejects a multi-variant union base (T0049)', () => {
+    it('rejects a multi-variant union, pointing to match (T0049)', () => {
       const src = 'type Shape = Circle{ r: Int } | Square{ s: Int }; fix c = Circle{ r: 1 }; c with r = 2;';
       assert.deepEqual(errorCodes(src), ['T0049']);
     });
@@ -228,7 +308,7 @@ describe("'with' record update (end-to-end)", () => {
       assert.deepEqual(errorCodes(`${P} p with nickname = "A";`), ['T0050']);
     });
 
-    it('rejects updating the same field twice (T0051)', () => {
+    it('rejects updating the same position twice (T0051)', () => {
       assert.deepEqual(errorCodes(`${P} p with { age = 31, age = 32 };`), ['T0051']);
     });
 

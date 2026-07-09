@@ -1056,51 +1056,51 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "T0048",
-    "name": "with-non-record",
+    "name": "with-step-not-navigable",
     "category": "type",
-    "summary": "A 'with' update was written on a value that isn't a record or a list.",
-    "message": "I can't update this with 'with' — it has type {type}.",
-    "explanation": "A 'with' update makes a copy with some positions changed, so the value before 'with' has to be a record (updated by field name, like 'p with age = 31') or a list (updated by position, like 'xs with [0] = 9'). This value is {type}, which has no positions to update."
+    "summary": "A 'with' path steps into a value that isn't a record or a list.",
+    "message": "There's nothing to update inside this — it has type {type}.",
+    "explanation": "A 'with' path reaches the value to change by stepping into a record by a field name ('.city') or into a list by position ('[0]'). Here it reached a value of type {type}, which is neither a record nor a list, so there's nothing inside it to reach. Check that each step leads through a record or a list to the value you mean to change."
   },
   {
     "code": "T0049",
-    "name": "with-on-union",
+    "name": "with-step-on-union",
     "category": "type",
-    "summary": "A 'with' update was written on a value that has more than one variant.",
-    "message": "'{type}' has more than one variant, so 'with' can't update it directly.",
-    "explanation": "A 'with' update changes named fields of a record — a type with a single variant, whose fields are always the same. '{type}' has more than one variant ({variants}), so which fields it has depends on which one it is. A 'match' looks at each variant on its own; build the updated value inside its arms."
+    "summary": "A 'with' path steps into a value that has more than one variant.",
+    "message": "'{type}' has more than one variant, so 'with' can't reach inside it here.",
+    "explanation": "'{type}' has more than one variant ({variants}), so which fields it has depends on which one it is — there is no single set of fields to step into. Use a 'match' to handle each variant on its own, then build the updated value inside that arm."
   },
   {
     "code": "T0050",
     "name": "with-unknown-field",
     "category": "type",
-    "summary": "A 'with' update names a field the record's type doesn't have.",
+    "summary": "A 'with' path names a field the record's type doesn't have.",
     "message": "'{type}' has no field named '{field}'.",
     "explanation": "A 'with' update can only change the fields the record's type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration, or remove it."
   },
   {
     "code": "T0051",
-    "name": "with-duplicate-field",
+    "name": "with-duplicate-path",
     "category": "type",
-    "summary": "A 'with' update changes the same field more than once.",
-    "message": "'{field}' is updated more than once here.",
-    "explanation": "Each field of a record gets one new value in a 'with' update. '{field}' is changed twice, so it isn't clear which value to keep — remove one of them."
+    "summary": "A 'with' update changes the same position more than once.",
+    "message": "'{path}' is updated more than once here.",
+    "explanation": "Each position in a 'with' update gets one new value. '{path}' is changed twice, so it isn't clear which value to keep — remove one of them."
   },
   {
     "code": "T0052",
     "name": "with-field-on-list",
     "category": "type",
-    "summary": "A 'with' update on a list names a field, but a list is updated by position.",
+    "summary": "A 'with' path names a field on a list, but a list is updated by position.",
     "message": "A list is updated by position, not by a field name like '{field}'.",
-    "explanation": "A 'with' update on a list replaces an item by its position, written in brackets — like 'xs with [0] = 9'. A list has no named fields, so '{field}' can't name a place in it. Use '[index]' to pick the item to change."
+    "explanation": "The path reached a list here, and a list's items don't have names — they're picked by position, in brackets. To change one, use '[index]' — for example 'xs with [0] = 9'. (A field name like '{field}' names a place in a record.)"
   },
   {
     "code": "T0053",
     "name": "with-index-on-record",
     "category": "type",
-    "summary": "A 'with' update on a record uses '[index]', but a record is updated by field name.",
+    "summary": "A 'with' path uses '[index]' on a record, but a record is updated by field name.",
     "message": "'{type}' is a record, so it's updated by field name, not by position.",
-    "explanation": "A 'with' update on a record replaces a field by its name — like 'p with age = 31'. A record has named fields, not numbered positions, so '[…]' can't pick a place in it. Name the field to change instead."
+    "explanation": "The path used '[…]' here, but '{type}' is a record — its parts have names, not numbered positions. Name the field to change — for example 'p with age = 31'. (Position '[i]' picks an item in a list.)"
   },
   {
     "code": "T0054",

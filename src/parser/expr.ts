@@ -1,5 +1,5 @@
 import type { Token, TokenKind, Span } from '../lexer/token.js';
-import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, WithUpdate, TryElse } from './ast.js';
+import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, WithUpdate, PathStep, TryElse } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf, parseMatch } from './stmt.js';
 import { parseTypeExpr, parseFnParam } from './type-expr.js';
@@ -748,44 +748,77 @@ function parseWith(ts: TokenStream, base: Expr): Expr | null {
   };
 }
 
-// One 'step = value' entry of a 'with' update — a '.field' (a record) or an
-// '[index]' (a list). '=' separates the step from its new value (design.md §6 —
-// '=' updates a copy, where ':' builds). The value is a full expression, so
-// 'its' navigation and arithmetic ('count = its.count + 1') parse as one value;
-// in the braceless form it runs to the end of the statement, in the braced form
-// to the next ','.
+// One 'path = value' entry of a 'with' update. '=' separates the path from its
+// new value (design.md §6 — '=' updates a copy, where ':' builds). The value is
+// a full expression, so 'its' navigation and arithmetic ('count = its.count + 1')
+// parse as one value; in the braceless form it runs to the end of the statement,
+// in the braced form to the next ','.
 function parseWithUpdate(ts: TokenStream): WithUpdate | null {
-  const tok = ts.peek();
-
-  // '[index] = value' — a list update. The index is a full expression (like an
-  // 'xs[i]' read), closed by ']', then '=' and the new value.
-  if (tok.kind === 'LBRACKET') {
-    const open = ts.advance(); // consume '['
-    const index = parseExpr(ts);
-    if (index === null) return null;
-    if (ts.expect('RBRACKET', 'S0013', [{ key: 'opener', span: open.span }]) === null) return null;
-
-    if (ts.expect('EQUALS', 'S0037') === null) return null;
-
-    const value = parseExpr(ts);
-    if (value === null) return null;
-
-    return { kind: 'index', index, value, span: { start: open.span.start, end: value.span.end } };
-  }
-
-  // 'field = value' — a record update. The field name is a lowercase binding.
-  if (tok.kind !== 'SLOT') {
-    ts.report('S0036', tok.span);
-    return null;
-  }
-  ts.advance(); // consume field name
+  const path = parseUpdatePath(ts);
+  if (path === null) return null;
 
   if (ts.expect('EQUALS', 'S0037') === null) return null;
 
   const value = parseExpr(ts);
   if (value === null) return null;
 
-  return { kind: 'field', field: tok.value, fieldSpan: tok.span, value, span: { start: tok.span.start, end: value.span.end } };
+  return { path, value, span: { start: path[0]!.span.start, end: value.span.end } };
+}
+
+// A 'with' update path — a chain of '.field' / '[index]' steps that mirrors a
+// read expression's navigation, minus its root (whitepaper §6). The first step
+// is a bare field name (a record) or an '[index]' (a list); each further step
+// is '.field' or '[index]'. The chain stops at the '=' parseWithUpdate expects.
+function parseUpdatePath(ts: TokenStream): PathStep[] | null {
+  const steps: PathStep[] = [];
+
+  // First step: a bare field name, or an '[index]' — no leading '.'.
+  const first = ts.peek();
+  if (first.kind === 'LBRACKET') {
+    const step = parseIndexStep(ts);
+    if (step === null) return null;
+    steps.push(step);
+  } else if (first.kind === 'SLOT') {
+    ts.advance();
+    steps.push({ kind: 'field', field: first.value, fieldSpan: first.span, span: first.span });
+  } else {
+    ts.report('S0036', first.span);
+    return null;
+  }
+
+  // Further steps: '.field' or '[index]', until something else (the '=').
+  for (; ;) {
+    const tok = ts.peek();
+    if (tok.kind === 'DOT') {
+      ts.advance(); // consume '.'
+      const nameTok = ts.peek();
+      if (nameTok.kind !== 'SLOT') {
+        ts.report('S0012', nameTok.span);
+        return null;
+      }
+      ts.advance(); // consume field name
+      steps.push({ kind: 'field', field: nameTok.value, fieldSpan: nameTok.span, span: { start: tok.span.start, end: nameTok.span.end } });
+    } else if (tok.kind === 'LBRACKET') {
+      const step = parseIndexStep(ts);
+      if (step === null) return null;
+      steps.push(step);
+    } else {
+      break;
+    }
+  }
+
+  return steps;
+}
+
+// One '[index]' step of an update path — LBRACKET confirmed on lookahead. The
+// index is a full expression (like an 'xs[i]' read), closed by ']'.
+function parseIndexStep(ts: TokenStream): PathStep | null {
+  const open = ts.advance(); // consume '['
+  const index = parseExpr(ts);
+  if (index === null) return null;
+  const close = ts.expect('RBRACKET', 'S0013', [{ key: 'opener', span: open.span }]);
+  if (close === null) return null;
+  return { kind: 'index', index, span: { start: open.span.start, end: close.span.end } };
 }
 
 // '[' expr, expr, … ']' — list literal. Already peeked '[' in parseAtom.

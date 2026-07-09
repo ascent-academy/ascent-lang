@@ -68,15 +68,20 @@ export type If = {
 // name, never by position).
 export type FieldInit = { name: string; nameSpan: Span; value: Expr; span: Span };
 
-// One step-and-value of a 'with' update (whitepaper §6). Unlike a FieldInit —
-// which uses ':' and *builds* a value — an update uses '=' and *assigns into a
-// copy* of the base. `value` is the new value, in which 'its' refers to the
-// base. v1 scope is a *single* step, one of two shapes: a '.field' (a record),
-// or an '[index]' (a list); no nested paths (e.g. 'a.b[3]') yet.
-export type WithUpdate = (
-  | { kind: 'field'; field: string; fieldSpan: Span; value: Expr; span: Span }
-  | { kind: 'index'; index: Expr; value: Expr; span: Span }
+// One step of a 'with' update path (whitepaper §6) — a '.field' (a record) or
+// an '[index]' (a list). A path is a chain of these, exactly the navigation an
+// *access* expression uses to read that position, minus its root — so the
+// update mirrors the read ('model with users[3].address.city = …').
+export type PathStep = (
+  | { kind: 'field'; field: string; fieldSpan: Span; span: Span }
+  | { kind: 'index'; index: Expr; span: Span }
 );
+
+// One path-and-value of a 'with' update. Unlike a FieldInit — which uses ':'
+// and *builds* a value — an update uses '=' and *assigns into a copy* of the
+// base at the position `path` names; `value` is the new value, in which 'its'
+// refers to the base. `path` has at least one step.
+export type WithUpdate = { path: PathStep[]; value: Expr; span: Span };
 
 // A 'match' pattern (whitepaper §5). v1 patterns are shallow, in exactly three
 // kinds: a literal (a scalar constant compared against the subject), a variant
@@ -159,13 +164,13 @@ export type Expr = (
   // 'Tag{ … }'. The checker uses it to tell an empty-brace 'Red{}' (banned,
   // S0028) apart from the bare 'Red', since both carry no fields.
   | { kind: 'construct'; typeName: string; typeNameSpan: Span; fields: FieldInit[]; braces: boolean; span: Span }
-  // 'base with step = value' (braceless, single) or 'base with { s1 = v1, … }'
-  // (braced) — a new value derived from `base` with some positions replaced
-  // (whitepaper §6). A record's step is a '.field', a list's an '[index]'.
-  // `braces` records the braced spelling (as 'construct' does). Inside a `value`
-  // (and an '[index]'), 'its' refers to the base (an ordinary slot the checker /
-  // interpreter bind to it). v1 scope: a single step per update — no nested
-  // paths ('a.b[3]') yet.
+  // 'base with path = value' (braceless, single) or 'base with { p1 = v1, … }'
+  // (braced) — a new value derived from `base` with the positions named by each
+  // path replaced (whitepaper §6). A path is a chain of '.field'/'[index]' steps
+  // (freely mixed and nested — 'users[3].address.city'), the read navigation
+  // reused as a write. `braces` records the braced spelling (as 'construct'
+  // does). Inside a `value` (and any '[index]'), 'its' refers to the base (an
+  // ordinary slot the checker / interpreter bind to it).
   | { kind: 'with'; base: Expr; updates: WithUpdate[]; braces: boolean; span: Span }
   // 'e.field' — reads one field of a record (design.md §6). Legal only when
   // e's type has exactly one variant; the checker enforces that. The '.method()'

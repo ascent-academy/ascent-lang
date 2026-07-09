@@ -26,6 +26,18 @@ export const patternLabel = (pattern: Pattern): string => {
   }
 };
 
+// A 'with' update path shown as a skeleton for the AST dump — a leading field
+// bare ('users'), later fields dotted ('.address'), each index step as '[]'
+// (its expression printed as a child). Shared by both printers; the untyped and
+// typed step shapes agree on the `kind`/`field` fields this reads.
+export const pathSkeleton = (path: readonly ({ kind: 'field'; field: string } | { kind: 'index' })[]): string => {
+  let out = '';
+  path.forEach((step, i) => {
+    out += step.kind === 'field' ? (i === 0 ? step.field : `.${step.field}`) : '[]';
+  });
+  return out;
+};
+
 const formatTypeExpr = (te: TypeExpr): string => {
   switch (te.kind) {
     case 'TypeName': return te.name;
@@ -107,11 +119,15 @@ const exprLines = (expr: Expr): string[] => {
       const baseLines = branch(exprLines(expr.base), false);
       const updateLines = expr.updates.flatMap((u, i) => {
         const last = i === expr.updates.length - 1;
-        if (u.kind === 'field') {
-          return branch([`${chalk.green(u.field)} ${chalk.dim('=')}`, ...branch(exprLines(u.value), true)], last);
-        }
-        const indexLines = branch(exprLines(u.index), false);
-        return branch([`${chalk.dim('[index] =')}`, ...indexLines, ...branch(exprLines(u.value), true)], last);
+        // Show the path skeleton, then each index step's expression, then the
+        // value — so a computed '[i]' isn't lost from the dump.
+        const indexLines = u.path
+          .filter((s): s is Extract<typeof s, { kind: 'index' }> => s.kind === 'index')
+          .flatMap(s => branch([chalk.dim('[index]'), ...branch(exprLines(s.index), true)], false));
+        return branch(
+          [`${chalk.green(pathSkeleton(u.path))} ${chalk.dim('=')}`, ...indexLines, ...branch(exprLines(u.value), true)],
+          last,
+        );
       });
       return [`${chalk.cyan('With')}`, ...baseLines, ...updateLines];
     }

@@ -1,5 +1,5 @@
 import type { ProgramArg, Pattern, LiteralPattern } from './parser/ast.js';
-import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram, TypedBindTarget } from './parser/typed-ast.js';
+import type { TypedExpr, TypedBlock, TypedStatement, TypedProgram, TypedBindTarget, TypedPathStep } from './parser/typed-ast.js';
 import type { AscentType } from './types/types.js';
 // valueToString (plain, no colour) is how Ascent renders a runtime value to
 // its output text — the language owns this, so the host's sink takes strings.
@@ -133,42 +133,23 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     }
     case 'with': {
       // Evaluate the base once; 'its' refers to that value inside every index
-      // and value expression. Each new value coerces into the target position's
-      // type — the same Int → Float (and nested) widening a construction field
-      // gets. The base is untouched (records and lists are immutable), so we
-      // start from a copy and overwrite the named positions.
+      // and value expression. Each update is applied in turn to an accumulating
+      // result, but 'its' stays the *original* base throughout — so a swap
+      // ('a = its.b, b = its.a') reads both original fields. Each new value
+      // coerces into the leaf position's type (the same Int → Float and nested
+      // widening a construction field gets), then applyPathUpdate walks the path,
+      // copying each container it passes and sharing the rest (records and lists
+      // are immutable, so the base is untouched).
       const base = evaluateExpr(expr.base, env);
       const childEnv = env.child();
       childEnv.declare('its', base, false);
 
-      if (base.type === 'Record') {
-        const fields = new Map(base.fields);
-        for (const u of expr.updates) {
-          if (u.kind !== 'field') throw new Error('internal: an index update on a record');
-          fields.set(u.field, coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType));
-        }
-        return recordVal(base.name, fields);
+      let result = base;
+      for (const u of expr.updates) {
+        const value = coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType);
+        result = applyPathUpdate(result, u.path, 0, value, childEnv);
       }
-
-      if (base.type === 'List') {
-        const elements = base.elements.slice();
-        for (const u of expr.updates) {
-          if (u.kind !== 'index') throw new Error('internal: a field update on a list');
-          const idx = evaluateExpr(u.index, childEnv);
-          if (idx.type !== 'Int') throw new Error('internal: a with-update index that is not an Int');
-          const i = Number(idx.value);
-          // A missing position is a bug, exactly as reading 'xs[i]' out of range
-          // is (whitepaper §6/§9) — 'with' navigates existing structure, it
-          // never grows a list (append/insert do that).
-          if (i < 0 || i >= elements.length) {
-            throw new RuntimeError({ code: 'R0005', span: u.index.span, data: { length: String(elements.length) } });
-          }
-          elements[i] = coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType);
-        }
-        return { type: 'List', elements };
-      }
-
-      throw new Error('internal: with-update on a non-record, non-list');
+      return result;
     }
     case 'fieldAccess': {
       const receiver = evaluateExpr(expr.receiver, env);
@@ -361,6 +342,40 @@ const literalPatternValue = (p: LiteralPattern): RuntimeValue => {
     case 'Bool': return boolVal(p.value);
     case 'String': return strVal(p.value);
   }
+};
+
+// Return a copy of `container` with the position named by `path[from…]` set to
+// `value` (whitepaper §6). Records and lists are immutable, so each container on
+// the path is copied and the rest shared. An index step evaluates its index in
+// `env` (where 'its' is bound) and crashes on an out-of-range one (R0005) —
+// exactly as reading 'xs[i]' does, since 'with' navigates existing structure and
+// never grows it. The checker proved the step kinds match the value shapes, so a
+// mismatch here is an interpreter bug.
+const applyPathUpdate = (
+  container: RuntimeValue, path: TypedPathStep[], from: number, value: RuntimeValue, env: Environment,
+): RuntimeValue => {
+  const step = path[from]!;
+  const isLast = from === path.length - 1;
+
+  if (step.kind === 'field') {
+    if (container.type !== 'Record') throw new Error('internal: a field step on a non-record value');
+    const child = isLast ? value : applyPathUpdate(container.fields.get(step.field)!, path, from + 1, value, env);
+    const fields = new Map(container.fields);
+    fields.set(step.field, child);
+    return recordVal(container.name, fields);
+  }
+
+  if (container.type !== 'List') throw new Error('internal: an index step on a non-list value');
+  const idx = evaluateExpr(step.index, env);
+  if (idx.type !== 'Int') throw new Error('internal: a with-update index that is not an Int');
+  const i = Number(idx.value);
+  if (i < 0 || i >= container.elements.length) {
+    throw new RuntimeError({ code: 'R0005', span: step.index.span, data: { length: String(container.elements.length) } });
+  }
+  const child = isLast ? value : applyPathUpdate(container.elements[i]!, path, from + 1, value, env);
+  const elements = container.elements.slice();
+  elements[i] = child;
+  return { type: 'List', elements };
 };
 
 const evaluateBlock = (block: TypedBlock, env: Environment): RuntimeValue => {

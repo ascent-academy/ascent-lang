@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { TypedExpr, TypedStatement } from './typed-ast.js';
 import { typeToString } from '../types/types.js';
-import { branch, patternLabel } from './printer.js';
+import { branch, patternLabel, pathSkeleton } from './printer.js';
 
 // Appends the inferred type as a dim annotation on a node label.
 const ty = (t: ReturnType<typeof typeToString>): string => chalk.dim(`: ${t}`);
@@ -71,11 +71,13 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       const baseLines = branch(typedExprLines(expr.base), false);
       const updateLines = expr.updates.flatMap((u, i) => {
         const last = i === expr.updates.length - 1;
-        if (u.kind === 'field') {
-          return branch([`${chalk.green(u.field)} ${chalk.dim('=')}`, ...branch(typedExprLines(u.value), true)], last);
-        }
-        const indexLines = branch(typedExprLines(u.index), false);
-        return branch([`${chalk.dim('[index] =')}`, ...indexLines, ...branch(typedExprLines(u.value), true)], last);
+        const indexLines = u.path
+          .filter((s): s is Extract<typeof s, { kind: 'index' }> => s.kind === 'index')
+          .flatMap(s => branch([chalk.dim('[index]'), ...branch(typedExprLines(s.index), true)], false));
+        return branch(
+          [`${chalk.green(pathSkeleton(u.path))} ${chalk.dim('=')}`, ...indexLines, ...branch(typedExprLines(u.value), true)],
+          last,
+        );
       });
       return [`${chalk.cyan('With')}${t}`, ...baseLines, ...updateLines];
     }

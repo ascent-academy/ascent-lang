@@ -1,6 +1,6 @@
-import type { Expr, FieldInit } from '../parser/ast.js';
+import type { Expr, FieldInit, PathStep } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
-import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedWithUpdate, TypedTryElse } from '../parser/typed-ast.js';
+import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedWithUpdate, TypedPathStep, TypedTryElse } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
   listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf,
@@ -44,6 +44,31 @@ export const joinElementTypes = (typedElements: TypedExpr[], span: Span, diagnos
     elemType = ct;
   }
   return elemType;
+};
+
+// A canonical string key for a 'with' update path, but only when every step is
+// statically comparable — a field name, or an integer-literal index. Any
+// computed index (e.g. '[i]') makes the path 'dynamic' → null, so it's never
+// treated as a duplicate (we can't decide whether '[i]' and '[j]' collide).
+export const pathKey = (path: PathStep[]): string | null => {
+  const parts: string[] = [];
+  for (const step of path) {
+    if (step.kind === 'field') parts.push(`.${step.field}`);
+    else if (step.index.kind === 'literal' && step.index.valueType === 'Int') parts.push(`[${step.index.value}]`);
+    else return null;
+  }
+  return parts.join('');
+};
+
+// The same path rendered for a human (a duplicate-path message) — a leading
+// field bare ('users'), later steps dotted ('.address'), indices bracketed.
+export const pathDisplay = (path: PathStep[]): string => {
+  let out = '';
+  path.forEach((step, i) => {
+    if (step.kind === 'field') out += i === 0 ? step.field : `.${step.field}`;
+    else out += step.index.kind === 'literal' && step.index.valueType === 'Int' ? `[${step.index.value}]` : '[…]';
+  });
+  return out;
 };
 
 // Check a call's arguments against a function type: arity (T0007), then each
@@ -680,91 +705,105 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const childEnv = env.child();
       childEnv.set('its', typedBase.type, 'fix', null);
 
-      // Shared recovery for any base failure: synth each update's index + value
-      // (so errors inside them still surface) and yield an Invalid 'with' node.
-      const bail = (): TypedExpr => {
-        const typedUpdates: TypedWithUpdate[] = expr.updates.map(u =>
-          u.kind === 'field'
-            ? { kind: 'field', field: u.field, declaredType: INVALID_TYPE, value: synth(u.value, childEnv, diagnostics) }
-            : { kind: 'index', index: synth(u.index, childEnv, diagnostics), declaredType: INVALID_TYPE, value: synth(u.value, childEnv, diagnostics) },
-        );
-        return { kind: 'with', base: typedBase, updates: typedUpdates, type: INVALID_TYPE, span: expr.span };
-      };
-
-      if (isInvalidType(typedBase.type)) return bail();
-
-      // A List base is updated by position: every step must be an '[index]'
-      // (a field step is T0052), the index must be an Int (T0011, as a read
-      // 'xs[i]' requires), and the value must fit the element type (T0054). Its
-      // type is unchanged — a copy with some items replaced is the same list.
-      if (typedBase.type.kind === 'List') {
-        const elemType = typedBase.type.elem;
-        const typedUpdates: TypedWithUpdate[] = [];
-        for (const u of expr.updates) {
-          if (u.kind === 'field') {
-            diagnostics.error({ code: 'T0052', span: u.fieldSpan, data: { field: u.field } });
-            synth(u.value, childEnv, diagnostics);
-            continue;
-          }
-          const typedIndex = synth(u.index, childEnv, diagnostics);
-          if (!isInvalidType(typedIndex.type) && typedIndex.type.kind !== 'Int') {
-            diagnostics.error({ code: 'T0011', span: u.index.span, data: { actual: typeToString(typedIndex.type) } });
-          }
-          const value = check(u.value, elemType, childEnv, diagnostics, [], 'T0054');
-          typedUpdates.push({ kind: 'index', index: typedIndex, declaredType: elemType, value });
-        }
-        return { kind: 'with', base: typedBase, updates: typedUpdates, type: typedBase.type, span: expr.span };
-      }
-
-      // Otherwise the base must be a record — a single-variant Named type — to
-      // name fields to replace. A non-Named, non-List type (Int, String, …) has
-      // no positions to update (T0048); a multi-variant union has no single
-      // field set (T0049), its cases told apart with 'match'.
-      if (typedBase.type.kind !== 'Named') {
-        diagnostics.error({ code: 'T0048', span: expr.base.span, data: { type: typeToString(typedBase.type) } });
-        return bail();
-      }
-      const info = env.getType(typedBase.type.name);
-      if (info !== null && info.variants.length !== 1) {
-        diagnostics.error({ code: 'T0049', span: expr.base.span, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
-        return bail();
-      }
-
-      // A valid record base: check each field step. Its type is unchanged — a
-      // copy with some fields replaced is the same record type.
-      const declaredFields = info?.variants[0]?.fields ?? [];
+      // Two updates writing the *same* statically-known path can't both win. A
+      // path with a computed index has no static key (pathKey → null), so it's
+      // never flagged — we can't decide whether '[i]' and '[j]' collide.
       const seen = new Set<string>();
-      const typedUpdates: TypedWithUpdate[] = [];
-      for (const u of expr.updates) {
-        if (u.kind === 'index') {
-          // A record is updated by field name, not by position.
-          diagnostics.error({ code: 'T0053', span: u.span, data: { type: typedBase.type.name } });
-          synth(u.index, childEnv, diagnostics);
-          synth(u.value, childEnv, diagnostics);
-          continue;
-        }
-        const decl = declaredFields.find(f => f.name === u.field);
-        if (decl === undefined) {
-          // The record's type declares no such field to update.
-          diagnostics.error({ code: 'T0050', span: u.fieldSpan, data: { type: typedBase.type.name, field: u.field } });
-          synth(u.value, childEnv, diagnostics);
-          continue;
-        }
-        if (seen.has(u.field)) {
-          // The same field is updated twice — unclear which value wins. Keep the
-          // first (as construction does with a duplicate field) and flag this one.
-          diagnostics.error({ code: 'T0051', span: u.fieldSpan, data: { field: u.field, type: typedBase.type.name } });
-          synth(u.value, childEnv, diagnostics);
-          continue;
-        }
-        seen.add(u.field);
-        // Check the new value against the field's declared type — an Int widens
-        // to a Float field, a bare '[]' adopts a List field's element type, all
-        // exactly as a construction field (T0021) does.
-        const value = check(u.value, decl.type, childEnv, diagnostics, [{ key: 'field', span: decl.span }], 'T0021');
-        typedUpdates.push({ kind: 'field', field: u.field, declaredType: decl.type, value });
-      }
 
+      const typedUpdates: TypedWithUpdate[] = expr.updates.map(u => {
+        // Walk the path from the base type, mirroring how the same path *reads*
+        // (whitepaper §6 — "the update path is the read path") but reporting in
+        // terms of the *update*: a '.field' step needs a record (a list wants
+        // '[index]' → T0052, a union wants 'match' → T0049, anything else has no
+        // fields → T0048; an unknown field is T0050); an '[index]' step needs a
+        // list (a record wants a field name → T0053, a union 'match' → T0049,
+        // anything else can't be indexed → T0048). These fire at any depth, so a
+        // beginner sees the same guidance for 'users.city' as for the base. A
+        // step that fails poisons `current` to Invalid, which then absorbs the
+        // value check with no cascade; `leafFieldSpan` is a *final* field step's
+        // declaration span (for the value-mismatch related pointer).
+        let current = typedBase.type;
+        let currentSpan = expr.base.span;
+        let leafFieldSpan: Span | null = null;
+        const typedPath: TypedPathStep[] = [];
+
+        for (const step of u.path) {
+          if (step.kind === 'field') {
+            leafFieldSpan = null;
+            if (isInvalidType(current)) {
+              // Upstream already reported; keep walking to shape the typed node.
+            } else if (current.kind === 'List') {
+              diagnostics.error({ code: 'T0052', span: step.fieldSpan, data: { field: step.field } });
+              current = INVALID_TYPE;
+            } else if (current.kind !== 'Named') {
+              diagnostics.error({ code: 'T0048', span: currentSpan, data: { type: typeToString(current) } });
+              current = INVALID_TYPE;
+            } else {
+              const info = env.getType(current.name);
+              if (info !== null && info.variants.length !== 1) {
+                diagnostics.error({ code: 'T0049', span: currentSpan, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+                current = INVALID_TYPE;
+              } else {
+                const field = info?.variants[0]?.fields.find(f => f.name === step.field);
+                if (field === undefined) {
+                  diagnostics.error({ code: 'T0050', span: step.fieldSpan, data: { field: step.field, type: current.name } });
+                  current = INVALID_TYPE;
+                } else {
+                  current = field.type;
+                  leafFieldSpan = field.span;
+                }
+              }
+            }
+            typedPath.push({ kind: 'field', field: step.field });
+            currentSpan = step.span;
+          } else {
+            const typedIndex = synth(step.index, childEnv, diagnostics);
+            leafFieldSpan = null;
+            if (isInvalidType(current)) {
+              // Upstream already reported.
+            } else if (current.kind === 'List') {
+              if (!isInvalidType(typedIndex.type) && typedIndex.type.kind !== 'Int') {
+                diagnostics.error({ code: 'T0011', span: step.index.span, data: { actual: typeToString(typedIndex.type) } });
+              }
+              current = current.elem;
+            } else if (current.kind === 'Named') {
+              const info = env.getType(current.name);
+              if (info !== null && info.variants.length !== 1) {
+                diagnostics.error({ code: 'T0049', span: currentSpan, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+              } else {
+                diagnostics.error({ code: 'T0053', span: step.span, data: { type: current.name } });
+              }
+              current = INVALID_TYPE;
+            } else {
+              diagnostics.error({ code: 'T0048', span: currentSpan, data: { type: typeToString(current) } });
+              current = INVALID_TYPE;
+            }
+            typedPath.push({ kind: 'index', index: typedIndex });
+            currentSpan = step.span;
+          }
+        }
+
+        // Flag a repeat of a statically-known path (T0051) — the update is an
+        // error, so the program won't run; every update is still checked.
+        const key = pathKey(u.path);
+        if (key !== null) {
+          if (seen.has(key)) diagnostics.error({ code: 'T0051', span: u.span, data: { path: pathDisplay(u.path) } });
+          else seen.add(key);
+        }
+
+        // Check the new value against the leaf position's type — an Int widens to
+        // a Float field/element, a bare '[]' adopts a List's element type, all as
+        // a construction field (T0021) does. The last step's kind picks the code:
+        // a field leaf reports T0021, a list-element leaf T0054.
+        const lastKind = u.path[u.path.length - 1]!.kind;
+        const related = leafFieldSpan !== null ? [{ key: 'field', span: leafFieldSpan }] : [];
+        const value = check(u.value, current, childEnv, diagnostics, related, lastKind === 'field' ? 'T0021' : 'T0054');
+
+        return { path: typedPath, declaredType: current, value };
+      });
+
+      // The value's type is the base's, unchanged — a copy with some positions
+      // replaced is the same record/list type.
       return { kind: 'with', base: typedBase, updates: typedUpdates, type: typedBase.type, span: expr.span };
     }
 
