@@ -129,8 +129,8 @@ whitepaper's; "→ Layer 2" marks a paragraph that only *points at* a stdlib mem
 | **§8** Async | `async fn`, `f!()` → `Task<T>`, `await` (colored, enforced) | `src/check`, interp | ✅ |
 | §8 | nurseries, `start`, combinators, channels | — | ⏭️ |
 | **§9** Errors | two-tier model; `Optional`/`Result`/`orfail`, `try`, `try…else`, `??` (Optional-only) | `src/check`, interp | ✅ |
-| §9 | **`abort "reason"`** *(Never-typed expression)* | — | ➕ **add for v0.1** |
-| §9 | `.orAbort(msg?)` | → Layer 2 (method) | ➕ small |
+| §9 | **`abort "reason"`** *(Never-typed expression)* | lexer, `src/parser`, `src/check`, interp | ✅ |
+| §9 | `.orAbort(msg?)` | → Layer 2 (method) | ✅ |
 | §9 | Diagnostics: codes, categories, elaborate, beginner prose | `src/errors/` | ✅ |
 | **§10** Modules | **`import` (named + namespace) from a compiler-known stdlib registry** | — | ➕ **add for v0.1** |
 | §10 | `export`, relative-path user files, resolver | — | ⏭️ (user-authored modules) |
@@ -138,9 +138,10 @@ whitepaper's; "→ Layer 2" marks a paragraph that only *points at* a stdlib mem
 | §11 | UI / MVU / `Element` / `Command` / subscriptions | — | ⏭️ |
 | **§12–§13** | impl notes; tooling (`:type`, formatter, test runner) | REPL ✅ | infra / ⏭️ |
 
-**Layer-1 work remaining for v0.1:** **`abort`** (a `Never`-typed expression) and
-**stdlib `import`** (consumer side, registry-resolved). Optionally `!= None`
-narrowing. `methods {}` is **out** — deferred to v2. Everything else in Layer 1 is
+**Layer-1 work remaining for v0.1:** **stdlib `import`** (consumer side,
+registry-resolved). Optionally `!= None` narrowing. `methods {}` is **out** —
+deferred to v2. **`abort`** (the `Never`-typed expression) is now shipped — the
+last Layer-1 language mechanic besides `import`; everything else in Layer 1 is
 shipped.
 
 ---
@@ -214,7 +215,7 @@ ambient free-function exception.
 
 | Member | → | Status |
 |---|---|---|
-| `.orAbort(msg?)` | `T` (else bug-crash) | ➕ small — pairs with `abort` (§9) |
+| `.orAbort(msg?)` | `T` (else bug-crash) | ✅ — pairs with `abort` (§9) |
 
 ---
 

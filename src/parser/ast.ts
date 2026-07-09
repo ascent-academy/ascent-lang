@@ -174,6 +174,13 @@ export type Expr = (
   // a block that ends in one has type Never. `value` is optional: a bare
   // 'return' yields Done (valid only when the function returns Done).
   | { kind: 'return'; value: Expr | null; span: Span }
+  // 'abort "reason"' — a diverging expression (type Never, §7/§9) for a point
+  // that should be unreachable: a proven-impossible 'match' arm or 'else', or a
+  // broken invariant. `reason` is a required String (the only information there
+  // is), so unlike 'return' there is no bare form. It composes anywhere a value
+  // is expected because it diverges, and — unlike '.orAbort()' — is *not* the way
+  // to skip a Result (it carries no error value to report).
+  | { kind: 'abort'; reason: Expr; span: Span }
   | { kind: 'methodCall'; receiver: Expr; method: string; args: Expr[]; span: Span }
   // 'TypeName{ field: value, … }' — builds a value of a declared type
   // (whitepaper §6). `typeName` is the constructor: a variant tag (its own name

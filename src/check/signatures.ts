@@ -150,12 +150,42 @@ export const FUNCTIONS: Record<string, FunctionSig> = {
   print: { params: [{ bound: 'Display' }], result: DONE_TYPE },
 };
 
+// '.orAbort(msg?)' unwraps a Result/Optional's good case or diverges through the
+// bug-tier crash on its bad one (whitepaper §9). Its result is the unwrapped good
+// type — a Result's ok side, an Optional's element. Unlike the table methods it is
+// polymorphic over the two fallible boxes and dispatched on their *static* type
+// (their runtime value carries no distinguishing type), so it lives here, not in
+// METHODS. The optional message augments the crash, never replaces it, so it must
+// be a String when present; a bad message poisons only itself, not the unwrapped
+// result (which is known regardless), so it's still returned.
+const orAbortType = (
+  recv: Extract<AscentType, { kind: 'Result' | 'Optional' }>,
+  args: AscentType[], diagnostics: Diagnostics, span: Span,
+): AscentType => {
+  if (args.length > 1) {
+    diagnostics.error({ code: 'T0007', span, data: { expected: 'no input, or one String message', got: String(args.length) } });
+  } else if (args.length === 1 && !typesEqual(args[0]!, STRING_TYPE)) {
+    typeMismatch('T0008', diagnostics, span, STRING_TYPE, args[0]!);
+  }
+  return recv.kind === 'Result' ? recv.ok : recv.elem;
+};
+
 // The one place a method call's result type is looked up: T0012 when the
 // receiver's type has no methods at all, T0006 when it has methods but not
 // this one, otherwise dispatch to the signature.
 export const methodCallType = (
   recv: AscentType, method: string, args: AscentType[], diagnostics: Diagnostics, span: Span,
 ): AscentType => {
+  // Result/Optional aren't in METHODS (their sole method, orAbort, is polymorphic
+  // over both and dispatched on the static box type — see orAbortType). Intercept
+  // before the table lookup so 'r.orAbort()' resolves and 'r.foo()' is T0006 (a
+  // real method exists, just not that one) rather than T0012 ("no methods").
+  if (recv.kind === 'Result' || recv.kind === 'Optional') {
+    if (method === 'orAbort') return orAbortType(recv, args, diagnostics, span);
+    diagnostics.error({ code: 'T0006', span, data: { method, type: typeToString(recv) } });
+    return INVALID_TYPE;
+  }
+
   const table = METHODS[recv.kind];
   if (table === undefined) {
     diagnostics.error({ code: 'T0012', span, data: { type: typeToString(recv) } });

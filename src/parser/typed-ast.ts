@@ -74,6 +74,7 @@ export type TypedExpr = (
   | { kind: 'coalesce'; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
   | TypedFn
   | TypedReturn
+  | TypedAbort
   | TypedTry
   | TypedMatch
   | TypedBlock
@@ -136,6 +137,18 @@ export type TypedReturn = {
   kind: 'return';
   value: TypedExpr | null;
   returnType: AscentType;
+  type: AscentType;
+  span: Span;
+};
+
+// 'abort "reason"' typed (whitepaper §7/§9). `type` is always Never — abort
+// diverges, so it satisfies any expected type and makes an enclosing block
+// diverge too. `reason` is the checked String the interpreter evaluates and
+// reports when it crashes (bug-tier, R0009). Unlike 'return'/'try' it needs no
+// enclosing-function context: it never hands a value back, it just stops.
+export type TypedAbort = {
+  kind: 'abort';
+  reason: TypedExpr;
   type: AscentType;
   span: Span;
 };

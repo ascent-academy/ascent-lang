@@ -4,6 +4,7 @@ import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedWithUpdate, Typ
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
   listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf, taskOf,
+  typesEqual,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
@@ -473,6 +474,18 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         });
       }
       return { kind: 'return', value: typedValue, returnType: expected ?? INVALID_TYPE, type: NEVER_TYPE, span: expr.span };
+    }
+
+    case 'abort': {
+      // 'abort "reason"' diverges (whitepaper §7/§9), so its own type is always
+      // Never — it satisfies any expected type and makes an enclosing block
+      // diverge too. The reason is the only information there is, so it must be a
+      // String (T0059); an already-Invalid reason skips the redundant report.
+      const typedReason = synth(expr.reason, env, diagnostics);
+      if (!isInvalidType(typedReason.type) && !typesEqual(typedReason.type, STRING_TYPE)) {
+        diagnostics.error({ code: 'T0059', span: expr.reason.span, data: { actual: typeToString(typedReason.type) } });
+      }
+      return { kind: 'abort', reason: typedReason, type: NEVER_TYPE, span: expr.span };
     }
 
     case 'unary': {

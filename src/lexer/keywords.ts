@@ -21,6 +21,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   match: 'KW_MATCH',
   fn: 'KW_FN',
   return: 'KW_RETURN',
+  abort: 'KW_ABORT',
   orfail: 'KW_ORFAIL',
   try: 'KW_TRY',
   with: 'KW_WITH',

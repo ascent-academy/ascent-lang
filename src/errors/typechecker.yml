@@ -646,3 +646,14 @@
     'async fn(…): … { … }' — and its own callers then prepare it with '!' and
     'await' it. (At the program's top level 'await' works directly — that is the
     starting point.)
+
+- code: T0059
+  name: abort-reason-not-string
+  category: type
+  summary: "'abort' was given a reason that isn't a String."
+  message: "'abort' needs a String reason, but this is {actual}."
+  explanation: >-
+    'abort' stops the program at a point that should be impossible to reach, and
+    the reason you write is the only explanation anyone gets, so it has to be a
+    String — for example 'abort "this list is never empty here"'. This reason is
+    {actual}.

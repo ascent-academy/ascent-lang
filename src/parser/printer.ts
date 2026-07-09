@@ -112,6 +112,8 @@ const exprLines = (expr: Expr): string[] => {
       if (expr.value === null) return [`${chalk.cyan('Return')}`];
       return [`${chalk.cyan('Return')}`, ...branch(exprLines(expr.value), true)];
     }
+    case 'abort':
+      return [`${chalk.cyan('Abort')}`, ...branch(exprLines(expr.reason), true)];
     case 'methodCall': {
       const children = [expr.receiver, ...expr.args];
       const childLines = children.flatMap((child, i) =>

@@ -460,6 +460,10 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseReturn(ts);
   }
 
+  if (tok.kind === 'KW_ABORT') {
+    return parseAbort(ts);
+  }
+
   if (tok.kind === 'KW_TRY') {
     return parseTry(ts);
   }
@@ -523,6 +527,20 @@ function parseReturn(ts: TokenStream): Expr | null {
   if (value === null) return null;
 
   return { kind: 'return', value, span: { start: retTok.span.start, end: value.span.end } };
+}
+
+// 'abort "reason"' — a diverging expression (type Never, whitepaper §9). A nud
+// like 'return', but the reason is mandatory: 'abort' with nothing after it
+// falls through to parseExpr's S0002 ("expected a value"). The reason is a full
+// parseExpr, so an interpolated or concatenated String ('abort "bad: ${x}"')
+// reads as the whole reason. Its String-ness is a checker concern (T0059).
+function parseAbort(ts: TokenStream): Expr | null {
+  const abortTok = ts.advance(); // consume 'abort'
+
+  const reason = parseExpr(ts);
+  if (reason === null) return null;
+
+  return { kind: 'abort', reason, span: { start: abortTok.span.start, end: reason.span.end } };
 }
 
 // 'fn(params): Ret { body }' — a function value (whitepaper §5). Its return type

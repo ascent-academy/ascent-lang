@@ -128,6 +128,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       const fromType = expr.value !== null ? expr.value.type : expr.returnType;
       throw new ReturnSignal(coerce(raw, fromType, expr.returnType));
     }
+    case 'abort': {
+      // 'abort "reason"' diverges through the bug-tier crash (whitepaper §9). The
+      // reason is checked to a String, so evaluating it yields a StringValue; its
+      // text is the only information there is, reported by R0009. The span points
+      // at the whole 'abort …' so the caret lands on the deliberate stop.
+      const reason = evaluateExpr(expr.reason, env) as Extract<RuntimeValue, { type: 'String' }>;
+      throw new RuntimeError({ code: 'R0009', span: expr.span, data: { reason: reason.value } });
+    }
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);
       const args = expr.args.map(a => evaluateExpr(a, env));

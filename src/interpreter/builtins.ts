@@ -7,6 +7,7 @@ import {
   type RuntimeValue, type IntValue, type FloatValue, type StringValue, type ListValue, type RangeValue,
 } from './values.js';
 import { checkIntOverflow } from './arithmetic.js';
+import { valueToString } from '../parser/printer.js';
 
 // ---- Built-in methods: data, not control flow -----------------------
 //
@@ -176,12 +177,49 @@ export const METHOD_IMPLS: Partial<Record<RuntimeValue['type'], Record<string, M
   Range: RANGE_IMPLS as Record<string, MethodImpl>,
 };
 
+// '.orAbort(msg?)' unwraps a Result/Optional's good case or crashes on its bad
+// one (whitepaper §9). It dispatches on the *static* box type in ctx, not the
+// receiver's runtime type: a Result is a Success/Failure Record, and a present
+// Optional is just its bare value, so neither has a METHOD_IMPLS key — and an
+// 'Optional<T orfail E>' whose present value is itself a Failure must not be
+// mistaken for a failed Result, which is exactly why the static kind decides.
+// The optional message augments the crash (parenthesized), never replaces it.
+const evalOrAbort = (receiver: RuntimeValue, args: RuntimeValue[], ctx: MethodCtx): RuntimeValue => {
+  const message = args.length === 1 ? (args[0] as StringValue).value : null;
+  const context = message === null ? '' : ` (${message})`;
+
+  if (ctx.receiverType.kind === 'Optional') {
+    // A present Optional is already the bare value (no wrapper, §4); only None
+    // has nothing to unwrap, so it aborts (R0011).
+    if (receiver.type === 'None') {
+      throw new RuntimeError({ code: 'R0011', span: ctx.span, data: { context } });
+    }
+    return receiver;
+  }
+  // Result: a Success unwraps to its 'value'; a Failure aborts, reporting the
+  // carried error — the most informative thing there is (R0010).
+  const rec = receiver as Extract<RuntimeValue, { type: 'Record' }>;
+  if (rec.name === 'Failure') {
+    throw new RuntimeError({
+      code: 'R0010', span: ctx.span,
+      data: { error: valueToString(rec.fields.get('error')!), context },
+    });
+  }
+  return rec.fields.get('value')!;
+};
+
 // The one lookup-and-apply rule. Both lookups are total by construction (the
 // checker proved the receiver has this method), so a miss is an internal
 // invariant violation, not a user error.
 export const evalMethodCall = (
   receiver: RuntimeValue, method: string, args: RuntimeValue[], ctx: MethodCtx,
 ): RuntimeValue => {
+  // orAbort is the one method not in METHOD_IMPLS — it's polymorphic over
+  // Result/Optional, whose runtime values carry no distinguishing type, so it
+  // dispatches on the static receiver type instead (see evalOrAbort).
+  if (method === 'orAbort' && (ctx.receiverType.kind === 'Result' || ctx.receiverType.kind === 'Optional')) {
+    return evalOrAbort(receiver, args, ctx);
+  }
   const impls = METHOD_IMPLS[receiver.type];
   if (impls === undefined) throw new Error(`internal: ${receiver.type} has no methods`);
   const impl = impls[method];

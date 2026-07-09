@@ -287,6 +287,30 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'.repeat(n)' builds a new String out of n copies of this one, so n has to be 0 or more — there's no such thing as repeating something a negative number of times. Use 0 if you want an empty String back."
   },
   {
+    "code": "R0009",
+    "name": "abort",
+    "category": "runtime",
+    "summary": "'abort' deliberately stopped the program at a point marked unreachable.",
+    "message": "The program aborted: {reason}",
+    "explanation": "'abort' stops the program on purpose, at a spot the code treats as impossible to reach — a branch ruled out earlier, or an invariant that has been broken. The reason above is the one written at that 'abort'. If this spot can really be reached, handle that case instead of aborting."
+  },
+  {
+    "code": "R0010",
+    "name": "orabort-on-failure",
+    "category": "runtime",
+    "summary": "'.orAbort()' was called on a Result that turned out to be a Failure.",
+    "message": "'.orAbort()' stopped the program on a Failure: {error}{context}",
+    "explanation": "'.orAbort()' hands back the value inside a Success, but this Result was a Failure, so there is no value to unwrap. It stops the program and reports the Failure's error rather than carry on with something missing. Handle the Failure with 'match' or 'try' if it can really happen, and keep '.orAbort()' only where a Failure would be a bug."
+  },
+  {
+    "code": "R0011",
+    "name": "orabort-on-none",
+    "category": "runtime",
+    "summary": "'.orAbort()' was called on an Optional that turned out to be None.",
+    "message": "'.orAbort()' stopped the program: this value is None{context}",
+    "explanation": "'.orAbort()' hands back the value inside an Optional when it is present, but this one was None, so there is nothing to unwrap. It asserts the value is there, so a None stops the program. Handle the None with 'match' or '??' if it can really happen, and keep '.orAbort()' only where a None would be a bug."
+  },
+  {
     "code": "S0001",
     "name": "unclosed-paren",
     "category": "syntactic",
@@ -1157,6 +1181,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'await' is used inside a function that isn't async.",
     "message": "'await' can only be used inside an async function.",
     "explanation": "Waiting on a task is itself an async thing to do, so it spreads: a function that 'await's must be marked 'async'. This function isn't, so mark it — 'async fn(…): … { … }' — and its own callers then prepare it with '!' and 'await' it. (At the program's top level 'await' works directly — that is the starting point.)"
+  },
+  {
+    "code": "T0059",
+    "name": "abort-reason-not-string",
+    "category": "type",
+    "summary": "'abort' was given a reason that isn't a String.",
+    "message": "'abort' needs a String reason, but this is {actual}.",
+    "explanation": "'abort' stops the program at a point that should be impossible to reach, and the reason you write is the only explanation anyone gets, so it has to be a String — for example 'abort \"this list is never empty here\"'. This reason is {actual}."
   }
 ];
 
