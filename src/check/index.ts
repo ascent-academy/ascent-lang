@@ -69,6 +69,14 @@ export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv)
     for (const [, info] of env.ownTypeEntries()) {
       parentEnv.setType(info);
     }
+    // Imports likewise persist, so an 'import { min } from "math"' on one REPL
+    // line keeps 'min' (or a 'math' namespace) callable on the next.
+    for (const [name, module] of env.ownImportedFns()) {
+      parentEnv.setImportedFn(name, module);
+    }
+    for (const [name, module] of env.ownNamespaces()) {
+      parentEnv.setNamespace(name, module);
+    }
   }
 
   return { program: { args: program.args, stmts: typedStmts, bodyStart: program.bodyStart }, diagnostics: [] };

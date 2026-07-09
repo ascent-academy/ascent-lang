@@ -27,6 +27,8 @@ export const KEYWORDS: Record<string, TokenKind> = {
   with: 'KW_WITH',
   async: 'KW_ASYNC',
   await: 'KW_AWAIT',
+  import: 'KW_IMPORT',
+  from: 'KW_FROM',
 };
 
 export const CONSTRUCTORS: Record<string, TokenKind> = {

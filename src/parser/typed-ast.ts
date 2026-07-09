@@ -1,5 +1,5 @@
 import type { Span } from '../lexer/token.js';
-import type { UnaryOp, BinaryOp, ProgramArg, TypeExpr, Pattern } from './ast.js';
+import type { UnaryOp, BinaryOp, ProgramArg, TypeExpr, Pattern, ImportClause } from './ast.js';
 import type { AscentType } from '../types/types.js';
 
 // Every typed expression carries `type`: the Type inferred by the type
@@ -42,7 +42,13 @@ export type TypedExpr = (
   | TypedLiteral
   | TypedTemplate
   | { kind: 'slot'; name: string; type: AscentType; span: Span }
-  | { kind: 'call'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
+  // A by-name call: an ambient builtin ('print'), a user function, or — when
+  // `module` is set — a stdlib module export (whitepaper §10). Both import forms
+  // resolve to this one node: a named import's bare 'min(…)' and a namespace
+  // import's 'math.min(…)' alike become a 'call' with `module` = "math" and
+  // `callee` = "min", so the interpreter dispatches every stdlib function one way
+  // (the module registry) regardless of which import spelling reached it.
+  | { kind: 'call'; callee: string; module?: string; args: TypedExpr[]; type: AscentType; span: Span }
   // Calling a computed function value (see Expr's 'apply' in ast.ts). `callee`
   // is checked to a Function type; `type` is that function's result.
   | { kind: 'apply'; callee: TypedExpr; args: TypedExpr[]; type: AscentType; span: Span }
@@ -228,6 +234,10 @@ export type TypedStatement = (
   // a Range. For a name target it's the loop variable's type; for a record
   // target it's the (single-variant record) type each element destructures as.
   | { kind: 'for'; target: TypedBindTarget; elemType: AscentType; iterable: TypedExpr; body: TypedBlock; span: Span }
+  // A resolved import (whitepaper §10). It has no runtime effect — the checker
+  // has already rewritten every use into a 'call' with `module` set — so the
+  // interpreter no-ops it; the clause/module ride along only for the printer.
+  | { kind: 'import'; clause: ImportClause; module: string; span: Span }
 );
 
 export type TypedProgram = {

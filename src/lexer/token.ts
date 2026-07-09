@@ -38,6 +38,8 @@ export type TokenKind =
   | 'KW_WITH'        // the keyword with — 'base with field = value', an updated copy of a record
   | 'KW_ASYNC'       // the keyword async — marks a function whose call prepares a Task ('async fn(...)')
   | 'KW_AWAIT'       // the keyword await — starts and waits on a Task, yielding its value
+  | 'KW_IMPORT'      // the keyword import — brings stdlib module exports into scope ('import { … } from "…"')
+  | 'KW_FROM'        // the keyword from — separates an import's names from its module specifier
   | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates

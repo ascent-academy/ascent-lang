@@ -151,3 +151,32 @@
     be called — like '{name}("hi")' — not passed around as a value or stored in a
     slot. Call it directly, or wrap it in a function where a function value is
     needed, like 'fn(x: String): Done { print(x) }'.
+
+- code: N0014
+  name: unknown-module
+  category: name
+  summary: An import names a module the standard library doesn't have.
+  message: "There's no standard-library module named \"{module}\"."
+  explanation: >-
+    An import can only bring in one of the built-in library modules. This release
+    has 'math' (min, max, sqrt, floor, ceil, round) and 'assert' (assert,
+    assertEqual). Check the spelling of "{module}", or import one of those.
+
+- code: N0015
+  name: unknown-export
+  category: name
+  summary: An import (or a 'module.name' use) names something the module doesn't export.
+  message: "The module \"{module}\" has no export named '{name}'."
+  explanation: >-
+    Each library module offers a fixed set of functions, and '{name}' isn't one of
+    "{module}"'s. Check the spelling against the module's contents.
+
+- code: N0016
+  name: module-used-as-value
+  category: name
+  summary: A namespace-imported module is used on its own instead of calling one of its exports.
+  message: "'{name}' is a module, not a value."
+  explanation: >-
+    'import {name} from …' brings the whole module in under the name '{name}', and
+    you reach its functions through it — '{name}.min(…)'. The module itself isn't a
+    value you can store or call on its own.

@@ -132,17 +132,17 @@ whitepaper's; "→ Layer 2" marks a paragraph that only *points at* a stdlib mem
 | §9 | **`abort "reason"`** *(Never-typed expression)* | lexer, `src/parser`, `src/check`, interp | ✅ |
 | §9 | `.orAbort(msg?)` | → Layer 2 (method) | ✅ |
 | §9 | Diagnostics: codes, categories, elaborate, beginner prose | `src/errors/` | ✅ |
-| **§10** Modules | **`import` (named + namespace) from a compiler-known stdlib registry** | — | ➕ **add for v0.1** |
+| **§10** Modules | **`import` (named + namespace) from a compiler-known stdlib registry** | `src/parser`, `src/check/stdlib.ts`, `src/interpreter/stdlib.ts` | ✅ |
 | §10 | `export`, relative-path user files, resolver | — | ⏭️ (user-authored modules) |
 | **§11** Entry | **`program (params) { body }`** entry form (+ CLI arg binding) | `src/index.ts`, parser | ✅ |
 | §11 | UI / MVU / `Element` / `Command` / subscriptions | — | ⏭️ |
 | **§12–§13** | impl notes; tooling (`:type`, formatter, test runner) | REPL ✅ | infra / ⏭️ |
 
-**Layer-1 work remaining for v0.1:** **stdlib `import`** (consumer side,
-registry-resolved). Optionally `!= None` narrowing. `methods {}` is **out** —
-deferred to v2. **`abort`** (the `Never`-typed expression) is now shipped — the
-last Layer-1 language mechanic besides `import`; everything else in Layer 1 is
-shipped.
+**Layer-1 work remaining for v0.1:** none required — the two remaining language
+mechanics, **`abort`** (the `Never`-typed expression) and **stdlib `import`**
+(consumer side, registry-resolved, both named and namespace forms), are now
+shipped. Optionally `!= None` narrowing. `methods {}` is **out** — deferred to
+v2. Everything else in Layer 1 is shipped.
 
 ---
 
@@ -152,12 +152,17 @@ The growable layer. **Methods** stay ambient on their built-in type (Option A). 
 functions** are reached through `import` from a stdlib module (§6). `print` is the one
 ambient free-function exception.
 
-### The module system (v1 scope)
+### The module system (v1 scope) — ✅ shipped
 
 - **Syntax (both §10 forms):** `import { min, max } from "math";` (named, used bare) and
-  `import math from "math";` (namespace, used `math.min(...)`).
+  `import math from "math";` (namespace, used `math.min(...)`). ✅
 - **Resolution:** module specifiers name entries in a **compiler-known stdlib registry**
-  — no filesystem, no path resolution. A fixed set of blessed module names.
+  — no filesystem, no path resolution. A fixed set of blessed module names. ✅ Both
+  import forms resolve to one typed `call` node carrying its `module`, so the
+  interpreter dispatches every stdlib call through one path (`evalModuleCall`); an
+  unknown module is N0014, an unknown export N0015, a namespace misused as a value
+  N0016. The two registry tables (`MODULE_SIGS` / `MODULE_IMPLS`) mirror the
+  METHODS/METHOD_IMPLS pattern, pinned by a parity meta-test.
 - **Deferred:** `export`, relative-path user files (`"./x.ascent"`), circular-import
   handling, external/bare packages — all arrive with *user-authored* modules later.
 - **Ambient prelude:** `print` only (unchanged).
@@ -166,8 +171,8 @@ ambient free-function exception.
 
 | Module | Members | Status |
 |---|---|---|
-| `math` | `min`, `max` (🔒 `Comparable`, scalar-hardcoded), `sqrt`, `floor`, `ceil`, `round`, `pow` | ➕ starter set |
-| `assert` | `assert(cond: Bool)`, `assertEqual(a, b)` | ➕ (§13 on-ramp) |
+| `math` | `min`, `max` (🔒 `Comparable`, scalar-hardcoded), `sqrt`, `floor`, `ceil`, `round` | ✅ starter set (`pow` ⏭️ — `**` covers it) |
+| `assert` | `assert(cond: Bool)`, `assertEqual(a, b)` | ✅ (§13 on-ramp) |
 | *(ambient)* `print` | `print<T: Display>(value: T) -> Done` | ✅ 🔒 `Display` |
 
 ### Built-in methods (ambient on their type)
@@ -222,20 +227,22 @@ ambient free-function exception.
 ## 4. The must-add list to reach v0.1 (by layer)
 
 **Layer 1 (language work):**
-1. **`abort "reason"`** — a `Never`-typed expression; unblocks the §7 `Never`
+1. ✅ **`abort "reason"`** — a `Never`-typed expression; unblocks the §7 `Never`
    narrative and impossible-arm handling.
-2. **Stdlib `import`** — parse both `import` forms; resolve specifiers against a
-   compiler-known stdlib registry; inject named / namespace bindings into the top-level
-   scope for checker and interpreter. `export` + user files deferred.
+2. ✅ **Stdlib `import`** — parses both `import` forms; resolves specifiers against a
+   compiler-known stdlib registry; injects named / namespace bindings into the checker
+   scope, both resolving to one `call` node the interpreter dispatches. `export` + user
+   files deferred.
 3. *(optional)* `!= None` flow-narrowing sugar.
 
 **Layer 2 (catalog):**
 4. `List` methods: `map`, `filter`, `reduce`, `find`, `at`, `contains` — closes the
    loop/`void` teaching story (**T0026 already tells users to use `.map`**). Pure table
    growth (`METHODS` + `METHOD_IMPLS` + parity test).
-5. `.orAbort()` on `Optional`/`Result` (with #1).
+5. ✅ `.orAbort()` on `Optional`/`Result` (with #1).
 6. Reconcile `toString` → **`toStr`** (match whitepaper §6).
-7. Starter stdlib modules: `math` (`min`/`max` + a few numerics), `assert`.
+7. ✅ Starter stdlib modules: `math` (`min`/`max`/`sqrt`/`floor`/`ceil`/`round`), `assert`
+   (`assert`/`assertEqual`).
 8. *(hardcoded now)* `sort`/`min`/`max` for scalar elements — 🔒.
 
 **Consistency fixes (no new feature):**

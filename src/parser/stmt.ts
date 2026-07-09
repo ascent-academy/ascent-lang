@@ -1,5 +1,5 @@
 import type { Token } from '../lexer/token.js';
-import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl, VariantDecl, BindTarget, FieldPattern } from './ast.js';
+import type { Expr, Statement, Block, If, Match, MatchArm, Pattern, LiteralPattern, TypeExpr, FieldDecl, VariantDecl, BindTarget, FieldPattern, ImportClause, ImportName } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseExpr } from './expr.js';
 import { parseTypeExpr } from './type-expr.js';
@@ -524,6 +524,9 @@ function parseVoid(ts: TokenStream): Statement | null {
 }
 
 export function parseStmt(ts: TokenStream): Statement | null {
+  if (ts.peek().kind === 'KW_IMPORT') {
+    return parseImport(ts);
+  }
   if (ts.peek().kind === 'KW_VOID') {
     return parseVoid(ts);
   }
@@ -551,4 +554,56 @@ export function parseStmt(ts: TokenStream): Statement | null {
     return null;
   }
   return { kind: 'expr', expr, span: expr.span };
+}
+
+// One name in a braced import list — a lowercase export name ('min').
+function parseImportName(ts: TokenStream): ImportName | null {
+  const tok = ts.peek();
+  if (tok.kind !== 'SLOT') {
+    ts.report('S0003', tok.span);
+    return null;
+  }
+  ts.advance();
+  return { name: tok.value, span: tok.span };
+}
+
+// 'import { a, b } from "mod";' (named) or 'import mod from "mod";' (namespace)
+// — a stdlib import (whitepaper §10). The braces pick the form: '{ … }' brings
+// specific exports into scope to be used bare, a bare name binds the whole
+// module for qualified use. The specifier is a *plain* double-quoted string — a
+// module name is a compile-time constant, so a '${…}' hole in it is meaningless
+// (its first token would be STR_PART, not STR_PART_END) and rejected.
+function parseImport(ts: TokenStream): Statement | null {
+  const importTok = ts.advance(); // consume 'import'
+
+  let clause: ImportClause;
+  if (ts.peek().kind === 'LBRACE') {
+    const open = ts.advance(); // consume '{'
+    const parsed = ts.parseSeparated(() => parseImportName(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+    if (parsed === null) return null;
+    clause = { kind: 'named', names: parsed.items };
+  } else if (ts.peek().kind === 'SLOT') {
+    const nameTok = ts.advance();
+    clause = { kind: 'namespace', binding: nameTok.value, bindingSpan: nameTok.span };
+  } else {
+    ts.report('S0041', ts.peek().span);
+    return null;
+  }
+
+  if (ts.expect('KW_FROM', 'S0042') === null) return null;
+
+  const spec = ts.peek();
+  if (spec.kind !== 'STR_PART_END') {
+    ts.report('S0043', spec.span);
+    return null;
+  }
+  ts.advance(); // consume the module specifier
+
+  return {
+    kind: 'import',
+    clause,
+    module: spec.value,
+    moduleSpan: spec.span,
+    span: { start: importTok.span.start, end: spec.span.end },
+  };
 }

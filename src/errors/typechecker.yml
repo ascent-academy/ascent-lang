@@ -679,3 +679,24 @@
     again adds nothing, because an optional doesn't nest — there is no "maybe a
     maybe-String", only "maybe a String". Write a single '?' — 'String?', not
     'String??'.
+
+- code: T0062
+  name: min-max-not-comparable
+  category: type
+  summary: "'min' or 'max' was given values that can't be ordered against each other."
+  message: "'min'/'max' need two values you can order, but these are {left} and {right}."
+  explanation: >-
+    'min' and 'max' compare two values and hand back the smaller or larger, so
+    both have to be orderable and of the same kind — two Ints, two Floats (an Int
+    and a Float mix, promoting), or two Strings. {left} and {right} can't be
+    ordered against each other.
+
+- code: T0063
+  name: assert-equal-mismatch
+  category: type
+  summary: "'assertEqual' was given two values of unrelated types, which can never be equal."
+  message: "'assertEqual' compares two values of the same kind, but these are {left} and {right}."
+  explanation: >-
+    'assertEqual' checks that two values are equal, so they must be comparable —
+    the same type, or an Int and a Float. {left} and {right} have unrelated types,
+    so they could never be equal, which makes the check meaningless.

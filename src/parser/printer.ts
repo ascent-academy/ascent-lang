@@ -278,6 +278,12 @@ const stmtLines = (stmt: Statement): string[] => {
         : `${stmt.target.typeName}{ ${stmt.target.fields.map(f => f.field === f.bind ? f.field : `${f.field}: ${f.bind}`).join(', ')} }`;
       return [`${chalk.cyan('For')} ${chalk.green(target)}`, ...iterable, ...body];
     }
+    case 'import': {
+      const what = stmt.clause.kind === 'named'
+        ? `{ ${stmt.clause.names.map(n => n.name).join(', ')} }`
+        : stmt.clause.binding;
+      return [`${chalk.cyan('Import')} ${chalk.green(what)} ${chalk.dim('from')} ${chalk.yellow(`"${stmt.module}"`)}`];
+    }
   }
 };
 

@@ -43,6 +43,14 @@ export interface TypeInfo {
 export class TypeEnv {
   private vars = new Map<string, Binding>();
   private types = new Map<string, TypeInfo>();
+  // Stdlib imports (whitepaper §10), kept in their own two namespaces so they
+  // never collide with value slots or type names. `importedFns` maps a named
+  // import ('min') to the module it came from ('math'); `namespaces` maps a
+  // namespace import binding ('math') to that module. Both resolve against the
+  // compiler-known registry (check/stdlib.ts) — the value is just the module
+  // name, since the export's signature lives there.
+  private importedFns = new Map<string, string>();
+  private namespaces = new Map<string, string>();
   // The declared return type of the nearest enclosing function, if any — set
   // only on the scope a function body runs in (childForFunction), null
   // everywhere else. A 'return' looks it up via enclosingReturn() to check its
@@ -71,6 +79,27 @@ export class TypeEnv {
 
   public setType(info: TypeInfo): void {
     this.types.set(info.name, info);
+  }
+
+  // The module a bare imported name ('min') came from, or null — walked outward
+  // like every other lookup. Used by the 'call' judgment to route 'min(…)' to
+  // the stdlib registry instead of a user slot.
+  public getImportedFn(name: string): string | null {
+    return this.importedFns.get(name) ?? this.parent?.getImportedFn(name) ?? null;
+  }
+
+  public setImportedFn(name: string, module: string): void {
+    this.importedFns.set(name, module);
+  }
+
+  // The module a namespace binding ('math') stands for, or null. Used by the
+  // 'methodCall' judgment to resolve 'math.min(…)' as a module export.
+  public getNamespace(name: string): string | null {
+    return this.namespaces.get(name) ?? this.parent?.getNamespace(name) ?? null;
+  }
+
+  public setNamespace(name: string, module: string): void {
+    this.namespaces.set(name, module);
   }
 
   // Resolve a constructor tag ('Circle') to the type it builds and the variant
@@ -125,5 +154,15 @@ export class TypeEnv {
   // later lines alongside its new slots.
   public ownTypeEntries(): IterableIterator<[string, TypeInfo]> {
     return this.types.entries();
+  }
+
+  // The same, for imports — so an 'import' on one REPL line keeps its names in
+  // scope on the next, alongside the line's new slots and types.
+  public ownImportedFns(): IterableIterator<[string, string]> {
+    return this.importedFns.entries();
+  }
+
+  public ownNamespaces(): IterableIterator<[string, string]> {
+    return this.namespaces.entries();
   }
 }

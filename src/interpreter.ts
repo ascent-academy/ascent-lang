@@ -13,6 +13,7 @@ import {
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
 import { Environment, type AssignResult, type OutputSink } from './interpreter/env.js';
 import { evalMethodCall } from './interpreter/builtins.js';
+import { evalModuleCall } from './interpreter/stdlib.js';
 
 // Re-export the value domain and the scope chain so existing importers of
 // './interpreter.js' (lib.ts, the CLI, the tests) keep resolving
@@ -60,6 +61,16 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     }
     case 'call': {
       const args = expr.args.map(a => evaluateExpr(a, env));
+      // A stdlib module function (whitepaper §10). Both import forms were
+      // resolved to a 'call' carrying `module`, so this one branch dispatches
+      // every stdlib call — the registry proved present by the checker.
+      if (expr.module !== undefined) {
+        return evalModuleCall(expr.module, expr.callee, args, {
+          argTypes: expr.args.map(a => a.type),
+          resultType: expr.type,
+          span: expr.span,
+        });
+      }
       if (expr.callee === 'print') {
         // The checker proved the argument is Display (a scalar), so it has a
         // canonical text form — the same one an interpolation hole renders.
@@ -486,6 +497,11 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
     case 'typeDecl':
       // Types are erased at runtime — a declaration carries no value and does
       // nothing when executed (its effect was on the typechecker's registry).
+      return DONE;
+    case 'import':
+      // An import is resolved entirely at type-check time — every use was
+      // rewritten to a 'call' carrying its module — so it does nothing at
+      // runtime, just like a type declaration.
       return DONE;
     case 'expr':
       return evaluateExpr(stmt.expr, env);

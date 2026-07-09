@@ -291,6 +291,21 @@ export type Statement = (
   // a plain name, or a record pattern that destructures each element (§5), the
   // same BindTarget a fix/mut declaration takes.
   | { kind: 'for'; target: BindTarget; iterable: Expr; body: Block; span: Span }
+  // 'import { a, b } from "mod";' (named) or 'import mod from "mod";' (namespace)
+  // — brings a stdlib module's exports into scope (whitepaper §10, consumer side).
+  // v0.1 resolves `module` against a compiler-known stdlib registry — no
+  // filesystem, no relative paths — so it's the bare module name a learner wrote
+  // ('math'). `moduleSpan` is the '"…"' specifier, for an unknown-module error.
+  | { kind: 'import'; clause: ImportClause; module: string; moduleSpan: Span; span: Span }
+);
+
+// The two import forms (whitepaper §10), distinguished at the brace: a braced
+// list brings specific exports into scope to be used bare ('min(…)'); a bare
+// name binds the whole module, its exports reached qualified ('math.min(…)').
+export type ImportName = { name: string; span: Span };
+export type ImportClause = (
+  | { kind: 'named'; names: ImportName[] }
+  | { kind: 'namespace'; binding: string; bindingSpan: Span }
 );
 
 export type ArgType = 'Int' | 'Float' | 'Bool' | 'String';

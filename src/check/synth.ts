@@ -9,6 +9,7 @@ import {
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
 import { methodCallType, FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
+import { MODULE_SIGS, moduleCallType } from './stdlib.js';
 import { BUILTIN_TYPE_NAMES, typeFromExpr } from './formation.js';
 import { freeVariables } from './captures.js';
 import { satisfies } from './traits.js';
@@ -229,6 +230,26 @@ const synthTry = (
   };
 };
 
+// 'math.min(…)' — a namespace import's qualified call (whitepaper §10). Resolves
+// the export against the module `module` and produces a 'call' node carrying it,
+// identical to what a named import's bare 'min(…)' yields, so both spellings walk
+// the same interpreter path. An export the module doesn't have is N0015 (the
+// method-call twin of a named import's unknown-export error).
+const synthNamespaceCall = (
+  module: string, expr: Extract<Expr, { kind: 'methodCall' }>, env: TypeEnv, diagnostics: Diagnostics,
+): TypedExpr => {
+  const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
+  const asCall = (type: AscentType): TypedExpr =>
+    ({ kind: 'call', callee: expr.method, module, args: typedArgs, type, span: expr.span });
+
+  if (typedArgs.some(a => isInvalidType(a.type))) return asCall(INVALID_TYPE);
+  if (MODULE_SIGS[module]?.[expr.method] === undefined) {
+    diagnostics.error({ code: 'N0015', span: expr.span, data: { module, name: expr.method } });
+    return asCall(INVALID_TYPE);
+  }
+  return asCall(moduleCallType(module, expr.method, typedArgs.map(a => a.type), diagnostics, expr.span));
+};
+
 export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): TypedExpr => {
   switch (expr.kind) {
     case 'literal': {
@@ -274,11 +295,15 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     case 'slot': {
       const binding = env.get(expr.name);
       if (binding === null) {
-        // A bare built-in function name (print) in value position, not a call:
-        // it has no first-class type yet (its trait bound can't be written as a
-        // type), so this is a clearer error than "undefined name". A call
-        // 'print(x)' never reaches here — it's a 'call' node, not a 'slot'.
-        const code = FUNCTIONS[expr.name] !== undefined ? 'N0013' : 'N0001';
+        // A bare built-in / imported / namespace name in value position, not a
+        // call. A namespace ('math') is reached qualified, so it's N0016; an
+        // ambient (print) or imported stdlib function (min) has no first-class
+        // type yet — it can only be called — so it's N0013, clearer than
+        // "undefined name". A call 'print(x)' never reaches here (it's a 'call'
+        // node). Otherwise the name simply isn't declared (N0001).
+        let code = 'N0001';
+        if (env.getNamespace(expr.name) !== null) code = 'N0016';
+        else if (FUNCTIONS[expr.name] !== undefined || env.getImportedFn(expr.name) !== null) code = 'N0013';
         diagnostics.error({ code, span: expr.span, data: { name: expr.name } });
         return { ...expr, type: INVALID_TYPE };
       }
@@ -313,6 +338,24 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           }
         }
         return { kind: 'call', callee: expr.callee, args: typedArgs, type: builtin.result, span: expr.span };
+      }
+
+      // A stdlib function brought in bare by a named import ('import { min } from
+      // "math"') — resolved against the module registry, like print but gated by
+      // the import. Rewrites to a 'call' carrying its `module`, the one node the
+      // interpreter dispatches every stdlib call through.
+      const importedModule = env.getImportedFn(expr.callee);
+      if (importedModule !== null) {
+        if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
+        const result = moduleCallType(importedModule, expr.callee, typedArgs.map(a => a.type), diagnostics, expr.span);
+        return { kind: 'call', callee: expr.callee, module: importedModule, args: typedArgs, type: result, span: expr.span };
+      }
+
+      // A namespace import ('import math') isn't callable on its own — you call
+      // its exports ('math.min(…)'), not the module (N0016).
+      if (env.getNamespace(expr.callee) !== null) {
+        diagnostics.error({ code: 'N0016', span: expr.span, data: { name: expr.callee } });
+        return invalid();
       }
 
       // Otherwise the callee must be a slot holding a function value
@@ -675,6 +718,16 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     }
 
     case 'methodCall': {
+      // Namespace-qualified access: 'math.min(…)' where 'math' is a namespace
+      // import. It resolves to the same 'call' node a named import produces (so
+      // the interpreter dispatches every stdlib call one way) — checked BEFORE
+      // synthesizing the receiver, since 'math' is a module, not a value, and
+      // synthesizing it as a slot would wrongly report an unknown name.
+      if (expr.receiver.kind === 'slot') {
+        const nsModule = env.getNamespace(expr.receiver.name);
+        if (nsModule !== null) return synthNamespaceCall(nsModule, expr, env, diagnostics);
+      }
+
       const typedReceiver = synth(expr.receiver, env, diagnostics);
       const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
       if (isInvalidType(typedReceiver.type) || typedArgs.some(a => isInvalidType(a.type))) {

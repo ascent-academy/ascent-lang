@@ -422,3 +422,34 @@
   explanation: >-
     'async' marks a function as asynchronous, so it comes right before 'fn', like
     'async fn(id: Int): User { … }'. There is nothing else it can attach to.
+
+- code: S0041
+  name: import-expected-clause
+  category: syntactic
+  summary: "'import' is not followed by '{ names }' or a module name."
+  message: "After 'import' I expected either '{ … }' or a name."
+  explanation: >-
+    An import comes in two shapes: 'import { min, max } from "math";' brings
+    specific names in to use bare, and 'import math from "math";' brings the whole
+    module in, used as 'math.min(…)'. So right after 'import' there is either a
+    '{' or a module name.
+
+- code: S0042
+  name: import-expected-from
+  category: syntactic
+  summary: "An import's names are not followed by 'from'."
+  message: "I expected 'from' here."
+  explanation: >-
+    An import names what to bring in, then 'from', then which module — like
+    'import { min } from "math";'. The 'from' and the module name were missing
+    after the names.
+
+- code: S0043
+  name: import-expected-module
+  category: syntactic
+  summary: "'from' is not followed by a plain quoted module name."
+  message: "I expected a module name in double quotes here."
+  explanation: >-
+    After 'from' comes the module to import from, written in double quotes, like
+    'from "math"'. In this release the module name is a fixed word (a built-in
+    library such as "math" or "assert") with no '${…}' inside it.

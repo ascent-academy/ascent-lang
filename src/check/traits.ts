@@ -15,12 +15,18 @@ import { type AscentType, isScalarType } from '../types/types.js';
 // on print's argument. Today exactly the built-in scalars satisfy it
 // (Int/Float/Bool/String), the same set `isScalarType` picks out; when a real
 // trait system lands this becomes ordinary dispatch instead of a fixed rule.
-export type Trait = 'Display';
+//
+// Comparable: "can be ordered" — the bound on the stdlib 'math' module's min/max
+// (whitepaper §10; 🔒 scalar-hardcoded until a real trait system lands, §15). The
+// orderable scalars are exactly those '<'/'>' already accept (§5): Int, Float,
+// and String — not Bool, which has no order.
+export type Trait = 'Display' | 'Comparable';
 
 // Whether a type satisfies a trait. One `switch` per trait keeps each trait's
 // membership in a single spot; adding a trait (e.g. Iterable) adds a case here.
 export const satisfies = (trait: Trait, t: AscentType): boolean => {
   switch (trait) {
     case 'Display': return isScalarType(t);
+    case 'Comparable': return t.kind === 'Int' || t.kind === 'Float' || t.kind === 'String';
   }
 };

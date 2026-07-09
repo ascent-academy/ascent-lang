@@ -8,6 +8,7 @@ import { Diagnostics } from './diagnostics.js';
 import { typeFromExpr, BUILTIN_TYPE_NAMES } from './formation.js';
 import { synth } from './synth.js';
 import { check } from './check.js';
+import { MODULE_SIGS } from './stdlib.js';
 
 // The built-in type names (formation.ts) are what a 'type' declaration can't
 // redeclare (N0008). None/Done/True/False aren't among them: they lex as value
@@ -794,6 +795,30 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         diagnostics.error({ code: 'T0027', span: stmt.expr.span });
       }
       return { kind: 'void', expr: typedExpr, span: stmt.span };
+    }
+
+    case 'import': {
+      // Resolve a stdlib import against the compiler-known registry (whitepaper
+      // §10 — no filesystem). An unknown module is N0014; a named export the
+      // module doesn't have is N0015. Every resolved name is registered in its
+      // own env namespace (never colliding with slots/types), so later 'min(…)'
+      // or 'math.min(…)' calls find it. The typed node carries no runtime effect
+      // — uses were rewritten to 'call' nodes — so the interpreter no-ops it.
+      const exports = MODULE_SIGS[stmt.module];
+      if (exports === undefined) {
+        diagnostics.error({ code: 'N0014', span: stmt.moduleSpan, data: { module: stmt.module } });
+      } else if (stmt.clause.kind === 'named') {
+        for (const { name, span } of stmt.clause.names) {
+          if (exports[name] === undefined) {
+            diagnostics.error({ code: 'N0015', span, data: { module: stmt.module, name } });
+          } else {
+            env.setImportedFn(name, stmt.module);
+          }
+        }
+      } else {
+        env.setNamespace(stmt.clause.binding, stmt.module);
+      }
+      return { kind: 'import', clause: stmt.clause, module: stmt.module, span: stmt.span };
     }
   }
 };

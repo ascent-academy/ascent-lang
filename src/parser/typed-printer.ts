@@ -36,7 +36,10 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       const argLines = expr.args.flatMap((arg, i) =>
         branch(typedExprLines(arg), i === expr.args.length - 1)
       );
-      return [`${chalk.cyan('Call')} ${chalk.green(expr.callee)}${t}`, ...argLines];
+      // A resolved stdlib call shows its module ('math.min'); a plain call shows
+      // just the callee (print, or a user function).
+      const name = expr.module !== undefined ? `${expr.module}.${expr.callee}` : expr.callee;
+      return [`${chalk.cyan('Call')} ${chalk.green(name)}${t}`, ...argLines];
     }
     case 'apply': {
       const children = [expr.callee, ...expr.args];
@@ -209,6 +212,12 @@ const typedStmtLines = (stmt: TypedStatement): string[] => {
       const iterableLines = branch(typedExprLines(stmt.iterable), false);
       const bodyLines = branch(typedExprLines(stmt.body), true);
       return [`${chalk.cyan('For')} ${nameLabel}`, ...iterableLines, ...bodyLines];
+    }
+    case 'import': {
+      const what = stmt.clause.kind === 'named'
+        ? `{ ${stmt.clause.names.map(n => n.name).join(', ')} }`
+        : stmt.clause.binding;
+      return [`${chalk.cyan('Import')} ${chalk.green(what)} ${chalk.dim('from')} ${chalk.yellow(`"${stmt.module}"`)}`];
     }
   }
 };

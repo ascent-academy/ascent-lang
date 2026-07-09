@@ -55,7 +55,9 @@ const visitStmt = (stmt: Statement, bound: Set<string>, out: Set<string>): void 
       visitExpr(stmt.value, bound, out);
       return;
     case 'typeDecl':
-      // A type declaration introduces no runtime slot and references none.
+    case 'import':
+      // A type declaration and an import introduce no runtime slot and
+      // reference no outer name — nothing to capture.
       return;
     case 'expr':
     case 'void':

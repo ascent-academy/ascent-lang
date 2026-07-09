@@ -222,6 +222,30 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'{name}' is one of the language's built-in functions, and a built-in can only be called — like '{name}(\"hi\")' — not passed around as a value or stored in a slot. Call it directly, or wrap it in a function where a function value is needed, like 'fn(x: String): Done { print(x) }'."
   },
   {
+    "code": "N0014",
+    "name": "unknown-module",
+    "category": "name",
+    "summary": "An import names a module the standard library doesn't have.",
+    "message": "There's no standard-library module named \"{module}\".",
+    "explanation": "An import can only bring in one of the built-in library modules. This release has 'math' (min, max, sqrt, floor, ceil, round) and 'assert' (assert, assertEqual). Check the spelling of \"{module}\", or import one of those."
+  },
+  {
+    "code": "N0015",
+    "name": "unknown-export",
+    "category": "name",
+    "summary": "An import (or a 'module.name' use) names something the module doesn't export.",
+    "message": "The module \"{module}\" has no export named '{name}'.",
+    "explanation": "Each library module offers a fixed set of functions, and '{name}' isn't one of \"{module}\"'s. Check the spelling against the module's contents."
+  },
+  {
+    "code": "N0016",
+    "name": "module-used-as-value",
+    "category": "name",
+    "summary": "A namespace-imported module is used on its own instead of calling one of its exports.",
+    "message": "'{name}' is a module, not a value.",
+    "explanation": "'import {name} from …' brings the whole module in under the name '{name}', and you reach its functions through it — '{name}.min(…)'. The module itself isn't a value you can store or call on its own."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",
@@ -309,6 +333,22 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'.orAbort()' was called on an Optional that turned out to be None.",
     "message": "'.orAbort()' stopped the program: this value is None{context}",
     "explanation": "'.orAbort()' hands back the value inside an Optional when it is present, but this one was None, so there is nothing to unwrap. It asserts the value is there, so a None stops the program. Handle the None with 'match' or '??' if it can really happen, and keep '.orAbort()' only where a None would be a bug."
+  },
+  {
+    "code": "R0012",
+    "name": "assertion-failed",
+    "category": "runtime",
+    "summary": "'assert' was given a condition that turned out to be False.",
+    "message": "An assertion failed: this condition was False.",
+    "explanation": "'assert(condition)' checks that something you expect to be true really is. This condition came out False at run time, so the program stops here rather than carry on past a broken expectation. Find why it wasn't true, or handle that case instead of asserting."
+  },
+  {
+    "code": "R0013",
+    "name": "assert-equal-failed",
+    "category": "runtime",
+    "summary": "'assertEqual' was given two values that turned out not to be equal.",
+    "message": "An assertion failed: {left} is not equal to {right}.",
+    "explanation": "'assertEqual(a, b)' checks that two values are equal. Here they weren't — the first was {left} and the second {right} — so the program stops. This usually means a computation produced something other than what was expected."
   },
   {
     "code": "S0001",
@@ -648,6 +688,30 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'async' is not followed by 'fn'.",
     "message": "'async' must be followed by 'fn'.",
     "explanation": "'async' marks a function as asynchronous, so it comes right before 'fn', like 'async fn(id: Int): User { … }'. There is nothing else it can attach to."
+  },
+  {
+    "code": "S0041",
+    "name": "import-expected-clause",
+    "category": "syntactic",
+    "summary": "'import' is not followed by '{ names }' or a module name.",
+    "message": "After 'import' I expected either '{ … }' or a name.",
+    "explanation": "An import comes in two shapes: 'import { min, max } from \"math\";' brings specific names in to use bare, and 'import math from \"math\";' brings the whole module in, used as 'math.min(…)'. So right after 'import' there is either a '{' or a module name."
+  },
+  {
+    "code": "S0042",
+    "name": "import-expected-from",
+    "category": "syntactic",
+    "summary": "An import's names are not followed by 'from'.",
+    "message": "I expected 'from' here.",
+    "explanation": "An import names what to bring in, then 'from', then which module — like 'import { min } from \"math\";'. The 'from' and the module name were missing after the names."
+  },
+  {
+    "code": "S0043",
+    "name": "import-expected-module",
+    "category": "syntactic",
+    "summary": "'from' is not followed by a plain quoted module name.",
+    "message": "I expected a module name in double quotes here.",
+    "explanation": "After 'from' comes the module to import from, written in double quotes, like 'from \"math\"'. In this release the module name is a fixed word (a built-in library such as \"math\" or \"assert\") with no '${…}' inside it."
   },
   {
     "code": "T0001",
@@ -1205,6 +1269,22 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A type is marked optional more than once, but an optional can't nest.",
     "message": "This '?' is redundant — the type is already optional.",
     "explanation": "A '?' makes a type optional, so it can hold a value or 'None'. Marking it '?' again adds nothing, because an optional doesn't nest — there is no \"maybe a maybe-String\", only \"maybe a String\". Write a single '?' — 'String?', not 'String??'."
+  },
+  {
+    "code": "T0062",
+    "name": "min-max-not-comparable",
+    "category": "type",
+    "summary": "'min' or 'max' was given values that can't be ordered against each other.",
+    "message": "'min'/'max' need two values you can order, but these are {left} and {right}.",
+    "explanation": "'min' and 'max' compare two values and hand back the smaller or larger, so both have to be orderable and of the same kind — two Ints, two Floats (an Int and a Float mix, promoting), or two Strings. {left} and {right} can't be ordered against each other."
+  },
+  {
+    "code": "T0063",
+    "name": "assert-equal-mismatch",
+    "category": "type",
+    "summary": "'assertEqual' was given two values of unrelated types, which can never be equal.",
+    "message": "'assertEqual' compares two values of the same kind, but these are {left} and {right}.",
+    "explanation": "'assertEqual' checks that two values are equal, so they must be comparable — the same type, or an Int and a Float. {left} and {right} have unrelated types, so they could never be equal, which makes the check meaningless."
   }
 ];
 
