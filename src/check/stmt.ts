@@ -9,6 +9,7 @@ import { typeFromExpr, BUILTIN_TYPE_NAMES } from './formation.js';
 import { synth } from './synth.js';
 import { check } from './check.js';
 import { MODULE_SIGS } from './stdlib.js';
+import { iterableElement } from './traits.js';
 
 // The built-in type names (formation.ts) are what a 'type' declaration can't
 // redeclare (N0008). None/Done/True/False aren't among them: they lex as value
@@ -737,19 +738,21 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
     case 'for': {
       const typedIterable = synth(stmt.iterable, env, diagnostics);
       const it = typedIterable.type;
-      // What each iteration binds `name` to: a List's element type, or Int
-      // for a Range (design.md §5). Anything else can't be iterated — T0017.
-      // An already-Invalid iterable stays Invalid without a second error.
+      // What each iteration binds `name` to is the iterable's `Item` — the
+      // Iterable trait's associated type (whitepaper §5/§7): a List's element
+      // type, or Int for a Range. A type with no Item isn't iterable (T0017). An
+      // already-Invalid iterable stays Invalid without a second error.
       let elemType: AscentType;
       if (isInvalidType(it)) {
         elemType = INVALID_TYPE;
-      } else if (it.kind === 'List') {
-        elemType = it.elem;
-      } else if (it.kind === 'Range') {
-        elemType = INT_TYPE;
       } else {
-        diagnostics.error({ code: 'T0017', span: stmt.iterable.span, data: { actual: typeToString(it) } });
-        elemType = INVALID_TYPE;
+        const item = iterableElement(it);
+        if (item === null) {
+          diagnostics.error({ code: 'T0017', span: stmt.iterable.span, data: { actual: typeToString(it) } });
+          elemType = INVALID_TYPE;
+        } else {
+          elemType = item;
+        }
       }
 
       // The loop variable is a fresh fixed binding scoped to the body — a

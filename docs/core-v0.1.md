@@ -42,13 +42,18 @@ traits/generics are v2:
 
 | Weld | Today (v0.1) | v2 |
 |---|---|---|
-| `for x in xs` | hardcoded to `List` \| `Range` | `Iterable` bound |
-| `${}` interpolation, `print` arg | hardcoded to scalars (`Display` = `Int`/`Float`/`Bool`/`String`) | `Display` trait dispatch |
-| `sort` / `min` / `max` | hardcoded to comparable scalars | `Comparable` bound |
+| `for x in xs` | intrinsic `Iterable` trait, hardcoded to `List` \| `Range` | user-implementable `Iterable` |
+| `${}` interpolation, `print` arg | intrinsic `Display` trait, hardcoded to scalars (`Int`/`Float`/`Bool`/`String`) | user-implementable `Display` |
+| `sort` / `min` / `max` | intrinsic `Comparable` trait, hardcoded to comparable scalars | user-implementable `Comparable` |
 
-These are marked 🔒 below. The whitepaper already names each as "hard-coded until
-traits land (§15/§16)," so full separation of collections-as-library is precisely what
-v2 buys — nothing to solve now, only to *label*.
+These are marked 🔒 below. All three are now **named intrinsic traits** in
+`src/check/traits.ts` (the compiler-known, consumed-not-defined half of the trait
+system, whitepaper §7): a fixed `satisfies` predicate over a fixed implementor set,
+with no user `trait`/`implement` syntax yet. `Iterable` additionally carries an
+**associated type** (`Item`, the element `for` binds) — the projection a real trait
+system writes `<T as Iterable>::Item`, hardcoded here (`List<T>`→`T`, `Range`→`Int`).
+So v2 buys user-defined implementors, not the mechanism — nothing to solve now,
+only to *label*.
 
 **Two decisions baked into this revision:**
 
@@ -117,13 +122,13 @@ whitepaper's; "→ Layer 2" marks a paragraph that only *points at* a stdlib mem
 | §4 | string *methods*, DSL blocks | → Layer 2 / ⏭️ | — |
 | **§5** Expressions & control flow | `if`/`else if`/`match`/`while`/`for…in`, word operators, `Int→Float` promotion, `/`·`div`·`mod`·`**`, precedence, `??` | `src/check`, `src/interpreter.ts` | ✅ |
 | §5 | functions: `fn` value, `=>` + block bodies, `Fn` type, **value-capture closures**, **recursive `fix`**, `return` | ✅ | ✅ |
-| §5 | `for`-loop iterability | hardcoded `List`\|`Range` | 🔒 (→ `Iterable`) |
+| §5 | `for`-loop iterability | intrinsic `Iterable` trait (assoc. type `Item`), hardcoded `List`\|`Range` | 🔒 (→ user `Iterable`) |
 | **§6** Data model | `type` records / enums / multi-variant unions, construction, **field-access rule**, `match`, **irrefutable destructuring** (refutable → T0033), **`with`** (fields/index/nested) | parser + `src/check` + interp | ✅ |
 | §6 | **user `methods {}` clause** | — | ⏭️ **v2** — behaviour via free functions |
 | §6 | `make {}` guarded construction, `opaque type` | — | ⏭️ |
 | §6 | built-in conversion + collection methods | → Layer 2 | — |
 | **§7** Type system | nominal, **no subtyping**, `Never`, `Invalid`, empty-list `List<Never>`, slot-only inference, **bidirectional checking**, **narrowing-by-binding** | `src/check` | ✅ |
-| §7 | intrinsic-trait *mechanism* (`satisfies` predicate) | `src/check/traits.ts` | ✅ (`Display` only) |
+| §7 | intrinsic-trait *mechanism* (`satisfies` predicate + `Iterable`'s `Item` associated type) | `src/check/traits.ts` | ✅ (`Display`, `Comparable`, `Iterable`) |
 | §7 | `!= None` flow-narrowing | `match`/`??` cover it | ➕ optional |
 | §7 | user-definable generics / traits | — | ⏭️ |
 | **§8** Async | `async fn`, `f!()` → `Task<T>`, `await` (colored, enforced) | `src/check`, interp | ✅ |
