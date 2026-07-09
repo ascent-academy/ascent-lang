@@ -657,3 +657,14 @@
     the reason you write is the only explanation anyone gets, so it has to be a
     String — for example 'abort "this list is never empty here"'. This reason is
     {actual}.
+
+- code: T0060
+  name: diverging-slot-init
+  category: type
+  summary: A slot is given a value that never actually arrives, because the right-hand side always leaves first.
+  message: "'{name}' never gets a value: the code on the right always leaves first."
+  explanation: >-
+    The right-hand side here never produces a value — it always leaves first,
+    through an 'abort' or a 'return' — so '{name}' can never be given anything,
+    and this line can't run. Remove it, or change the right-hand side so it
+    produces a value.

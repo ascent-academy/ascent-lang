@@ -574,6 +574,17 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
           // 'Success' never reveals the error type, §7's no-cross-statement-flow
           // rule) — so the whole 'T orfail E' has to be written down.
           diagnostics.error({ code: 'T0043', span: stmt.init.span });
+        } else if (typedInit.type.kind === 'Never') {
+          // A *bare* Never — the initializer diverges: an 'abort' / 'return', or
+          // a block/if/match whose every path does — so it never produces a value
+          // for the slot to hold, and the binding can't run (whitepaper §7). This
+          // is a different fault from the '[]'/'None' "needs an annotation" family
+          // (which have a real, if under-determined, value): no annotation makes
+          // an unreachable binding meaningful, so it's flagged as dead code, not
+          // as under-typed. (An *annotated* 'fix x: Int = abort "todo"' is still
+          // allowed as a deliberate stub — the annotation branch above handles it,
+          // since Never widens to Int.)
+          diagnostics.error({ code: 'T0060', span: stmt.init.span, data: { name } });
         } else if (containsNever(typedInit.type)) {
           // Same wrinkle for a bare '[]' (or anything built from one, like
           // '[].reverse()'): List<Never> would otherwise freeze the slot at
@@ -583,7 +594,12 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
           // widened value back once reassigned).
           diagnostics.error({ code: 'T0003', span: stmt.init.span });
         }
-        slotType = typedInit.type;
+        // A diverging init (T0060) has no usable slot type — Never would cascade
+        // into every later use of the slot (e.g. 'print(x)' → T0024). Adopt
+        // Invalid: the tombstone for the failure just reported, which absorbs in
+        // both directions and stays quiet (§7). Every other inferred type —
+        // including List<Never> for a bare '[]' — flows through unchanged.
+        slotType = typedInit.type.kind === 'Never' ? INVALID_TYPE : typedInit.type;
       }
 
       env.set(name, slotType, stmt.kind, stmt.span);
