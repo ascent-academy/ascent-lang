@@ -150,4 +150,4 @@
     '{name}' is one of the language's built-in functions, and a built-in can only
     be called — like '{name}("hi")' — not passed around as a value or stored in a
     slot. Call it directly, or wrap it in a function where a function value is
-    needed, like 'fn(x: String) -> Done { print(x) }'.
+    needed, like 'fn(x: String): Done { print(x) }'.

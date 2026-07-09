@@ -32,7 +32,7 @@ const formatTypeExpr = (te: TypeExpr): string => {
     case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
     case 'OptionalType': return `${formatTypeExpr(te.elem)}?`;
     case 'ResultType': return `${formatTypeExpr(te.ok)} orfail ${formatTypeExpr(te.err)}`;
-    case 'FnType': return `fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
+    case 'FnType': return `Fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
   }
 };
 
@@ -82,7 +82,7 @@ const exprLines = (expr: Expr): string[] => {
       return [`${chalk.cyan('Apply')}`, ...childLines];
     }
     case 'fn': {
-      const sig = `(${expr.params.map(p => `${p.name}: ${formatTypeExpr(p.type)}`).join(', ')}) -> ${formatTypeExpr(expr.returnType)}`;
+      const sig = `(${expr.params.map(p => `${p.name}: ${formatTypeExpr(p.type)}`).join(', ')}): ${formatTypeExpr(expr.returnType)}`;
       const bodyLines = branch(exprLines(expr.body), true);
       return [`${chalk.cyan('Fn')} ${chalk.dim(sig)}`, ...bodyLines];
     }

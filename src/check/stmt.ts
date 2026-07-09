@@ -53,7 +53,7 @@ export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics,
   // A statement that diverges (type Never — a 'return', §7) leaves the block
   // before its end, so everything after it is unreachable and the block as a
   // whole diverges. Track that: the block's value type becomes Never, which is
-  // what lets 'fn() -> Int { return 5; … }' (or a branch that returns) satisfy
+  // what lets 'fn(): Int { return 5; … }' (or a branch that returns) satisfy
   // its declared type instead of being judged by the unreachable trailing value.
   let diverged = false;
 

@@ -38,7 +38,7 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
     case 'TypeName': {
       // 'Done', the unit type — admitted in type position (parseTypeExpr) even
       // though the word lexes as a value constructor. A function that returns no
-      // information writes '-> Done' (whitepaper §4).
+      // information returns 'Done' (whitepaper §4).
       if (te.name === 'Done') return DONE_TYPE;
       if (BUILTIN_SCALARS.has(te.name)) return typeFromName(te.name as ArgType);
       // A user type: it must already be declared (types are sequential, like

@@ -383,7 +383,7 @@
   explanation: >-
     Only a function can be called with '(…)'. Here '{name}' holds a {type}, which
     isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the
-    name you meant, or that it was created as a function with 'fn(…) -> … { … }'.
+    name you meant, or that it was created as a function with 'fn(…): … { … }'.
 
 - code: T0036
   name: return-type-mismatch
@@ -406,7 +406,7 @@
   message: "'return' can only be used inside a function."
   explanation: >-
     'return' leaves the function it is in, handing back a value — so it only
-    makes sense inside one, like 'fn(x: Int) -> Int { return x }'. Here there is
+    makes sense inside one, like 'fn(x: Int): Int { return x }'. Here there is
     no enclosing function to return from. At the top level, a program's value is
     simply its last statement (no 'return' needed).
 

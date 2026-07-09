@@ -29,7 +29,7 @@ export type AscentType =
   // checker's type registry (src/check/env.ts's TypeEnv), looked up by name.
   // Nominal typing means two Named types relate only when their names match.
   | { kind: 'Named'; name: string }
-  // whitepaper §5/§7: a first-class function value's type — `fn(Int, String) ->
+  // whitepaper §5/§7: a first-class function value's type — `Fn(Int, String) ->
   // Bool`. Both the parameter types and the result are always known from the
   // function's (fully explicit) signature, never inferred from its body. Unlike
   // List/Optional this is structural in the shallow sense that two arrow types
@@ -84,10 +84,11 @@ export const typeToString = (t: AscentType): string => {
   if (t.kind === 'Named') {
     return t.name;
   }
-  // A function type shows in its source spelling: 'fn(Int, String) -> Bool',
-  // with no space before the '(' (mirroring the 'fn(...)' literal and call).
+  // A function type shows in its source spelling: 'Fn(Int, String) -> Bool',
+  // capitalized (it is a type) with the arrow, no space before the '(' — as
+  // written in an annotation, distinct from the lowercase 'fn(...)' value.
   if (t.kind === 'Function') {
-    return `fn(${t.params.map(typeToString).join(', ')}) -> ${typeToString(t.result)}`;
+    return `Fn(${t.params.map(typeToString).join(', ')}) -> ${typeToString(t.result)}`;
   }
   return t.kind;
 };

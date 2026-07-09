@@ -15,10 +15,12 @@ export type OptionalType = { kind: 'OptionalType'; elem: TypeExpr; span: Span };
 // this way, never as a spelled-out 'Result<T, E>' name (parallel to Optional's
 // 'T?'-only spelling).
 export type ResultType = { kind: 'ResultType'; ok: TypeExpr; err: TypeExpr; span: Span };
-// 'fn(Int, String) -> Bool' — a function type in annotation position
-// (whitepaper §5/§7). The parameter types are positional (no names, unlike an
-// 'fn' *literal*'s params), and the result is required — a function that
-// "returns nothing" returns 'Done', so there is always a result to write.
+// 'Fn(Int, String) -> Bool' — a function type in annotation position
+// (whitepaper §5/§7). Capitalized (a type) and arrow-separated, where the 'fn'
+// *literal* is lowercase and colon-separated. The parameter types are
+// positional (no names, unlike a literal's params), and the result is required
+// — a function that "returns nothing" returns 'Done', so there is always a
+// result to write.
 export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; span: Span };
 export type TypeExpr = TypeName | ListType | OptionalType | ResultType | FnType;
 
@@ -111,7 +113,7 @@ export type Match = { kind: 'match'; subject: Expr; arms: MatchArm[]; span: Span
 // One parameter of an 'fn' literal — 'name: Type' (whitepaper §5). Unlike a
 // program input (scalar-only, ProgramArg), a function parameter's type is a
 // full TypeExpr, so it may be 'List<Int>', a user type, 'Int?', or itself an
-// 'fn(...) -> ...' type. Every parameter is an ordinary fixed slot in the body.
+// 'Fn(...) -> ...' type. Every parameter is an ordinary fixed slot in the body.
 export type FnParam = { name: string; nameSpan: Span; type: TypeExpr; span: Span };
 
 export type Expr = (
@@ -121,11 +123,11 @@ export type Expr = (
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
   // 'callee(args)' where `callee` is a *computed* expression, not a bare name —
   // currying ('adder(3)(4)'), a function pulled from a collection ('fns[0](x)'),
-  // or an inline lambda applied ('(fn(x: Int) -> Int { x })(5)'). A bare-name
+  // or an inline lambda applied ('(fn(x: Int): Int { x })(5)'). A bare-name
   // call 'f(args)' stays a 'call' (parseAtom), which is also where the builtin
   // 'print' lives; every other callee shape becomes an 'apply' (parseApply).
   | { kind: 'apply'; callee: Expr; args: Expr[]; span: Span }
-  // 'fn(params) -> Ret { body }' — a first-class function value (whitepaper §5).
+  // 'fn(params): Ret { body }' — a first-class function value (whitepaper §5).
   // Made only this way ('fix f = fn(...)'); there is no 'fn name(...)'
   // declaration form. The body is an ordinary block whose last statement is the
   // return value (the block-value rule, §2), so there is one body form and no

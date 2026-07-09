@@ -32,7 +32,7 @@
     A name is needed here — after 'fix' or 'mut' to create one
     ('fix count = 0'), as the name of a program input
     ('program (age: Int) { … }'), or as a function parameter
-    ('fn(x: Int) -> Int { … }'). A name starts with a lowercase letter.
+    ('fn(x: Int): Int { … }'). A name starts with a lowercase letter.
 
 - code: S0004
   name: expected-equals
@@ -64,7 +64,7 @@
   explanation: >-
     An 'if' or 'while' condition, the inputs listed after 'program', and a
     function's parameters all go inside '( )' — like 'if (age >= 18) { … }',
-    'program (age: Int) { … }', or 'fn(x: Int) -> Int { … }'. This is where that
+    'program (age: Int) { … }', or 'fn(x: Int): Int { … }'. This is where that
     opening '(' should be.
 
 - code: S0007
@@ -96,7 +96,7 @@
   explanation: >-
     A program input and a function parameter are each written as a name, then
     ':', then its type — like 'program (age: Int) { … }' or
-    'fn(x: Int) -> Int { … }'. This is where the ':' should be.
+    'fn(x: Int): Int { … }'. This is where the ':' should be.
 
 - code: S0010
   name: expected-type
@@ -317,13 +317,13 @@
 - code: S0031
   name: expected-return-type
   category: syntactic
-  summary: "A function's parameters weren't followed by '->' and a return type."
-  message: "I expected '->' and a return type here."
+  summary: "A function's parameters weren't followed by ':' and a return type."
+  message: "I expected ':' and a return type here."
   explanation: >-
     A function states its return type right after its parameters, like
-    'fn(x: Int) -> Int { … }' — the '->' and then the type the function gives
-    back. Every function says what it returns; one that returns nothing returns
-    'Done'. Add '-> Type' after the ')'.
+    'fn(x: Int): Int { … }' — a ':' and then the type the function gives back,
+    the same ':' its parameters use. Every function says what it returns; one
+    that returns nothing returns 'Done'. Add ': Type' after the ')'.
 
 - code: S0032
   name: empty-program-body
@@ -335,3 +335,14 @@
     at least one statement between its braces. An empty '{ }' runs nothing and
     uses none of the inputs it declares. Add the statements the program should
     run.
+
+- code: S0033
+  name: expected-fn-type-arrow
+  category: syntactic
+  summary: "A function type's parameter list wasn't followed by '->' and a result type."
+  message: "I expected '->' and a result type here."
+  explanation: >-
+    A function *type* is written with its parameter types in '( )', then '->',
+    then the type it produces — like 'Fn(Int) -> String'. (A function *value*
+    instead uses a ':' before its return type: 'fn(x: Int): String { … }'.) This
+    is where the '->' should be.

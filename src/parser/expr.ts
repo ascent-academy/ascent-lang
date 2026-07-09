@@ -487,11 +487,12 @@ function parseReturn(ts: TokenStream): Expr | null {
   return { kind: 'return', value, span: { start: retTok.span.start, end: value.span.end } };
 }
 
-// 'fn(params) -> Ret { body }' — a function value (whitepaper §5). Mirrors the
-// 'fn(T) -> R' *type* shape (parseFnType in type-expr.ts) but its parameters
-// carry names and it ends in a body block, not just a result type. There is one
-// body form (the block) and no arrow — the body's last statement is the return
-// value (the block-value rule, §2).
+// 'fn(params): Ret { body }' — a function value (whitepaper §5). Its return type
+// follows a ':' (matching the parameter annotations), where the 'Fn(T) -> R'
+// *type* shape (parseFnType in type-expr.ts) keeps an arrow instead. Its
+// parameters carry names and it ends in a body block, not just a result type.
+// There is one body form (the block) and no body arrow — the body's last
+// statement is the return value (the block-value rule, §2).
 function parseFn(ts: TokenStream): Expr | null {
   const fnTok = ts.advance(); // consume 'fn'
 
@@ -501,7 +502,7 @@ function parseFn(ts: TokenStream): Expr | null {
   const parsed = ts.parseSeparated(() => parseFnParam(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
 
-  if (ts.expect('ARROW', 'S0031') === null) return null;
+  if (ts.expect('COLON', 'S0031') === null) return null;
 
   const returnType = parseTypeExpr(ts);
   if (returnType === null) return null;

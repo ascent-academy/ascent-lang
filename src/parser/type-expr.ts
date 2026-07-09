@@ -1,12 +1,16 @@
 import type { TypeExpr, FnParam, ProgramArg, ArgType } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 
-// 'fn(T, T) -> R' — a function type in annotation position (whitepaper §5/§7).
-// The 'fn' is already confirmed on lookahead by parseTypeExpr. Positional
-// parameter types (no names), then '->' and the required result type. Zero
-// parameters ('fn() -> Done') are fine, the same as a zero-input program.
+// 'Fn(T, T) -> R' — a function type in annotation position (whitepaper §5/§7).
+// Capitalized because it is a *type* (UpperCamel, like 'List'/'Optional'), and
+// it keeps the '->' arrow — the colon is the *value* literal's return separator
+// ('fn(x: T): R'), the arrow the *type*'s, so nested higher-order signatures
+// stay legible. The 'Fn' is already confirmed on lookahead by parseTypeExpr;
+// it lexes as a plain TYPE_NAME. Positional parameter types (no names), then
+// '->' and the required result type. Zero parameters ('Fn() -> Done') are fine,
+// the same as a zero-input program.
 function parseFnType(ts: TokenStream): TypeExpr | null {
-  const fnTok = ts.advance(); // consume 'fn'
+  const fnTok = ts.advance(); // consume 'Fn'
 
   const open = ts.expect('LPAREN', 'S0006');
   if (open === null) return null;
@@ -14,7 +18,7 @@ function parseFnType(ts: TokenStream): TypeExpr | null {
   const parsed = ts.parseSeparated(() => parseTypeExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
 
-  if (ts.expect('ARROW', 'S0031') === null) return null;
+  if (ts.expect('ARROW', 'S0033') === null) return null;
 
   const result = parseTypeExpr(ts);
   if (result === null) return null;
@@ -22,7 +26,7 @@ function parseFnType(ts: TokenStream): TypeExpr | null {
   return { kind: 'FnType', params: parsed.items, result, span: { start: fnTok.span.start, end: result.span.end } };
 }
 
-// 'Int', 'Float', 'Bool', 'String', 'List<Type>', 'fn(T) -> R', or any of those
+// 'Int', 'Float', 'Bool', 'String', 'List<Type>', 'Fn(T) -> R', or any of those
 // followed by a trailing '?' (sugar for 'Optional<Type>', design.md §4) — used
 // in type annotations. This is the tight level, below the loose 'orfail' infix
 // (parseTypeExpr), so 'Int orfail E?' groups as 'Int orfail (E?)' — the '?' binds
@@ -31,11 +35,7 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
   const tok = ts.peek();
 
   let base: TypeExpr;
-  if (tok.kind === 'KW_FN') {
-    const fnType = parseFnType(ts);
-    if (fnType === null) return null;
-    base = fnType;
-  } else if (tok.kind === 'DONE_LIT') {
+  if (tok.kind === 'DONE_LIT') {
     // 'Done' is the unit *type* here (a function's return type when it produces
     // no information — whitepaper §4), even though the same word is a value
     // constructor elsewhere. Position tells them apart (design.md §2): after ':'
@@ -46,6 +46,12 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
   } else if (tok.kind !== 'TYPE_NAME') {
     ts.report('S0010', tok.span);
     return null;
+  } else if (tok.value === 'Fn') {
+    // 'Fn(...) -> R' — a function type. Like 'List', it lexes as a plain
+    // TYPE_NAME whose text happens to be a reserved built-in type name.
+    const fnType = parseFnType(ts);
+    if (fnType === null) return null;
+    base = fnType;
   } else if (tok.value === 'List') {
     ts.advance(); // consume 'List'
     if (ts.expect('LT', 'S0010') === null) return null;
@@ -126,7 +132,7 @@ export function parseParam(ts: TokenStream): ProgramArg | null {
 // 'name: Type' — one parameter of an 'fn' literal (whitepaper §5). Unlike a
 // program input (parseParam above, scalar-only), a function parameter admits
 // any type, so the type is a full parseTypeExpr — 'List<Int>', a user type,
-// 'Int?', or another 'fn(...) -> ...'.
+// 'Int?', or another 'Fn(...) -> ...'.
 export function parseFnParam(ts: TokenStream): FnParam | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {

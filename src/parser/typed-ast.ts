@@ -81,7 +81,7 @@ export type TypedTry = {
 // (coercing into `type`) when the function is applied.
 export type TypedFnParam = { name: string; type: AscentType };
 
-// 'fn(params) -> Ret { body }' typed (whitepaper §5). `type` is the Function
+// 'fn(params): Ret { body }' typed (whitepaper §5). `type` is the Function
 // type formed from the signature (its params/result mirror `params` and the
 // body's expected return). `captures` is the set of outer names the body uses
 // that are bound above the function — the interpreter snapshots exactly these
