@@ -534,12 +534,13 @@
 - code: T0048
   name: with-non-record
   category: type
-  summary: "A 'with' update was written on a value that isn't a record."
+  summary: "A 'with' update was written on a value that isn't a record or a list."
   message: "I can't update this with 'with' — it has type {type}."
   explanation: >-
-    A 'with' update makes a copy of a record with some of its fields changed, so
-    the value before 'with' has to be a record — a value of a type declared with
-    'type Name = { … }'. This value is {type}, which has no fields to update.
+    A 'with' update makes a copy with some positions changed, so the value before
+    'with' has to be a record (updated by field name, like 'p with age = 31') or a
+    list (updated by position, like 'xs with [0] = 9'). This value is {type},
+    which has no positions to update.
 
 - code: T0049
   name: with-on-union
@@ -570,3 +571,33 @@
   explanation: >-
     Each field of a record gets one new value in a 'with' update. '{field}' is
     changed twice, so it isn't clear which value to keep — remove one of them.
+
+- code: T0052
+  name: with-field-on-list
+  category: type
+  summary: "A 'with' update on a list names a field, but a list is updated by position."
+  message: "A list is updated by position, not by a field name like '{field}'."
+  explanation: >-
+    A 'with' update on a list replaces an item by its position, written in
+    brackets — like 'xs with [0] = 9'. A list has no named fields, so '{field}'
+    can't name a place in it. Use '[index]' to pick the item to change.
+
+- code: T0053
+  name: with-index-on-record
+  category: type
+  summary: "A 'with' update on a record uses '[index]', but a record is updated by field name."
+  message: "'{type}' is a record, so it's updated by field name, not by position."
+  explanation: >-
+    A 'with' update on a record replaces a field by its name — like
+    'p with age = 31'. A record has named fields, not numbered positions, so
+    '[…]' can't pick a place in it. Name the field to change instead.
+
+- code: T0054
+  name: with-element-type-mismatch
+  category: type
+  summary: "A list item is updated with a value of the wrong type."
+  message: "This list holds {expected}, but this value is {actual}."
+  explanation: >-
+    Every item of a list shares one type, so a 'with' update has to keep it — this
+    list holds {expected}, but the new value is {actual}, and those don't match.
+    (An Int can go where a Float is expected, but not the other way around.)

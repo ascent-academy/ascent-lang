@@ -1,5 +1,5 @@
 import type { Token, TokenKind, Span } from '../lexer/token.js';
-import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, FieldUpdate, TryElse } from './ast.js';
+import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, WithUpdate, TryElse } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf, parseMatch } from './stmt.js';
 import { parseTypeExpr, parseFnParam } from './type-expr.js';
@@ -716,12 +716,12 @@ function parseWith(ts: TokenStream, base: Expr): Expr | null {
 
   if (ts.peek().kind === 'LBRACE') {
     const open = ts.advance(); // consume '{'
-    const parsed = ts.parseSeparated(() => parseFieldUpdate(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+    const parsed = ts.parseSeparated(() => parseWithUpdate(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
     if (parsed === null) return null;
 
     // Empty braces 'base with { }' update nothing — banned (the one-spelling
     // rule, as S0028 bans empty construction braces); a real update names at
-    // least one field.
+    // least one step.
     if (parsed.items.length === 0) {
       ts.report('S0038', { start: open.span.start, end: parsed.close.span.end });
       return null;
@@ -736,7 +736,7 @@ function parseWith(ts: TokenStream, base: Expr): Expr | null {
     };
   }
 
-  const update = parseFieldUpdate(ts);
+  const update = parseWithUpdate(ts);
   if (update === null) return null;
 
   return {
@@ -748,15 +748,34 @@ function parseWith(ts: TokenStream, base: Expr): Expr | null {
   };
 }
 
-// One 'field = value' entry of a 'with' update. The field name is a lowercase
-// binding; '=' separates it from its new value (design.md §6 — '=' updates a
-// copy, where ':' builds). The value is a full expression, so 'its' navigation
-// and arithmetic ('count = its.count + 1') parse as one value; in the braceless
-// form it runs to the end of the statement, in the braced form to the next ','.
-function parseFieldUpdate(ts: TokenStream): FieldUpdate | null {
-  const nameTok = ts.peek();
-  if (nameTok.kind !== 'SLOT') {
-    ts.report('S0036', nameTok.span);
+// One 'step = value' entry of a 'with' update — a '.field' (a record) or an
+// '[index]' (a list). '=' separates the step from its new value (design.md §6 —
+// '=' updates a copy, where ':' builds). The value is a full expression, so
+// 'its' navigation and arithmetic ('count = its.count + 1') parse as one value;
+// in the braceless form it runs to the end of the statement, in the braced form
+// to the next ','.
+function parseWithUpdate(ts: TokenStream): WithUpdate | null {
+  const tok = ts.peek();
+
+  // '[index] = value' — a list update. The index is a full expression (like an
+  // 'xs[i]' read), closed by ']', then '=' and the new value.
+  if (tok.kind === 'LBRACKET') {
+    const open = ts.advance(); // consume '['
+    const index = parseExpr(ts);
+    if (index === null) return null;
+    if (ts.expect('RBRACKET', 'S0013', [{ key: 'opener', span: open.span }]) === null) return null;
+
+    if (ts.expect('EQUALS', 'S0037') === null) return null;
+
+    const value = parseExpr(ts);
+    if (value === null) return null;
+
+    return { kind: 'index', index, value, span: { start: open.span.start, end: value.span.end } };
+  }
+
+  // 'field = value' — a record update. The field name is a lowercase binding.
+  if (tok.kind !== 'SLOT') {
+    ts.report('S0036', tok.span);
     return null;
   }
   ts.advance(); // consume field name
@@ -766,7 +785,7 @@ function parseFieldUpdate(ts: TokenStream): FieldUpdate | null {
   const value = parseExpr(ts);
   if (value === null) return null;
 
-  return { field: nameTok.value, fieldSpan: nameTok.span, value, span: { start: nameTok.span.start, end: value.span.end } };
+  return { kind: 'field', field: tok.value, fieldSpan: tok.span, value, span: { start: tok.span.start, end: value.span.end } };
 }
 
 // '[' expr, expr, … ']' — list literal. Already peeked '[' in parseAtom.

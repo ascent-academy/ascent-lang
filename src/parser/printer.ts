@@ -105,9 +105,14 @@ const exprLines = (expr: Expr): string[] => {
     }
     case 'with': {
       const baseLines = branch(exprLines(expr.base), false);
-      const updateLines = expr.updates.flatMap((u, i) =>
-        branch([`${chalk.green(u.field)} ${chalk.dim('=')}`, ...branch(exprLines(u.value), true)], i === expr.updates.length - 1)
-      );
+      const updateLines = expr.updates.flatMap((u, i) => {
+        const last = i === expr.updates.length - 1;
+        if (u.kind === 'field') {
+          return branch([`${chalk.green(u.field)} ${chalk.dim('=')}`, ...branch(exprLines(u.value), true)], last);
+        }
+        const indexLines = branch(exprLines(u.index), false);
+        return branch([`${chalk.dim('[index] =')}`, ...indexLines, ...branch(exprLines(u.value), true)], last);
+      });
       return [`${chalk.cyan('With')}`, ...baseLines, ...updateLines];
     }
     case 'fieldAccess': {

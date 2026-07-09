@@ -123,11 +123,14 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
       return;
     case 'with': {
       visitExpr(expr.base, bound, out);
-      // 'its' names the base inside every update value, so it is bound there —
-      // never a free variable of an enclosing function.
+      // 'its' names the base inside every index and value expression, so it is
+      // bound there — never a free variable of an enclosing function.
       const inner = new Set(bound);
       inner.add('its');
-      for (const u of expr.updates) visitExpr(u.value, inner, out);
+      for (const u of expr.updates) {
+        if (u.kind === 'index') visitExpr(u.index, inner, out);
+        visitExpr(u.value, inner, out);
+      }
       return;
     }
     case 'fieldAccess':

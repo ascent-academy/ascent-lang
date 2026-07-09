@@ -373,13 +373,14 @@
 - code: S0036
   name: expected-update-field
   category: syntactic
-  summary: "A field name was expected in a 'with' update."
-  message: "I expected a field name here."
+  summary: "A field name or an '[index]' was expected in a 'with' update."
+  message: "I expected a field name or an '[index]' here."
   explanation: >-
-    A 'with' update names the field to change, then '=', then its new value —
-    like 'user with name = \"new\"'. Several changes go in braces:
-    'user with { name = \"new\", age = 31 }'. A field name starts with a
-    lowercase letter. This is where that name should be.
+    A 'with' update names the place to change, then '=', then its new value — a
+    field name for a record ('user with name = \"new\"'), or an '[index]' in
+    brackets for a list ('xs with [0] = 9'). Several changes go in braces:
+    'user with { name = \"new\", age = 31 }'. This is where that field name or
+    '[index]' should be.
 
 - code: S0037
   name: expected-update-equals

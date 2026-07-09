@@ -132,20 +132,43 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       return recordVal(expr.typeName, fields);
     }
     case 'with': {
-      // Evaluate the base once; 'its' refers to that value inside every update.
+      // Evaluate the base once; 'its' refers to that value inside every index
+      // and value expression. Each new value coerces into the target position's
+      // type — the same Int → Float (and nested) widening a construction field
+      // gets. The base is untouched (records and lists are immutable), so we
+      // start from a copy and overwrite the named positions.
       const base = evaluateExpr(expr.base, env);
-      if (base.type !== 'Record') throw new Error('internal: with-update on a non-record');
       const childEnv = env.child();
       childEnv.declare('its', base, false);
-      // Start from a copy of the base's fields (records are immutable, so the
-      // base is untouched) and overwrite each updated one, coercing the new
-      // value into the field's declared type — the same Int → Float (and
-      // nested) widening a construction field gets.
-      const fields = new Map(base.fields);
-      for (const u of expr.updates) {
-        fields.set(u.field, coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType));
+
+      if (base.type === 'Record') {
+        const fields = new Map(base.fields);
+        for (const u of expr.updates) {
+          if (u.kind !== 'field') throw new Error('internal: an index update on a record');
+          fields.set(u.field, coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType));
+        }
+        return recordVal(base.name, fields);
       }
-      return recordVal(base.name, fields);
+
+      if (base.type === 'List') {
+        const elements = base.elements.slice();
+        for (const u of expr.updates) {
+          if (u.kind !== 'index') throw new Error('internal: a field update on a list');
+          const idx = evaluateExpr(u.index, childEnv);
+          if (idx.type !== 'Int') throw new Error('internal: a with-update index that is not an Int');
+          const i = Number(idx.value);
+          // A missing position is a bug, exactly as reading 'xs[i]' out of range
+          // is (whitepaper §6/§9) — 'with' navigates existing structure, it
+          // never grows a list (append/insert do that).
+          if (i < 0 || i >= elements.length) {
+            throw new RuntimeError({ code: 'R0005', span: u.index.span, data: { length: String(elements.length) } });
+          }
+          elements[i] = coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType);
+        }
+        return { type: 'List', elements };
+      }
+
+      throw new Error('internal: with-update on a non-record, non-list');
     }
     case 'fieldAccess': {
       const receiver = evaluateExpr(expr.receiver, env);

@@ -153,8 +153,69 @@ describe("'with' record update (end-to-end)", () => {
     });
   });
 
+  describe('list updates (single index, not nested)', () => {
+    it('replaces one item and leaves the rest', () => {
+      const src = 'fix xs = [10, 20, 30]; fix ys = xs with [1] = 99; "\${ys[0]} \${ys[1]} \${ys[2]}";';
+      assert.deepEqual(evalOk(src), { type: 'String', value: '10 99 30' });
+    });
+
+    it('leaves the base list untouched (value semantics)', () => {
+      const src = 'fix xs = [10, 20, 30]; fix ys = xs with [1] = 99; xs[1];';
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 20n });
+    });
+
+    it('accepts a computed index expression', () => {
+      const src = 'fix xs = [1, 2, 3]; fix i = 2; fix ys = xs with [i] = 9; ys[2];';
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 9n });
+    });
+
+    it("binds 'its' to the base list (readable + indexable)", () => {
+      const src = 'fix xs = [1, 2, 3]; fix ys = xs with [0] = its[2] + 100; ys[0];';
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 103n });
+    });
+
+    it('updates several indices in braces', () => {
+      const src = 'fix xs = [1, 2, 3, 4]; fix ys = xs with { [0] = 5, [3] = 6 }; "\${ys[0]} \${ys[3]}";';
+      assert.deepEqual(evalOk(src), { type: 'String', value: '5 6' });
+    });
+
+    it('widens an Int value into a Float-list element', () => {
+      const src = 'fix xs = [1.0, 2.0]; fix ys = xs with [0] = 7; ys[0];';
+      assert.deepEqual(evalOk(src), { type: 'Float', value: 7 });
+    });
+
+    it("a list update keeps the list's type", () => {
+      assert.equal(typeOfLast('fix xs = [1, 2, 3]; xs with [0] = 9;'), 'List<Int>');
+    });
+
+    it('crashes (R0005) on an out-of-range index', () => {
+      const { program } = parse('fix xs = [1, 2]; xs with [5] = 0;');
+      assert.ok(program !== null);
+      const result = executeProgram(program!, { stdout: () => {} });
+      assert.equal(result.kind, 'error');
+      if (result.kind !== 'error') throw new Error('unreachable');
+      assert.equal(result.error.marker.code, 'R0005');
+    });
+
+    it('rejects a non-Int index (T0011)', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with ["a"] = 0;'), ['T0011']);
+    });
+
+    it('rejects a value of the wrong element type (T0054)', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with [0] = "x";'), ['T0054']);
+    });
+
+    it('rejects a field step on a list (T0052)', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with foo = 0;'), ['T0052']);
+    });
+
+    it('rejects an index step on a record (T0053)', () => {
+      assert.deepEqual(errorCodes(`${P} p with [0] = 2;`), ['T0053']);
+    });
+  });
+
   describe('errors', () => {
-    it('rejects a non-record base (T0048)', () => {
+    it('rejects a non-record, non-list base (T0048)', () => {
       assert.deepEqual(errorCodes('fix x = 5; x with foo = 3;'), ['T0048']);
     });
 

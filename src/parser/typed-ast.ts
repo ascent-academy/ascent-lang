@@ -24,10 +24,15 @@ export type TypedTemplate = { kind: 'template'; parts: TypedTemplatePart[]; type
 // init coerces into its slotType.
 export type TypedFieldInit = { name: string; declaredType: AscentType; value: TypedExpr };
 
-// One field replacement of a typed 'with' update. `declaredType` is the field's
-// declared type — the interpreter coerces `value` into it (e.g. Int → Float),
-// exactly as a construction field or a fix/mut init does.
-export type TypedFieldUpdate = { field: string; declaredType: AscentType; value: TypedExpr };
+// One step-and-value of a typed 'with' update. `declaredType` is the target
+// position's type — a field's declared type, or a list's element type — into
+// which the interpreter coerces `value` (e.g. Int → Float), exactly as a
+// construction field or a fix/mut init does. An 'index' step also carries its
+// (Int-typed) index expression.
+export type TypedWithUpdate = (
+  | { kind: 'field'; field: string; declaredType: AscentType; value: TypedExpr }
+  | { kind: 'index'; index: TypedExpr; declaredType: AscentType; value: TypedExpr }
+);
 
 export type TypedExpr = (
   | TypedLiteral
@@ -43,7 +48,7 @@ export type TypedExpr = (
   // `type` is the base's (record) type, unchanged by the update. `updates` are in
   // source order; the interpreter starts from a copy of the base and overwrites
   // each named field.
-  | { kind: 'with'; base: TypedExpr; updates: TypedFieldUpdate[]; type: AscentType; span: Span }
+  | { kind: 'with'; base: TypedExpr; updates: TypedWithUpdate[]; type: AscentType; span: Span }
   | { kind: 'fieldAccess'; receiver: TypedExpr; field: string; type: AscentType; span: Span }
   | { kind: 'list'; elements: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'range'; lo: TypedExpr; hi: TypedExpr; type: AscentType; span: Span }
