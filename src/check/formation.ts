@@ -49,7 +49,19 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
       return INVALID_TYPE;
     }
     case 'ListType': return listOfType(typeFromExpr(te.elem, env, diagnostics));
-    case 'OptionalType': return optionalOf(typeFromExpr(te.elem, env, diagnostics));
+    case 'OptionalType': {
+      const inner = typeFromExpr(te.elem, env, diagnostics);
+      // A '?' applied to something already Optional — a written 'String??' or
+      // '(String?)?'. Optional doesn't nest (no runtime 'Some(…)', §4/§7), so the
+      // extra '?' is redundant: report it (T0061), then let optionalOf collapse
+      // it away. (Only source-written '?' reaches here; a nested Optional formed
+      // by composition is collapsed silently in optionalOf, never routed through
+      // this case.)
+      if (inner.kind === 'Optional') {
+        diagnostics.error({ code: 'T0061', span: te.span });
+      }
+      return optionalOf(inner);
+    }
     case 'ResultType': return resultOf(
       typeFromExpr(te.ok, env, diagnostics),
       typeFromExpr(te.err, env, diagnostics),

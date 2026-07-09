@@ -73,7 +73,15 @@ export const NEVER_TYPE: AscentType = { kind: 'Never' };
 export const INVALID_TYPE: AscentType = { kind: 'Invalid' };
 export const RANGE_TYPE: AscentType = { kind: 'Range' };
 export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', elem });
-export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
+// 'Optional' never nests: a bare value or 'None' flows into a 'T?' *unwrapped*
+// (there is no runtime 'Some(…)' wrapper, §4/§7), so 'Optional<Optional<T>>' is
+// indistinguishable from 'Optional<T>'. Collapse it here, the single Optional
+// constructor — so a nested optional arising from composition (e.g.
+// 'List<T?>.at(i)', which returns 'element?' with element already 'T?') is
+// silently normalized to 'T?'. (A '??' written *explicitly* in source is still
+// reported as redundant, in formation.ts — that check runs before this collapse.)
+export const optionalOf = (elem: AscentType): AscentType =>
+  elem.kind === 'Optional' ? elem : { kind: 'Optional', elem };
 export const resultOf = (ok: AscentType, err: AscentType): AscentType => ({ kind: 'Result', ok, err });
 export const namedType = (name: string): AscentType => ({ kind: 'Named', name });
 export const functionType = (params: AscentType[], result: AscentType, async = false): AscentType => ({ kind: 'Function', params, result, async });
@@ -83,16 +91,25 @@ export const taskOf = (result: AscentType): AscentType => ({ kind: 'Task', resul
 // everywhere a type shows up (diagnostics, the REPL, the AST printers)
 // rather than as 'Optional<T>', since that sugar is what a learner wrote.
 export const typeToString = (t: AscentType): string => {
+  // A Result ('orfail') is the loosest type operator, so where a tighter one
+  // binds — an Optional's element ('?'), or either side of another 'orfail' — a
+  // Result has to be parenthesized to read back correctly: 'Optional<Result<…>>'
+  // is '(A orfail B)?', never 'A orfail B?' (which parses as 'A orfail (B?)'). A
+  // Function type is wrapped for the same reason — its '-> R' extends greedily to
+  // the right. Every other type is atomic enough to stand unparenthesized here.
+  const postfix = (x: AscentType): string =>
+    x.kind === 'Result' || x.kind === 'Function' ? `(${typeToString(x)})` : typeToString(x);
+
   if (t.kind === 'List') {
     return `List<${typeToString(t.elem)}>`;
   }
   if (t.kind === 'Optional') {
-    return `${typeToString(t.elem)}?`;
+    return `${postfix(t.elem)}?`;
   }
   // 'T orfail E' — the surface spelling of Result, what a learner wrote
   // (whitepaper §9), never 'Result<T, E>'.
   if (t.kind === 'Result') {
-    return `${typeToString(t.ok)} orfail ${typeToString(t.err)}`;
+    return `${postfix(t.ok)} orfail ${postfix(t.err)}`;
   }
   // A Task shows as 'Task<T>' — the inferred type of an async call 'f!(x)'
   // (whitepaper §8), the same angle-bracket form as List<T>.

@@ -1197,6 +1197,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A slot is given a value that never actually arrives, because the right-hand side always leaves first.",
     "message": "'{name}' never gets a value: the code on the right always leaves first.",
     "explanation": "The right-hand side here never produces a value — it always leaves first, through an 'abort' or a 'return' — so '{name}' can never be given anything, and this line can't run. Remove it, or change the right-hand side so it produces a value."
+  },
+  {
+    "code": "T0061",
+    "name": "redundant-optional",
+    "category": "type",
+    "summary": "A type is marked optional more than once, but an optional can't nest.",
+    "message": "This '?' is redundant — the type is already optional.",
+    "explanation": "A '?' makes a type optional, so it can hold a value or 'None'. Marking it '?' again adds nothing, because an optional doesn't nest — there is no \"maybe a maybe-String\", only \"maybe a String\". Write a single '?' — 'String?', not 'String??'."
   }
 ];
 

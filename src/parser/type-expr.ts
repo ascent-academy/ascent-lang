@@ -35,7 +35,18 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
   const tok = ts.peek();
 
   let base: TypeExpr;
-  if (tok.kind === 'DONE_LIT') {
+  if (tok.kind === 'LPAREN') {
+    // A parenthesized group — pure precedence grouping, so that a loose 'orfail'
+    // can sit under a tighter operator: '(Int orfail String)?' is an Optional of
+    // a Result (which the bare 'Int orfail String?' can't spell — that binds the
+    // '?' to 'String'). The parens carry no node of their own; the inner type is
+    // returned directly, and any trailing '?' below then applies to it.
+    ts.advance(); // consume '('
+    const inner = parseTypeExpr(ts);
+    if (inner === null) return null;
+    if (ts.expect('RPAREN', 'S0001', [{ key: 'opener', span: tok.span }]) === null) return null;
+    base = inner;
+  } else if (tok.kind === 'DONE_LIT') {
     // 'Done' is the unit *type* here (a function's return type when it produces
     // no information — whitepaper §4), even though the same word is a value
     // constructor elsewhere. Position tells them apart (design.md §2): after ':'
@@ -84,12 +95,20 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
     base = { kind: 'TypeName', name: tok.value, span: tok.span };
   }
 
-  // A trailing '?' wraps whatever came before it — 'String?', 'List<Int>?' —
-  // and stacks if repeated ('String??' is Optional<Optional<String>>, an odd
-  // but harmless type, not a special error).
-  while (ts.peek().kind === 'QUESTION') {
+  // A trailing '?' wraps whatever came before it — 'String?', 'List<Int>?'. A
+  // repeated '?' ('String??') or a '?' on an already-optional group ('(String?)?')
+  // stacks into nested OptionalType nodes here; formation (src/check/formation.ts)
+  // then reports the redundant '?' (T0061) and collapses it, since Optional never
+  // nests (§4/§7). Keeping the nested nodes is what lets formation *see* the
+  // redundancy — collapsing it in the parser would hide the mistake. Adjacent
+  // '??' lexes as one QUESTION_QUESTION (the value-level coalesce operator), but
+  // in type position it can only be two optional marks, so it counts as two wraps.
+  while (ts.peek().kind === 'QUESTION' || ts.peek().kind === 'QUESTION_QUESTION') {
     const q = ts.advance();
-    base = { kind: 'OptionalType', elem: base, span: { start: base.span.start, end: q.span.end } };
+    const marks = q.kind === 'QUESTION_QUESTION' ? 2 : 1;
+    for (let i = 0; i < marks; i++) {
+      base = { kind: 'OptionalType', elem: base, span: { start: base.span.start, end: q.span.end } };
+    }
   }
 
   return base;

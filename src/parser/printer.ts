@@ -42,12 +42,19 @@ const formatTypeExpr = (te: TypeExpr): string => {
   switch (te.kind) {
     case 'TypeName': return te.name;
     case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
-    case 'OptionalType': return `${formatTypeExpr(te.elem)}?`;
-    case 'ResultType': return `${formatTypeExpr(te.ok)} orfail ${formatTypeExpr(te.err)}`;
+    case 'OptionalType': return `${postfixType(te.elem)}?`;
+    case 'ResultType': return `${postfixType(te.ok)} orfail ${postfixType(te.err)}`;
     case 'FnType': return `Fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
     case 'TaskType': return `Task<${formatTypeExpr(te.elem)}>`;
   }
 };
+
+// A type in a postfix-tight position — an Optional's element ('?') or either side
+// of an 'orfail' — must be parenthesized when it's a loose 'orfail' Result (or a
+// greedily-right Fn type), so '(Int orfail String)?' round-trips instead of
+// collapsing to the differently-grouped 'Int orfail String?'. Mirrors typeToString.
+const postfixType = (te: TypeExpr): string =>
+  te.kind === 'ResultType' || te.kind === 'FnType' ? `(${formatTypeExpr(te)})` : formatTypeExpr(te);
 
 // Returns the node as a list of lines so callers can prefix them with
 // branch characters (├─, └─) when embedding inside a parent node.
