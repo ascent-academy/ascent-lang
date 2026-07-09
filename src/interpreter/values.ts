@@ -162,6 +162,18 @@ export const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean =>
   // every other '==' (design.md §5). (Distinct empty ranges, e.g. '5..5' and
   // '3..3', are thus unequal: different bounds, not "both empty".)
   if (left.type === 'Range' && right.type === 'Range') return left.lo === right.lo && left.hi === right.hi;
+  // Two lists are equal when they have the same length and equal elements in
+  // order — structural, like every other '==' (design.md §5/§7). The
+  // typechecker guarantees the operands share a List type, so the elements are
+  // pairwise comparable (and each pair recurses, so a List<List<T>> or a list of
+  // records compares all the way down).
+  if (left.type === 'List' && right.type === 'List') {
+    if (left.elements.length !== right.elements.length) return false;
+    for (let i = 0; i < left.elements.length; i++) {
+      if (!valuesEqual(left.elements[i]!, right.elements[i]!)) return false;
+    }
+    return true;
+  }
   // Records compare structurally: same type, then field-by-field (design.md
   // §6/§7 — records are "immutable, structurally-compared values"). The
   // typechecker guarantees '==' operands share a type, so same-name records
