@@ -33,6 +33,7 @@ export type TokenKind =
   | 'KW_FN'          // the keyword fn — introduces a function value or a function type
   | 'KW_RETURN'      // the keyword return — early-exits the enclosing function
   | 'KW_ORFAIL'      // the keyword orfail — the 'T orfail E' Result type operator
+  | 'KW_TRY'         // the keyword try — unwrap-or-propagate an Optional/Result
   | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates

@@ -246,6 +246,37 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       }
       throw new Error('internal: no match arm matched (checker should guarantee exhaustiveness)');
     }
+    case 'try': {
+      // 'try' (whitepaper §9). Evaluate the subject: on the good case yield the
+      // unwrapped value; on the bad case early-return from the enclosing function
+      // via a ReturnSignal, exactly as the desugared 'Failure/None -> return …'
+      // arm would. The bad value is 'None' (an Optional) or a 'Failure' record (a
+      // Result); anything else is a present Optional value or a 'Success'.
+      const v = evaluateExpr(expr.subject, env);
+      const isBad = v.type === 'None' || (v.type === 'Record' && v.name === 'Failure');
+      if (!isBad) {
+        // Good: a 'Success' unwraps to its 'value' field; a present Optional value
+        // is already the bare value (Optional has no wrapper, §4).
+        return v.type === 'Record' && v.name === 'Success' ? v.fields.get('value')! : v;
+      }
+
+      // Bad: propagate. The plain form re-returns the failure/None unchanged; the
+      // 'else' form maps the error to a new value and returns 'Failure{ error }'.
+      // Either way the propagated value is coerced into the function's return type.
+      if (expr.elseClause === null) {
+        throw new ReturnSignal(coerce(v, expr.propagateType, expr.returnType));
+      }
+      let armEnv = env;
+      if (expr.elseClause.binding !== null) {
+        // A binding only appears on a Result (the checker guarantees it), so `v`
+        // is a Failure record carrying the error to bind.
+        armEnv = env.child();
+        armEnv.declare(expr.elseClause.binding, (v as Extract<RuntimeValue, { type: 'Record' }>).fields.get('error')!, false);
+      }
+      const mapped = evaluateExpr(expr.elseClause.body, armEnv);
+      const failure = recordVal('Failure', new Map([['error', mapped]]));
+      throw new ReturnSignal(coerce(failure, expr.propagateType, expr.returnType));
+    }
   }
 };
 

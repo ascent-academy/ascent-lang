@@ -131,6 +131,13 @@ const typedExprLines = (expr: TypedExpr): string[] => {
       );
       return [`${chalk.cyan('Match')}${t}`, ...subjectLines, ...armLines];
     }
+    case 'try': {
+      const subjectLines = branch(typedExprLines(expr.subject), expr.elseClause === null);
+      if (expr.elseClause === null) return [`${chalk.cyan('Try')}${t}`, ...subjectLines];
+      const bind = expr.elseClause.binding !== null ? ` ${chalk.green(expr.elseClause.binding)}` : '';
+      const elseLines = branch([`${chalk.magenta('else')}${bind} ${chalk.dim('->')}`, ...branch(typedExprLines(expr.elseClause.body), true)], true);
+      return [`${chalk.cyan('Try')}${t}`, ...subjectLines, ...elseLines];
+    }
   }
 };
 

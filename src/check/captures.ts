@@ -147,6 +147,17 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
       visitExpr(expr.subject, bound, out);
       for (const arm of expr.arms) visitArm(arm, bound, out);
       return;
+    case 'try': {
+      visitExpr(expr.subject, bound, out);
+      if (expr.elseClause !== null) {
+        // The 'else' body runs with the error name (if any) in scope, so it isn't
+        // a free variable of the enclosing function.
+        const inner = new Set(bound);
+        if (expr.elseClause.binding !== null) inner.add(expr.elseClause.binding.name);
+        visitExpr(expr.elseClause.body, inner, out);
+      }
+      return;
+    }
     case 'block':
       visitBlock(expr, bound, out);
       return;

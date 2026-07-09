@@ -165,6 +165,13 @@ const exprLines = (expr: Expr): string[] => {
       );
       return [`${chalk.cyan('Match')}`, ...subjectLines, ...armLines];
     }
+    case 'try': {
+      const subjectLines = branch(exprLines(expr.subject), expr.elseClause === null);
+      if (expr.elseClause === null) return [`${chalk.cyan('Try')}`, ...subjectLines];
+      const bind = expr.elseClause.binding !== null ? ` ${chalk.green(expr.elseClause.binding.name)}` : '';
+      const elseLines = branch([`${chalk.magenta('else')}${bind} ${chalk.dim('->')}`, ...branch(exprLines(expr.elseClause.body), true)], true);
+      return [`${chalk.cyan('Try')}`, ...subjectLines, ...elseLines];
+    }
   }
 };
 

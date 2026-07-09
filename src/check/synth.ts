@@ -1,6 +1,6 @@
 import type { Expr, FieldInit } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
-import type { TypedExpr, TypedTemplatePart, TypedFieldInit } from '../parser/typed-ast.js';
+import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedTryElse } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
   listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf,
@@ -107,6 +107,100 @@ const synthResultConstruct = (
     ? [{ name: fieldName, declaredType: payloadType, value: payload }]
     : [];
   return { kind: 'construct', typeName: tag, fields, type, span: expr.span };
+};
+
+// whitepaper §9: 'try expr' / 'try expr else [e] -> mapExpr'. `try` unwraps the
+// good case of an Optional/Result and continues, or early-returns the bad case
+// from the enclosing function — so it must sit inside a function (T0044) whose
+// declared return type can carry that bad case (T0046). The plain form
+// propagates the failure/None unchanged; the 'else' form maps the error to a new
+// value and propagates it as a 'Failure'. The whole expression's type is the
+// unwrapped good value's type T (the bad path diverges via return, so it doesn't
+// contribute a type). Modeled on 'return': the propagated value is coerced into
+// the return type at runtime, so the typed node carries both.
+const synthTry = (
+  expr: Extract<Expr, { kind: 'try' }>,
+  env: TypeEnv,
+  diagnostics: Diagnostics,
+): TypedExpr => {
+  const typedSubject = synth(expr.subject, env, diagnostics);
+  const st = typedSubject.type;
+  const returnType = env.enclosingReturn();
+
+  // The subject must be an Optional or a Result — the two fallible boxes 'try'
+  // opens. Its good (unwrapped) type is the whole expression's type; its err type
+  // (for a Result) is what an 'else' binding names.
+  let goodType: AscentType = INVALID_TYPE;
+  let errType: AscentType | null = null;
+  let subjectShape: 'optional' | 'result' | null = null;
+  if (st.kind === 'Optional') {
+    goodType = st.elem;
+    subjectShape = 'optional';
+  } else if (st.kind === 'Result') {
+    goodType = st.ok;
+    errType = st.err;
+    subjectShape = 'result';
+  } else if (!isInvalidType(st)) {
+    diagnostics.error({ code: 'T0045', span: expr.subject.span, data: { actual: typeToString(st) } });
+  }
+
+  // 'try' hands the bad case to the enclosing function; outside one there is
+  // nowhere for it to go (the same shape as a 'return' outside a function, T0037).
+  if (returnType === null) {
+    diagnostics.error({ code: 'T0044', span: expr.span });
+  }
+
+  // The value returned on the bad path, and a human phrase for the diagnostic.
+  let propagateType: AscentType = INVALID_TYPE;
+  let propagated = '';
+  let typedElse: TypedTryElse | null = null;
+
+  if (expr.elseClause === null) {
+    // Plain 'try': propagate the failure / None exactly as it is.
+    if (subjectShape === 'result') {
+      propagateType = resultOf(NEVER_TYPE, errType!);
+      propagated = `a failure (${typeToString(errType!)})`;
+    } else if (subjectShape === 'optional') {
+      propagateType = NONE_TYPE;
+      propagated = 'None';
+    }
+  } else {
+    // 'try … else': bind the error (Result only), map it, propagate as a Failure.
+    const armEnv = env.child();
+    if (expr.elseClause.binding !== null) {
+      if (subjectShape === 'optional') {
+        // An Optional's absent case is 'None' — it carries no error to bind.
+        diagnostics.error({ code: 'T0047', span: expr.elseClause.binding.span });
+      }
+      armEnv.set(expr.elseClause.binding.name, errType ?? INVALID_TYPE, 'fix', expr.elseClause.binding.span);
+    }
+    const typedBody = synth(expr.elseClause.body, armEnv, diagnostics);
+    typedElse = { binding: expr.elseClause.binding?.name ?? null, body: typedBody };
+    propagateType = resultOf(NEVER_TYPE, typedBody.type);
+    propagated = `a failure (${typeToString(typedBody.type)})`;
+  }
+
+  // The enclosing function's return type has to be able to hold the propagated
+  // bad case (whitepaper §9: "a function that uses 'try' must itself return a
+  // compatible Optional/Result"). Quiet when the subject was already invalid or
+  // there is no function at all — those failures are reported above.
+  if (returnType !== null && subjectShape !== null && !isInvalidType(propagateType)
+    && !isAssignableTo(propagateType, returnType)) {
+    diagnostics.error({
+      code: 'T0046', span: expr.span,
+      data: { propagated, ret: typeToString(returnType) },
+    });
+  }
+
+  return {
+    kind: 'try',
+    subject: typedSubject,
+    elseClause: typedElse,
+    returnType: returnType ?? INVALID_TYPE,
+    propagateType,
+    type: goodType,
+    span: expr.span,
+  };
 };
 
 export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): TypedExpr => {
@@ -611,5 +705,8 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
 
     case 'match':
       return inferMatch(expr, env, diagnostics);
+
+    case 'try':
+      return synthTry(expr, env, diagnostics);
   }
 };

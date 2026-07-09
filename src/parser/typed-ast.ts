@@ -47,10 +47,34 @@ export type TypedExpr = (
   | { kind: 'coalesce'; left: TypedExpr; right: TypedExpr; type: AscentType; span: Span }
   | TypedFn
   | TypedReturn
+  | TypedTry
   | TypedMatch
   | TypedBlock
   | TypedIf
 );
+
+// The typed 'else [e] -> mapExpr' tail of a 'try' (whitepaper §9). `binding` is
+// the local the failing error is bound to inside `body` (null when omitted); the
+// interpreter binds the Failure's `error` field to it. `body` yields the new
+// error value, propagated as 'Failure{ error }'.
+export type TypedTryElse = { binding: string | null; body: TypedExpr };
+
+// 'try expr' / 'try expr else …' typed (whitepaper §9). `type` is the unwrapped
+// good value's type T (what the whole expression yields on the success path) —
+// the divergence on the bad path is a runtime early-return, so it doesn't make
+// the type Never. `returnType` is the enclosing function's declared return type,
+// and `propagateType` is the static type of the value returned on the bad path
+// (a 'Result<Never, E>' or 'None'); the interpreter coerces the propagated value
+// from `propagateType` into `returnType`, exactly as a 'return' coerces its value.
+export type TypedTry = {
+  kind: 'try';
+  subject: TypedExpr;
+  elseClause: TypedTryElse | null;
+  returnType: AscentType;
+  propagateType: AscentType;
+  type: AscentType;
+  span: Span;
+};
 
 // One typed parameter of a function value — its name and the AscentType its
 // declared TypeExpr formed into. The interpreter binds each argument to `name`

@@ -1,5 +1,5 @@
-import type { Token, TokenKind } from '../lexer/token.js';
-import type { Expr, BinaryOp, UnaryOp, TemplatePart, FieldInit } from './ast.js';
+import type { Token, TokenKind, Span } from '../lexer/token.js';
+import type { Expr, BinaryOp, UnaryOp, TemplatePart, FieldInit, TryElse } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf, parseMatch } from './stmt.js';
 import { parseTypeExpr, parseFnParam } from './type-expr.js';
@@ -422,8 +422,47 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseReturn(ts);
   }
 
+  if (tok.kind === 'KW_TRY') {
+    return parseTry(ts);
+  }
+
   ts.report('S0002', tok.span);
   return null;
+}
+
+// 'try expr' or 'try expr else [e] -> mapExpr' — unwrap-or-propagate (whitepaper
+// §9). A nud like 'return': the subject is a full parseExpr, so 'try a ?? b' is
+// 'try (a ?? b)' — the same greedy rule 'return a + b' follows. The subject stops
+// at 'else' on its own (KW_ELSE isn't an infix operator), and an 'else' here binds
+// to this 'try', never to a nested 'if' (whose parser already consumed its own).
+function parseTry(ts: TokenStream): Expr | null {
+  const tryTok = ts.advance(); // consume 'try'
+
+  const subject = parseExpr(ts);
+  if (subject === null) return null;
+
+  let elseClause: TryElse | null = null;
+  if (ts.peek().kind === 'KW_ELSE') {
+    const elseTok = ts.advance(); // consume 'else'
+
+    // An optional lowercase name binds the failing error (whitepaper §9). Omitted
+    // when the subject is an Optional (nothing to bind) or the error is ignored.
+    let binding: { name: string; span: Span } | null = null;
+    if (ts.peek().kind === 'SLOT') {
+      const nameTok = ts.advance();
+      binding = { name: nameTok.value, span: nameTok.span };
+    }
+
+    if (ts.expect('ARROW', 'S0026') === null) return null;
+
+    const body = parseExpr(ts);
+    if (body === null) return null;
+
+    elseClause = { binding, body, span: { start: elseTok.span.start, end: body.span.end } };
+  }
+
+  const end = (elseClause ?? subject).span.end;
+  return { kind: 'try', subject, elseClause, span: { start: tryTok.span.start, end } };
 }
 
 // The tokens that can't begin a value, so a 'return' directly before one is a

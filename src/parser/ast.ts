@@ -162,10 +162,24 @@ export type Expr = (
   // any arithmetic/comparison op — the left is unwrapped, not combined — and it
   // short-circuits (the default is only evaluated on None).
   | { kind: 'coalesce'; left: Expr; right: Expr; span: Span }
+  // 'try expr' / 'try expr else [e] -> mapExpr' — the propagation shorthand for
+  // an Optional/Result (whitepaper §9). On the good case (a present Optional
+  // value, or a 'Success') it yields the unwrapped value; on the bad case it
+  // early-returns from the enclosing function — the 'None'/'Failure' unchanged
+  // for the plain form, or 'Failure{ error: mapExpr }' for the 'else' mapping
+  // form. `elseClause` is null for the plain 'try'. Its own node (not desugared
+  // in the parser) because its typing needs the enclosing function's return type.
+  | { kind: 'try'; subject: Expr; elseClause: TryElse | null; span: Span }
   | Match
   | Block
   | If
 );
+
+// The 'else [e] -> mapExpr' tail of a 'try' (whitepaper §9). `binding` is the
+// name the failing error is bound to inside `body` — null when omitted (the only
+// allowed form on an Optional, whose absent case carries no error). `body`
+// evaluates to the *new* error value that gets propagated as 'Failure{ error }'.
+export type TryElse = { binding: { name: string; span: Span } | null; body: Expr; span: Span };
 
 // Unlike 'if', 'while'/'for' are statements, not expressions — a loop has
 // no single meaningful result (zero iterations has no last value to

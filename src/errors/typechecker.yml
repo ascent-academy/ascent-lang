@@ -486,3 +486,47 @@
     would be, and a 'Failure{ error: ... }' says the opposite — so on its own
     neither one shows the whole 'T orfail E' type. Write it down where the slot
     is created, for example 'fix result: Int orfail ReadError = Success{ value: 1 }'.
+
+- code: T0044
+  name: try-outside-function
+  category: type
+  summary: "A 'try' is used outside any function."
+  message: "'try' can only be used inside a function."
+  explanation: >-
+    'try' hands a failure back to the function it's in — it unwraps the value on
+    success, or leaves the function early with the failure. Out here there's no
+    function to leave, so there's nowhere for the failure to go. Move this into a
+    function whose return type is an optional or a 'T orfail E'.
+
+- code: T0045
+  name: try-not-fallible
+  category: type
+  summary: "A 'try' is used on a value that can't fail."
+  message: "'try' works on an optional or a 'T orfail E', but this is {actual}."
+  explanation: >-
+    'try' unwraps the two values that can be absent or failed — an optional
+    (a '?' type) or a Result ('T orfail E') — and leaves the function early on the
+    empty/failure case. This value is {actual}, which is neither, so there's
+    nothing for 'try' to unwrap.
+
+- code: T0046
+  name: try-return-type-mismatch
+  category: type
+  summary: "A 'try' propagates a failure the enclosing function can't return."
+  message: "This 'try' hands back {propagated}, but the function here returns {ret}, which can't hold it."
+  explanation: >-
+    'try' leaves the function early with the failure case, so the function's
+    return type has to be able to hold it. This 'try' would return {propagated},
+    but the function returns {ret}. Declare the function to return a matching
+    'T orfail E' (or a '?' optional when the failure is 'None'), or handle the
+    case here with 'match' instead of 'try'.
+
+- code: T0047
+  name: try-else-binds-optional
+  category: type
+  summary: "A 'try … else' names an error, but the value is an optional (which has none)."
+  message: "This 'else' names an error to catch, but an optional's empty case ('None') carries no error."
+  explanation: >-
+    'try opt else e -> ...' would bind the failure's error to 'e', but an optional
+    that is empty is just 'None' — there's no error value to name. Drop the name
+    and write 'try opt else -> ...' to supply the error to propagate instead.
