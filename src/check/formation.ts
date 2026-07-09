@@ -1,7 +1,7 @@
 import type { TypeExpr, ArgType } from '../parser/ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE,
-  listOfType, optionalOf, namedType, functionType,
+  listOfType, optionalOf, resultOf, namedType, functionType,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import type { Diagnostics } from './diagnostics.js';
@@ -26,10 +26,12 @@ export const typeFromName = (name: ArgType): AscentType => {
 
 const BUILTIN_SCALARS: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String']);
 
-// Every built-in type name — the scalars plus List. One source of truth: a
-// 'type' declaration can't reuse one (N0008), and none can be used as a value
+// Every built-in type name — the scalars, List, and Result — plus the two
+// built-in Result constructors 'Success'/'Failure', which are likewise
+// non-shadowable (whitepaper §2/§9). One source of truth: a 'type' declaration
+// can't reuse any of these (N0008), and none can be used as a bare value
 // (N0012). Shared by the checker's stmt/synth passes.
-export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List']);
+export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List', 'Result', 'Success', 'Failure']);
 
 export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostics): AscentType => {
   switch (te.kind) {
@@ -48,6 +50,10 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
     }
     case 'ListType': return listOfType(typeFromExpr(te.elem, env, diagnostics));
     case 'OptionalType': return optionalOf(typeFromExpr(te.elem, env, diagnostics));
+    case 'ResultType': return resultOf(
+      typeFromExpr(te.ok, env, diagnostics),
+      typeFromExpr(te.err, env, diagnostics),
+    );
     case 'FnType': return functionType(
       te.params.map(p => typeFromExpr(p, env, diagnostics)),
       typeFromExpr(te.result, env, diagnostics),

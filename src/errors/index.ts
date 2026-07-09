@@ -166,8 +166,8 @@ export const ERRORS: ErrorEntry[] = [
     "name": "redeclare-builtin-type",
     "category": "name",
     "summary": "A 'type' declaration reuses a built-in type name.",
-    "message": "'{name}' is a built-in type, so it can't be redeclared.",
-    "explanation": "'{name}' already names one of the language's built-in types (Int, Float, Bool, String, List), so a 'type' declaration can't reuse it. Choose a different name for your type."
+    "message": "'{name}' is a built-in name, so it can't be redeclared.",
+    "explanation": "'{name}' already names one of the language's built-in types (Int, Float, Bool, String, List, Result) or built-in constructors (Success, Failure), so a 'type' declaration can't reuse it. Choose a different name for your type."
   },
   {
     "code": "N0009",
@@ -965,6 +965,14 @@ export const ERRORS: ErrorEntry[] = [
         "label": "this default is {default}"
       }
     ]
+  },
+  {
+    "code": "T0043",
+    "name": "result-needs-annotation",
+    "category": "type",
+    "summary": "A 'Success'/'Failure' on its own doesn't say what the whole Result type is.",
+    "message": "This needs a type written down, like 'Int orfail SomeError'.",
+    "explanation": "A 'Success{ value: ... }' says what a success holds but not what a failure would be, and a 'Failure{ error: ... }' says the opposite — so on its own neither one shows the whole 'T orfail E' type. Write it down where the slot is created, for example 'fix result: Int orfail ReadError = Success{ value: 1 }'."
   }
 ];
 

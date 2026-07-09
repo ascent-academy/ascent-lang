@@ -21,6 +21,7 @@ export const KEYWORDS: Record<string, TokenKind> = {
   match: 'KW_MATCH',
   fn: 'KW_FN',
   return: 'KW_RETURN',
+  orfail: 'KW_ORFAIL',
 };
 
 export const CONSTRUCTORS: Record<string, TokenKind> = {

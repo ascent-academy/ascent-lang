@@ -172,6 +172,12 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       const all = info.variants.map(v => v.tag);
       return { label: info.name, all, missing: all.filter(tag => !coveredTags.has(tag)) };
     }
+    // A Result is a two-case union — 'Success' | 'Failure' (whitepaper §9) — so
+    // it's finite exactly like a user union: covered by listing both cases.
+    if (type.kind === 'Result') {
+      const all = ['Success', 'Failure'];
+      return { label: typeToString(type), all, missing: all.filter(tag => !coveredTags.has(tag)) };
+    }
     return null;
   };
 
@@ -208,6 +214,34 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     if (pat.kind === 'litPattern') {
       patternType = literalPatternType(pat);
       key = literalPatternKey(pat);
+    } else if (pat.kind === 'variantPattern' && (pat.tag === 'Success' || pat.tag === 'Failure')) {
+      // The two built-in Result cases (whitepaper §9). 'Success{ value }' binds
+      // 'value' at the subject's ok type, 'Failure{ error }' binds 'error' at its
+      // err type. On a non-Result subject the pattern can't fit (T0028 below); its
+      // fields still bind Invalid so the body doesn't cascade.
+      armEnv = env.child();
+      key = `variant:${pat.tag}`;
+      const isResult = subjectType.kind === 'Result';
+      const fieldName = pat.tag === 'Success' ? 'value' : 'error';
+      const fieldType = subjectType.kind === 'Result'
+        ? (pat.tag === 'Success' ? subjectType.ok : subjectType.err)
+        : INVALID_TYPE;
+      bindPatternFields(pat.fields, { tag: pat.tag, fields: [{ name: fieldName, type: fieldType, span: pat.tagSpan }] }, armEnv, 'fix', pat.tag, diagnostics);
+      if (isResult) {
+        // Matches when the subject is that same Result — the generic T0028 check
+        // below compares them and agrees.
+        patternType = subjectType;
+      } else if (!isInvalidType(subjectType)) {
+        // A Result case can only match a Result. Reported here with a clean name
+        // rather than through the generic check (whose {actual} would be the odd
+        // 'Never orfail Never' of the stand-in Result type).
+        patternType = null;
+        diagnostics.error({
+          code: 'T0028', span: pat.span,
+          data: { expected: typeToString(subjectType), actual: `a Result ('${pat.tag}')` },
+          related: [{ key: 'subject', span: expr.subject.span }],
+        });
+      }
     } else if (pat.kind === 'variantPattern') {
       armEnv = env.child();
       key = `variant:${pat.tag}`;
@@ -407,6 +441,15 @@ const resolveRecordTarget = (
   origin: 'fix' | 'mut',
   diagnostics: Diagnostics,
 ): { recordType: AscentType; typedFields: TypedFieldPattern[] } => {
+  // 'Success'/'Failure' are the built-in Result cases — refutable, since a
+  // Result could be either — so, like a union variant, they can't be pulled
+  // apart in a 'fix'/'mut' binding; 'match' handles both cases (whitepaper §9).
+  if (target.typeName === 'Success' || target.typeName === 'Failure') {
+    diagnostics.error({ code: 'T0033', span: target.typeNameSpan, data: { type: 'Result', variants: 'Success, Failure' } });
+    const typedFields = bindPatternFields(target.fields, null, env, origin, target.typeName, diagnostics);
+    return { recordType: INVALID_TYPE, typedFields };
+  }
+
   // `variant` is the field set to bind against — kept even on a refutable tag,
   // whose fields are still real, so downstream uses of the bound locals don't
   // cascade into N0001.
@@ -524,6 +567,12 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
           // type information (there's nothing to widen it to) — so it needs
           // a written annotation too.
           diagnostics.error({ code: 'T0015', span: stmt.init.span });
+        } else if (typedInit.type.kind === 'Result' && containsNever(typedInit.type)) {
+          // A bare 'Success{ … }' / 'Failure{ … }' pins only one side of the
+          // Result — the other stays Never, with no later use to resolve it (a
+          // 'Success' never reveals the error type, §7's no-cross-statement-flow
+          // rule) — so the whole 'T orfail E' has to be written down.
+          diagnostics.error({ code: 'T0043', span: stmt.init.span });
         } else if (containsNever(typedInit.type)) {
           // Same wrinkle for a bare '[]' (or anything built from one, like
           // '[].reverse()'): List<Never> would otherwise freeze the slot at

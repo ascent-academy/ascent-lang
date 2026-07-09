@@ -1,0 +1,139 @@
+import assert from 'node:assert/strict';
+import { parse } from '../src/parser/index.js';
+import { executeProgram } from '../src/interpreter.js';
+import type { RuntimeValue } from '../src/interpreter.js';
+
+// Runs a program expected to typecheck and evaluate cleanly, returning its last
+// statement's RuntimeValue. Mirrors the harness in optional.test.ts / records.test.ts.
+function evalOk(src: string): RuntimeValue {
+  const { program, diagnostics } = parse(src);
+  assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
+  assert.ok(program !== null, 'expected the program to typecheck');
+  const result = executeProgram(program, { stdout: () => {} });
+  assert.equal(result.kind, 'ok');
+  if (result.kind !== 'ok') throw new Error('unreachable');
+  return result.value;
+}
+
+function errorCodes(src: string): string[] {
+  return parse(src).diagnostics.map(d => d.code);
+}
+
+// A tiny error type reused across the value tests.
+const E = 'type E = { msg: String };\n';
+
+describe('Result (T orfail E) (end-to-end)', () => {
+  describe('construction and match', () => {
+    it("matches a Success and pulls its 'value' out", () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 7 }; match r { Success{ value } -> value, Failure{ error } -> 0 };`;
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 7n });
+    });
+
+    it("matches a Failure and pulls its 'error' out", () => {
+      const src = `${E}fix r: Int orfail E = Failure{ error: E{ msg: "boom" } }; match r { Success{ value } -> "ok", Failure{ error } -> error.msg };`;
+      assert.deepEqual(evalOk(src), { type: 'String', value: 'boom' });
+    });
+
+    it('a function that returns one or the other joins to the whole Result', () => {
+      const src = `${E}`
+        + 'fix f = fn(b: Bool) -> Int orfail E { if (b) { Success{ value: 1 } } else { Failure{ error: E{ msg: "no" } } } };'
+        + 'match f(True) { Success{ value } -> value, Failure{ error } -> 0 };';
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 1n });
+      const src2 = `${E}`
+        + 'fix f = fn(b: Bool) -> Int orfail E { if (b) { Success{ value: 1 } } else { Failure{ error: E{ msg: "no" } } } };'
+        + 'match f(False) { Success{ value } -> value, Failure{ error } -> 0 };';
+      assert.deepEqual(evalOk(src2), { type: 'Int', value: 0n });
+    });
+
+    it('an else arm covers the remaining Result case', () => {
+      const src = `${E}fix r: Int orfail E = Failure{ error: E{ msg: "x" } }; match r { Success{ value } -> value, else -> 99 };`;
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 99n });
+    });
+
+    it('a bare Success tag pattern matches without binding fields', () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 3 }; match r { Success -> "won", Failure -> "lost" };`;
+      assert.deepEqual(evalOk(src), { type: 'String', value: 'won' });
+    });
+  });
+
+  describe('widening inside a Result', () => {
+    it('widens a Success Int payload into a Float ok slot', () => {
+      // Success{ value: 5 } is Result<Int, Never>; the annotation supplies Float.
+      const src = `${E}fix r: Float orfail E = Success{ value: 5 }; match r { Success{ value } -> value, Failure{ error } -> 0.0 };`;
+      assert.deepEqual(evalOk(src), { type: 'Float', value: 5 });
+    });
+
+    it('widens a bare Success/Failure into the declared error/ok side (Never widens away)', () => {
+      const src = `${E}fix ok: Int orfail E = Success{ value: 1 }; fix bad: Int orfail E = Failure{ error: E{ msg: "e" } }; match bad { Success{ value } -> value, Failure{ error } -> 2 };`;
+      assert.deepEqual(evalOk(src), { type: 'Int', value: 2n });
+    });
+  });
+
+  describe('exhaustiveness', () => {
+    it('reports T0034 when the Failure case is missing', () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 1 }; match r { Success{ value } -> value };`;
+      assert.deepEqual(errorCodes(src), ['T0034']);
+    });
+
+    it('reports T0034 when the Success case is missing', () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 1 }; match r { Failure{ error } -> 0 };`;
+      assert.deepEqual(errorCodes(src), ['T0034']);
+    });
+
+    it('accepts a match that lists both cases', () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 1 }; match r { Success{ value } -> value, Failure{ error } -> 0 };`;
+      assert.deepEqual(errorCodes(src), []);
+    });
+
+    it('reports T0031 for an else after both cases are already covered', () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 1 }; match r { Success{ value } -> value, Failure{ error } -> 0, else -> 9 };`;
+      assert.deepEqual(errorCodes(src), ['T0031']);
+    });
+  });
+
+  describe('slot inference needs an annotation', () => {
+    it('reports T0043 for a bare Success with no annotation', () => {
+      assert.deepEqual(errorCodes('fix r = Success{ value: 1 };'), ['T0043']);
+    });
+
+    it('reports T0043 for a bare Failure with no annotation', () => {
+      assert.deepEqual(errorCodes(`${E}fix r = Failure{ error: E{ msg: "x" } };`), ['T0043']);
+    });
+  });
+
+  describe('rejections', () => {
+    it("reports T0039 — '??' is not allowed on a Result", () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 1 }; fix x = r ?? 0;`;
+      assert.deepEqual(errorCodes(src), ['T0039']);
+    });
+
+    it('reports T0033 — a Result cannot be destructured in a fix binding', () => {
+      const src = `${E}fix r: Int orfail E = Success{ value: 1 }; fix Success{ value } = r;`;
+      assert.deepEqual(errorCodes(src), ['T0033']);
+    });
+
+    it('reports T0028 — a Result pattern on a non-Result subject', () => {
+      const src = 'match 5 { Success{ value } -> value, else -> 0 };';
+      assert.deepEqual(errorCodes(src), ['T0028']);
+    });
+
+    it('reports T0019 (+T0018) for a wrong field name on Success', () => {
+      assert.deepEqual(errorCodes('fix r: Int orfail Int = Success{ foo: 1 };'), ['T0019', 'T0018']);
+    });
+
+    it('reports T0018 for a Success built with no value', () => {
+      assert.deepEqual(errorCodes('fix r: Int orfail Int = Success{};'), ['T0018']);
+    });
+
+    it('reports T0001 when the Success payload does not fit the ok type', () => {
+      const src = `${E}fix r: String orfail E = Success{ value: 1 };`;
+      assert.deepEqual(errorCodes(src), ['T0001']);
+    });
+
+    it('reports N0008 for redeclaring Result / Success / Failure', () => {
+      assert.deepEqual(errorCodes('type Result = { a: Int };'), ['N0008']);
+      assert.deepEqual(errorCodes('type Success = { a: Int };'), ['N0008']);
+      assert.deepEqual(errorCodes('type Failure = { a: Int };'), ['N0008']);
+    });
+  });
+});

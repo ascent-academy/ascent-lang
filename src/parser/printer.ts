@@ -31,6 +31,7 @@ const formatTypeExpr = (te: TypeExpr): string => {
     case 'TypeName': return te.name;
     case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
     case 'OptionalType': return `${formatTypeExpr(te.elem)}?`;
+    case 'ResultType': return `${formatTypeExpr(te.ok)} orfail ${formatTypeExpr(te.err)}`;
     case 'FnType': return `fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
   }
 };

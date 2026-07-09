@@ -475,3 +475,14 @@
   related:
     - key: default
       label: "this default is {default}"
+
+- code: T0043
+  name: result-needs-annotation
+  category: type
+  summary: "A 'Success'/'Failure' on its own doesn't say what the whole Result type is."
+  message: "This needs a type written down, like 'Int orfail SomeError'."
+  explanation: >-
+    A 'Success{ value: ... }' says what a success holds but not what a failure
+    would be, and a 'Failure{ error: ... }' says the opposite — so on its own
+    neither one shows the whole 'T orfail E' type. Write it down where the slot
+    is created, for example 'fix result: Int orfail ReadError = Success{ value: 1 }'.

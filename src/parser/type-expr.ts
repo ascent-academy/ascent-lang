@@ -24,8 +24,10 @@ function parseFnType(ts: TokenStream): TypeExpr | null {
 
 // 'Int', 'Float', 'Bool', 'String', 'List<Type>', 'fn(T) -> R', or any of those
 // followed by a trailing '?' (sugar for 'Optional<Type>', design.md §4) — used
-// in type annotations.
-export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
+// in type annotations. This is the tight level, below the loose 'orfail' infix
+// (parseTypeExpr), so 'Int orfail E?' groups as 'Int orfail (E?)' — the '?' binds
+// to its own operand, not the whole Result.
+function parsePostfixType(ts: TokenStream): TypeExpr | null {
   const tok = ts.peek();
 
   let base: TypeExpr;
@@ -72,6 +74,25 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
   }
 
   return base;
+}
+
+// A full type annotation: a postfix type, optionally followed by 'orfail E' to
+// form a Result (whitepaper §9). 'orfail' is the loosest type operator, so it
+// sits above the '?' postfix and everything below. A single 'orfail' only — the
+// error side is itself a postfix type, not another 'orfail' (Result-of-Result
+// isn't a spelling anyone needs), so 'A orfail B orfail C' is a syntax error at
+// the second 'orfail' rather than a silently-nested type.
+export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
+  const ok = parsePostfixType(ts);
+  if (ok === null) return null;
+
+  if (ts.peek().kind !== 'KW_ORFAIL') return ok;
+  ts.advance(); // consume 'orfail'
+
+  const err = parsePostfixType(ts);
+  if (err === null) return null;
+
+  return { kind: 'ResultType', ok, err, span: { start: ok.span.start, end: err.span.end } };
 }
 
 // 'name: Type' — one parameter in a 'program (…)' input list. Unlike a slot's

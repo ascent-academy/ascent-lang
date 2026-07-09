@@ -10,12 +10,17 @@ export type ListType = { kind: 'ListType'; elem: TypeExpr; span: Span };
 // 'T?' — sugar for 'Optional<T>' (design.md §4). Written as a trailing '?'
 // on any other TypeExpr, never as a spelled-out 'Optional<T>' name.
 export type OptionalType = { kind: 'OptionalType'; elem: TypeExpr; span: Span };
+// 'T orfail E' — sugar for the Result type `Success{ value: T } | Failure{ error: E }`
+// (whitepaper §9). `ok` is the success type, `err` the failure type. Written only
+// this way, never as a spelled-out 'Result<T, E>' name (parallel to Optional's
+// 'T?'-only spelling).
+export type ResultType = { kind: 'ResultType'; ok: TypeExpr; err: TypeExpr; span: Span };
 // 'fn(Int, String) -> Bool' — a function type in annotation position
 // (whitepaper §5/§7). The parameter types are positional (no names, unlike an
 // 'fn' *literal*'s params), and the result is required — a function that
 // "returns nothing" returns 'Done', so there is always a result to write.
 export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; span: Span };
-export type TypeExpr = TypeName | ListType | OptionalType | FnType;
+export type TypeExpr = TypeName | ListType | OptionalType | ResultType | FnType;
 
 export type Literal = (
   | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }

@@ -68,6 +68,18 @@ export const DONE = { type: 'Done' as const };
 export const applyCoercion = (v: RuntimeValue, c: Coercion): RuntimeValue => {
   if (c === null) return v;
   if (c === 'intToFloat') return floatVal(Number((v as Extract<RuntimeValue, { type: 'Int' }>).value));
+  // A Result widening (types/types.ts): the runtime value is a Success or
+  // Failure record, so descend into whichever branch it is and coerce that
+  // branch's single payload field ('value' for Success, 'error' for Failure) by
+  // the matching sub-witness. The other branch's witness never applies to this
+  // value — a Success holds no 'error' and vice versa.
+  if ('ok' in c) {
+    const rec = v as Extract<RuntimeValue, { type: 'Record' }>;
+    const [field, inner] = rec.name === 'Success' ? ['value', c.ok] as const : ['error', c.err] as const;
+    const fields = new Map(rec.fields);
+    fields.set(field, applyCoercion(fields.get(field)!, inner));
+    return { type: 'Record', name: rec.name, fields };
+  }
   const list = v as Extract<RuntimeValue, { type: 'List' }>;
   return { type: 'List', elements: list.elements.map(e => applyCoercion(e, c.elem)) };
 };

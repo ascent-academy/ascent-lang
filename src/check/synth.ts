@@ -3,7 +3,7 @@ import type { Span } from '../lexer/token.js';
 import type { TypedExpr, TypedTemplatePart, TypedFieldInit } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
-  listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo,
+  listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
@@ -64,6 +64,49 @@ export const checkApplication = (
     }
   }
   return fn.result;
+};
+
+// whitepaper §9: the two built-in Result constructors, 'Success{ value: T }' and
+// 'Failure{ error: E }'. They aren't user-declared types, so construction is
+// handled here rather than through env.getConstructor. A 'Success' synthesizes
+// to Result<T, Never> and a 'Failure' to Result<Never, E> — the *unknown* side is
+// Never, which widens into whatever 'T orfail E' the value flows into (an
+// annotation, a return type), exactly as a bare 'None' widens into 'T?'. The one
+// declared field ('value'/'error') is required, and the same missing / unknown /
+// duplicate-field rules a record gets apply (T0018 / T0019 / T0020). At runtime
+// the value is just a record named 'Success'/'Failure' carrying that field, so
+// the interpreter builds and matches it with no Result-specific machinery.
+const synthResultConstruct = (
+  expr: Extract<Expr, { kind: 'construct' }>,
+  tag: 'Success' | 'Failure',
+  env: TypeEnv,
+  diagnostics: Diagnostics,
+): TypedExpr => {
+  const fieldName = tag === 'Success' ? 'value' : 'error';
+  let payload: TypedExpr | null = null;
+  const seen = new Set<string>();
+  for (const f of expr.fields) {
+    const typedValue = synth(f.value, env, diagnostics);
+    if (seen.has(f.name)) {
+      diagnostics.error({ code: 'T0020', span: f.nameSpan, data: { field: f.name, type: tag } });
+      continue;
+    }
+    seen.add(f.name);
+    if (f.name !== fieldName) {
+      diagnostics.error({ code: 'T0019', span: f.nameSpan, data: { field: f.name, type: tag } });
+      continue;
+    }
+    payload = typedValue;
+  }
+  if (payload === null) {
+    diagnostics.error({ code: 'T0018', span: expr.typeNameSpan, data: { type: tag, fields: fieldName } });
+  }
+  const payloadType = payload?.type ?? INVALID_TYPE;
+  const type = tag === 'Success' ? resultOf(payloadType, NEVER_TYPE) : resultOf(NEVER_TYPE, payloadType);
+  const fields: TypedFieldInit[] = payload !== null
+    ? [{ name: fieldName, declaredType: payloadType, value: payload }]
+    : [];
+  return { kind: 'construct', typeName: tag, fields, type, span: expr.span };
 };
 
 export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): TypedExpr => {
@@ -450,6 +493,11 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     }
 
     case 'construct': {
+      // 'Success{ … }' / 'Failure{ … }' are the built-in Result constructors,
+      // not user-declared types, so they're handled before the ordinary lookup.
+      if (expr.typeName === 'Success' || expr.typeName === 'Failure') {
+        return synthResultConstruct(expr, expr.typeName, env, diagnostics);
+      }
       // A construction names a *constructor* (a variant tag), which for a record
       // equals the type name and for a union is one of its variants ('Circle').
       const ctor = env.getConstructor(expr.typeName);
