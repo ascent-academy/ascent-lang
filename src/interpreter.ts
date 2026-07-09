@@ -10,7 +10,7 @@ import {
   intVal, floatVal, strVal, boolVal, rangeVal, recordVal, NONE, DONE,
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
-import { checkIntOverflow, checkFiniteFloat, evaluateBinary } from './interpreter/arithmetic.js';
+import { checkIntOverflow, checkFiniteFloat, evaluateBinary, isInt64 } from './interpreter/arithmetic.js';
 import { Environment, type AssignResult, type OutputSink } from './interpreter/env.js';
 import { evalMethodCall } from './interpreter/builtins.js';
 import { evalModuleCall } from './interpreter/stdlib.js';
@@ -567,6 +567,12 @@ export class ProgramInputs {
     }
     if (argDef.type !== value.type) {
       throw new Error(`'${name}': expected ${argDef.type}, got ${value.type}`);
+    }
+    // An Int input must fit 64 bits — the same "every Int is a real 64-bit
+    // value" invariant the overflow trap keeps everywhere else (whitepaper §4).
+    // Without this the program would run holding a value no Int can represent.
+    if (value.type === 'Int' && !isInt64(value.value)) {
+      throw new Error(`'${name}': Int value ${value.value} is outside the 64-bit range`);
     }
     this.values.set(name, value);
     return this;

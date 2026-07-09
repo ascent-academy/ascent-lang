@@ -13,9 +13,12 @@ import {
 // guard before it becomes a value.
 
 // Int is a 64-bit signed whole number (design.md §4): it traps on overflow
-// rather than silently wrapping around.
-const INT_MIN = -(2n ** 63n);
-const INT_MAX = 2n ** 63n - 1n;
+// rather than silently wrapping around. Exported so any boundary that admits an
+// Int from outside (a CLI '--flag' argument, §11) can reject an out-of-range one
+// there, keeping the "every Int is a real 64-bit value" invariant total.
+export const INT_MIN = -(2n ** 63n);
+export const INT_MAX = 2n ** 63n - 1n;
+export const isInt64 = (value: bigint): boolean => value >= INT_MIN && value <= INT_MAX;
 
 export const checkIntOverflow = (value: bigint, span: Span): bigint => {
   if (value < INT_MIN || value > INT_MAX) {

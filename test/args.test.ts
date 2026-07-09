@@ -55,6 +55,32 @@ describe('program inputs (program (…) { … } header)', () => {
         { type: 'Int', value: 2n },
       );
     });
+
+    it('accepts an Int input at the exact 64-bit boundaries', () => {
+      const INT_MAX = 2n ** 63n - 1n;
+      const INT_MIN = -(2n ** 63n);
+      assert.deepEqual(
+        evalWithArgs('program (n: Int) { n }', { n: { type: 'Int', value: INT_MAX } }),
+        { type: 'Int', value: INT_MAX },
+      );
+      assert.deepEqual(
+        evalWithArgs('program (n: Int) { n }', { n: { type: 'Int', value: INT_MIN } }),
+        { type: 'Int', value: INT_MIN },
+      );
+    });
+
+    it('rejects an Int input outside the 64-bit range at the boundary', () => {
+      // Otherwise the program would run holding a value no Int can represent —
+      // the invariant the overflow trap keeps everywhere else (whitepaper §4).
+      assert.throws(
+        () => evalWithArgs('program (n: Int) { n }', { n: { type: 'Int', value: 2n ** 63n } }),
+        /outside the 64-bit range/,
+      );
+      assert.throws(
+        () => evalWithArgs('program (n: Int) { n }', { n: { type: 'Int', value: -(2n ** 63n) - 1n } }),
+        /outside the 64-bit range/,
+      );
+    });
   });
 
   describe('the read-only rule', () => {

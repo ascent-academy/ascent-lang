@@ -8,6 +8,7 @@ import { typecheck, TypeEnv } from './check/index.js';
 import { formatValue } from './parser/printer.js';
 import { formatTypedStmt } from './parser/typed-printer.js';
 import { executeStmt, executeProgram, Environment, ProgramInputs, RuntimeValue, OutputSink } from './interpreter.js';
+import { isInt64 } from './interpreter/arithmetic.js';
 import { elaborate } from './errors/elaborate.js';
 import { renderTerminal } from './errors/render.js';
 import { RuntimeError } from './errors/runtime-error.js';
@@ -60,7 +61,15 @@ const bindArgs = (argDefs: ProgramArg[], cliFlags: Map<string, string>): Program
           process.stderr.write(`--${def.name}: expected Int, got '${raw}'\n`);
           process.exit(1);
         }
-        value = { type: 'Int', value: BigInt(raw) };
+        // Validate at the boundary (whitepaper §11): an Int argument must fit
+        // 64 bits, or the program would run with a value no Int can hold —
+        // exactly the invariant the overflow trap protects everywhere else.
+        const parsed = BigInt(raw);
+        if (!isInt64(parsed)) {
+          process.stderr.write(`--${def.name}: '${raw}' is outside the range of Int (a 64-bit whole number)\n`);
+          process.exit(1);
+        }
+        value = { type: 'Int', value: parsed };
         break;
       }
       case 'Float': {
