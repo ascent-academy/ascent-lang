@@ -35,11 +35,14 @@ export type TokenKind =
   | 'KW_ORFAIL'      // the keyword orfail — the 'T orfail E' Result type operator
   | 'KW_TRY'         // the keyword try — unwrap-or-propagate an Optional/Result
   | 'KW_WITH'        // the keyword with — 'base with field = value', an updated copy of a record
+  | 'KW_ASYNC'       // the keyword async — marks a function whose call prepares a Task ('async fn(...)')
+  | 'KW_AWAIT'       // the keyword await — starts and waits on a Task, yielding its value
   | 'TYPE_NAME'      // an UpperCamel identifier — a type name or record constructor (Int, Person)
   | 'COLON'          // ':' — separates a name from its type annotation
   | 'EQUALS'         // '=' — used in slot declarations and updates
   | 'EQ_EQ'          // '==' — structural equality
   | 'BANG_EQ'        // '!=' — structural inequality
+  | 'BANG'           // '!' — the async-call mark: 'fetchUser!(id)' prepares an inert Task
   | 'LT'             // '<' — less than
   | 'LT_EQ'          // '<=' — less than or equal to
   | 'GT'             // '>' — greater than

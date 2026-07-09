@@ -543,6 +543,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         const preType = annotation ?? functionType(
           stmt.init.params.map(p => typeFromExpr(p.type, env, new Diagnostics())),
           typeFromExpr(stmt.init.returnType, env, new Diagnostics()),
+          stmt.init.async,
         );
         env.set(name, preType, stmt.kind, stmt.span);
       }

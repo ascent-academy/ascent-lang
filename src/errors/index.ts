@@ -610,6 +610,22 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'with' update changes one or more fields of a record, like 'user with { name = \\\"new\\\", age = 31 }'. Empty braces '{ }' change nothing, so there is no update to make. Name at least one field to change, or drop the 'with' entirely."
   },
   {
+    "code": "S0039",
+    "name": "async-call-missing-args",
+    "category": "syntactic",
+    "summary": "An async-call mark '!' is not followed by an argument list.",
+    "message": "The '!' async-call mark must be followed by '(…)'.",
+    "explanation": "'!' prepares a task by calling an async function, like 'fetchUser!(id)', so it needs an argument list '(…)' right after it. (Inequality is written '!=', and negation is the word 'not' — a bare '!' is only the async-call mark.)"
+  },
+  {
+    "code": "S0040",
+    "name": "async-without-fn",
+    "category": "syntactic",
+    "summary": "'async' is not followed by 'fn'.",
+    "message": "'async' must be followed by 'fn'.",
+    "explanation": "'async' marks a function as asynchronous, so it comes right before 'fn', like 'async fn(id: Int): User { … }'. There is nothing else it can attach to."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",
@@ -1109,6 +1125,38 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "A list item is updated with a value of the wrong type.",
     "message": "This list holds {expected}, but this value is {actual}.",
     "explanation": "Every item of a list shares one type, so a 'with' update has to keep it — this list holds {expected}, but the new value is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.)"
+  },
+  {
+    "code": "T0055",
+    "name": "bare-async-call",
+    "category": "type",
+    "summary": "An async function is called directly instead of being prepared into a task.",
+    "message": "'{found}' calls an async function directly, but an async function is prepared into a task with '!'.",
+    "explanation": "An async function does its work slowly — it hands a job to the disk, the network, or another machine — so calling it can't just run it and give back the result. Instead you *prepare* a task with the '!' mark, like 'fetchUser!(id)', which binds the arguments but runs nothing yet. Then 'await' starts the task and waits for its value: 'fix user = await fetchUser!(id)'."
+  },
+  {
+    "code": "T0056",
+    "name": "async-mark-on-nonasync",
+    "category": "type",
+    "summary": "The '!' async-call mark is used on something that isn't an async function.",
+    "message": "'{name}' is not an async function ({type}), so '!' can't prepare a task from it.",
+    "explanation": "The '!' mark prepares a task from an async function, like 'fetchUser!(id)'. Here '{name}' is {type}, which isn't an async function, so there is no task to prepare. If it's an ordinary function, call it without '!': '{name}(…)'."
+  },
+  {
+    "code": "T0057",
+    "name": "await-not-task",
+    "category": "type",
+    "summary": "'await' is used on a value that isn't a task.",
+    "message": "'await' runs a task and waits for its value, but this is {actual}.",
+    "explanation": "'await' starts a task and waits for the value it produces. A task comes only from an async call — the '!' mark, like 'fetchUser!(id)'. This value is {actual}, which is not a task, so there is nothing for 'await' to run."
+  },
+  {
+    "code": "T0058",
+    "name": "await-outside-async",
+    "category": "type",
+    "summary": "'await' is used inside a function that isn't async.",
+    "message": "'await' can only be used inside an async function.",
+    "explanation": "Waiting on a task is itself an async thing to do, so it spreads: a function that 'await's must be marked 'async'. This function isn't, so mark it — 'async fn(…): … { … }' — and its own callers then prepare it with '!' and 'await' it. (At the program's top level 'await' works directly — that is the starting point.)"
   }
 ];
 

@@ -84,6 +84,27 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       if (fn.type !== 'Function') throw new Error('internal: apply of a non-function value');
       return applyFunction(fn, args, expr.args.map(a => a.type));
     }
+    case 'asyncCall': {
+      // 'f!(args)' prepares an inert Task (whitepaper §8): evaluate the arguments
+      // *now* (they are bound), capture the async function value, but do NOT run
+      // the body — that waits for 'await'. The checker proved the name is a slot
+      // holding an (async) function value.
+      const fn = env.get(expr.callee);
+      if (fn === undefined || fn.type !== 'Function') {
+        throw new Error(`internal: async call of non-function '${expr.callee}'`);
+      }
+      const args = expr.args.map(a => evaluateExpr(a, env));
+      return { type: 'Task', fn, args, argTypes: expr.args.map(a => a.type) };
+    }
+    case 'await': {
+      // 'await task' runs the task and yields its value (whitepaper §8). There is
+      // no scheduler in v1, so this just applies the captured function to the
+      // already-bound arguments — the body runs synchronously here. The checker
+      // proved the operand is a Task.
+      const task = evaluateExpr(expr.task, env);
+      if (task.type !== 'Task') throw new Error('internal: await of a non-task value');
+      return applyFunction(task.fn, task.args, task.argTypes);
+    }
     case 'fn': {
       // Build the function value, snapshotting the outer names its body uses
       // (the checker's `captures`) by value *now* — capture-by-value (§5). The

@@ -369,6 +369,12 @@ function parseAtom(ts: TokenStream): Expr | null {
 
   if (tok.kind === 'SLOT') {
     ts.advance();
+    // 'f!(args)' — an async call preparing a Task (whitepaper §8). The '!' sits
+    // between the name and the argument list, so it's detected before the plain
+    // '(' call. Bare-name callee only (like 'call'), matching 'name!(args)'.
+    if (ts.peek().kind === 'BANG') {
+      return parseAsyncCall(ts, tok);
+    }
     if (ts.peek().kind === 'LPAREN') {
       return parseCall(ts, tok);
     }
@@ -430,7 +436,24 @@ function parseAtom(ts: TokenStream): Expr | null {
   }
 
   if (tok.kind === 'KW_FN') {
-    return parseFn(ts);
+    return parseFn(ts, false);
+  }
+
+  // 'async fn(...)' — a function whose call prepares a Task (whitepaper §8).
+  // 'async' must be immediately followed by 'fn' (S0040); it only colors a
+  // function literal, nothing else.
+  if (tok.kind === 'KW_ASYNC') {
+    const asyncTok = ts.advance(); // consume 'async'
+    if (ts.peek().kind !== 'KW_FN') {
+      ts.report('S0040', ts.peek().span);
+      return null;
+    }
+    return parseFn(ts, true, asyncTok.span);
+  }
+
+  // 'await task' — run a Task and wait for its value (whitepaper §8).
+  if (tok.kind === 'KW_AWAIT') {
+    return parseAwait(ts);
   }
 
   if (tok.kind === 'KW_RETURN') {
@@ -509,8 +532,10 @@ function parseReturn(ts: TokenStream): Expr | null {
 // block-value rule, §2), or the lighter '=> expr' for a single expression,
 // which parseFnBody desugars into that same one-statement block. `return` is
 // early-exit only (§5), never the body form.
-function parseFn(ts: TokenStream): Expr | null {
+function parseFn(ts: TokenStream, async: boolean, startSpan?: Span): Expr | null {
   const fnTok = ts.advance(); // consume 'fn'
+  // For 'async fn', the span begins at 'async' (passed in); otherwise at 'fn'.
+  const spanStart = (startSpan ?? fnTok.span).start;
 
   const open = ts.expect('LPAREN', 'S0006');
   if (open === null) return null;
@@ -531,8 +556,45 @@ function parseFn(ts: TokenStream): Expr | null {
     params: parsed.items,
     returnType,
     body,
-    span: { start: fnTok.span.start, end: body.span.end },
+    async,
+    span: { start: spanStart, end: body.span.end },
   };
+}
+
+// 'name!(arg, …)' — an async call preparing a Task (whitepaper §8). The name is
+// already consumed by parseAtom; here we consume the '!' and the argument list.
+// The '!' with no argument list following ('f!' alone) is S0039 — a mark without
+// a call is meaningless.
+function parseAsyncCall(ts: TokenStream, callee: Token): Expr | null {
+  ts.advance(); // consume '!'
+
+  const open = ts.expect('LPAREN', 'S0039');
+  if (open === null) return null;
+
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
+  if (parsed === null) return null;
+
+  return {
+    kind: 'asyncCall',
+    callee: callee.value,
+    args: parsed.items,
+    span: { start: callee.span.start, end: parsed.close.span.end },
+  };
+}
+
+// 'await task' — a nud like 'return'/'try'. The operand is parsed at UNARY
+// precedence so a following postfix ('.method()', '[i]') binds to the *awaited
+// value* — i.e. 'await x.foo()' is 'await (x.foo())', forcing '(await t).foo()'
+// to be parenthesized (whitepaper §8) — while a following binary/'??' does not
+// ('await a ?? b' is '(await a) ?? b'). Reuses the same operand precedence as
+// unary '-'.
+function parseAwait(ts: TokenStream): Expr | null {
+  const awaitTok = ts.advance(); // consume 'await'
+
+  const task = parseExpr(ts, BP.UNARY);
+  if (task === null) return null;
+
+  return { kind: 'await', task, span: { start: awaitTok.span.start, end: task.span.end } };
 }
 
 // The body of a function value — a '{ … }' block, or the single-expression

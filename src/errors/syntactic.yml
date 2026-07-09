@@ -403,3 +403,22 @@
     'user with { name = \"new\", age = 31 }'. Empty braces '{ }' change nothing,
     so there is no update to make. Name at least one field to change, or drop the
     'with' entirely.
+
+- code: S0039
+  name: async-call-missing-args
+  category: syntactic
+  summary: "An async-call mark '!' is not followed by an argument list."
+  message: "The '!' async-call mark must be followed by '(…)'."
+  explanation: >-
+    '!' prepares a task by calling an async function, like 'fetchUser!(id)', so it
+    needs an argument list '(…)' right after it. (Inequality is written '!=', and
+    negation is the word 'not' — a bare '!' is only the async-call mark.)
+
+- code: S0040
+  name: async-without-fn
+  category: syntactic
+  summary: "'async' is not followed by 'fn'."
+  message: "'async' must be followed by 'fn'."
+  explanation: >-
+    'async' marks a function as asynchronous, so it comes right before 'fn', like
+    'async fn(id: Int): User { … }'. There is nothing else it can attach to.

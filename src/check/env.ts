@@ -47,9 +47,14 @@ export class TypeEnv {
   // only on the scope a function body runs in (childForFunction), null
   // everywhere else. A 'return' looks it up via enclosingReturn() to check its
   // value against it, and a 'return' with none in scope is outside any function.
+  // The async color of the nearest enclosing function (whitepaper §8) — set on
+  // the scope a function body runs in (childForFunction). At the root it is
+  // undefined, and enclosingAsync() treats that as *async*: the program body and
+  // each REPL line are the root async context, so top-level 'await' is allowed.
   public constructor(
     private readonly parent: TypeEnv | null = null,
     private readonly funcReturn: AscentType | null = null,
+    private readonly funcAsync: boolean | null = null,
   ) { }
 
   public get(name: string): Binding | null {
@@ -90,14 +95,23 @@ export class TypeEnv {
   // function's declared return type, so a 'return' anywhere inside resolves it
   // (a nested function overrides it with its own). Separate from child() so only
   // a real function boundary establishes a return target.
-  public childForFunction(returnType: AscentType): TypeEnv {
-    return new TypeEnv(this, returnType);
+  public childForFunction(returnType: AscentType, async = false): TypeEnv {
+    return new TypeEnv(this, returnType, async);
   }
 
   // The declared return type of the nearest enclosing function, or null when not
   // inside one (a 'return' there is out of place — T0037).
   public enclosingReturn(): AscentType | null {
     return this.funcReturn ?? this.parent?.enclosingReturn() ?? null;
+  }
+
+  // Whether the nearest enclosing function is async — i.e. whether 'await' is
+  // legal here (whitepaper §8's colored model). A childForFunction scope pins
+  // this to that function's color; a plain child() inherits by walking up. At
+  // the root (no enclosing function) it is *true*: the program body and each
+  // REPL line are the root async context, so top-level 'await' works.
+  public enclosingAsync(): boolean {
+    return this.funcAsync ?? this.parent?.enclosingAsync() ?? true;
   }
 
   // The bindings declared directly in this scope (not inherited from a

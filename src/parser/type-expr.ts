@@ -63,6 +63,19 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
     if (gt === null) return null;
 
     base = { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
+  } else if (tok.value === 'Task') {
+    // 'Task<T>' — the inert result of an async call (whitepaper §8). Same
+    // angle-bracket shape as 'List<T>'; the element is the awaited result type.
+    ts.advance(); // consume 'Task'
+    if (ts.expect('LT', 'S0010') === null) return null;
+
+    const elem = parseTypeExpr(ts);
+    if (elem === null) return null;
+
+    const gt = ts.expect('GT', 'S0010');
+    if (gt === null) return null;
+
+    base = { kind: 'TaskType', elem, span: { start: tok.span.start, end: gt.span.end } };
   } else {
     ts.advance(); // consume type name
     // Any other TYPE_NAME — a built-in scalar or a user-declared type. Whether

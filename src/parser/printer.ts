@@ -45,6 +45,7 @@ const formatTypeExpr = (te: TypeExpr): string => {
     case 'OptionalType': return `${formatTypeExpr(te.elem)}?`;
     case 'ResultType': return `${formatTypeExpr(te.ok)} orfail ${formatTypeExpr(te.err)}`;
     case 'FnType': return `Fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
+    case 'TaskType': return `Task<${formatTypeExpr(te.elem)}>`;
   }
 };
 
@@ -96,8 +97,17 @@ const exprLines = (expr: Expr): string[] => {
     case 'fn': {
       const sig = `(${expr.params.map(p => `${p.name}: ${formatTypeExpr(p.type)}`).join(', ')}): ${formatTypeExpr(expr.returnType)}`;
       const bodyLines = branch(exprLines(expr.body), true);
-      return [`${chalk.cyan('Fn')} ${chalk.dim(sig)}`, ...bodyLines];
+      const label = expr.async ? 'Fn async' : 'Fn';
+      return [`${chalk.cyan(label)} ${chalk.dim(sig)}`, ...bodyLines];
     }
+    case 'asyncCall': {
+      const argLines = expr.args.flatMap((arg, i) =>
+        branch(exprLines(arg), i === expr.args.length - 1)
+      );
+      return [`${chalk.cyan('AsyncCall')} ${chalk.green(expr.callee + '!')}`, ...argLines];
+    }
+    case 'await':
+      return [`${chalk.cyan('Await')}`, ...branch(exprLines(expr.task), true)];
     case 'return': {
       if (expr.value === null) return [`${chalk.cyan('Return')}`];
       return [`${chalk.cyan('Return')}`, ...branch(exprLines(expr.value), true)];
@@ -293,6 +303,10 @@ export const formatValue = (value: RuntimeValue): string => {
     // or interpolation).
     case 'Function':
       return chalk.magenta(typeToString(functionType(value.params.map(p => p.type), value.result)));
+    // An inert task has no data to show — render its result type (whitepaper §8:
+    // a Task isn't Display, so this only surfaces in a value / AST dump).
+    case 'Task':
+      return chalk.magenta(`Task<${typeToString(value.fn.result)}>`);
     case 'None':
       return chalk.yellow('None');
     case 'Done':
@@ -324,6 +338,8 @@ export const valueToString = (value: RuntimeValue): string => {
     }
     case 'Function':
       return typeToString(functionType(value.params.map(p => p.type), value.result));
+    case 'Task':
+      return `Task<${typeToString(value.fn.result)}>`;
     case 'None':
       return 'None';
     case 'Done':

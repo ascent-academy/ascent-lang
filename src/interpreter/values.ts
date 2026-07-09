@@ -33,6 +33,14 @@ export type RuntimeValue = (
   // what makes the loop-footgun impossible. Applying the function parents a call
   // scope on `closure` and runs `body`.
   | { type: 'Function'; params: { name: string; type: AscentType }[]; result: AscentType; body: TypedBlock; closure: Environment }
+  // An inert task (whitepaper §8) — the result of an async call 'f!(args)'. Its
+  // arguments are already evaluated and bound (`args`, with their static
+  // `argTypes` for coercion) and the async function value is captured (`fn`), but
+  // the body has not run: 'await' runs it by applying `fn` to `args`. v1 has no
+  // scheduler, so awaiting runs the body synchronously — the color is a
+  // type-level discipline, not a runtime suspension. Held, stored, and passed
+  // like any value until awaited (there are no free-floating running tasks).
+  | { type: 'Task'; fn: Extract<RuntimeValue, { type: 'Function' }>; args: RuntimeValue[]; argTypes: AscentType[] }
   | { type: 'None' }
   | { type: 'Done' }
 );
@@ -144,6 +152,10 @@ export const valuesEqual = (left: RuntimeValue, right: RuntimeValue): boolean =>
   // treated as never-equal rather than silently "equal" (the singleton
   // fallthrough below), the honest answer for values with no structural sense.
   if (left.type === 'Function') return false;
+  // A Task has no equality either (whitepaper §8 — inert work, no structural
+  // sense). The checker rejects comparing tasks directly; one reaching here via
+  // a nested field is never-equal, the honest answer, not a singleton "equal".
+  if (left.type === 'Task') return false;
   if (left.type === 'Bool' && right.type === 'Bool') return left.value === right.value;
   if (left.type === 'String' && right.type === 'String') return left.value === right.value;
   // Two ranges are equal when they carry the same bounds — structural, like

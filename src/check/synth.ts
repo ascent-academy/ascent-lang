@@ -3,7 +3,7 @@ import type { Span } from '../lexer/token.js';
 import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedWithUpdate, TypedPathStep, TypedTryElse } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
-  listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf,
+  listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf, taskOf,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
@@ -327,6 +327,13 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         diagnostics.error({ code: 'T0035', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
         return invalid();
       }
+      // A bare call of an async function is a compile error (whitepaper §8):
+      // calling-and-running is not something an async function can do — it must
+      // be prepared into a Task with '!' and then awaited.
+      if (binding.ty.async) {
+        diagnostics.error({ code: 'T0055', span: expr.span });
+        return invalid();
+      }
       if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
 
       const result = checkApplication(binding.ty, typedArgs.map(a => a.type), diagnostics, expr.span);
@@ -348,8 +355,65 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         diagnostics.error({ code: 'T0038', span: expr.callee.span, data: { type: typeToString(typedCallee.type) } });
         return invalid();
       }
+      // An async function reached in computed position can't be run directly
+      // either — the '!' mark that prepares its Task attaches only to a bare
+      // name in v1, so there is no way to call this. Report the same bare-async
+      // error (whitepaper §8); {found} names the offending call in the message.
+      if (typedCallee.type.async) {
+        diagnostics.error({ code: 'T0055', span: expr.span });
+        return invalid();
+      }
       const result = checkApplication(typedCallee.type, typedArgs.map(a => a.type), diagnostics, expr.span);
       return { kind: 'apply', callee: typedCallee, args: typedArgs, type: result, span: expr.span };
+    }
+
+    case 'asyncCall': {
+      // 'f!(args)' — prepare a Task from an async function (whitepaper §8). The
+      // callee must be a slot holding an *async* function; the result is a
+      // 'Task<result>', not the bare result — nothing runs until 'await'.
+      const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
+      const invalid = (): TypedExpr => ({ kind: 'asyncCall', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span });
+
+      const binding = env.get(expr.callee);
+      if (binding === null) {
+        // An unknown name — the same "no such function" as a by-name call.
+        diagnostics.error({ code: 'T0013', span: expr.span, data: { name: expr.callee } });
+        return invalid();
+      }
+      if (isInvalidType(binding.ty)) return invalid();
+      // The '!' mark is only for async functions: it prepares a task from one.
+      // A plain function (or any non-function) can't be prepared, so this is the
+      // mirror of the bare-async error — you wrote '!' where it doesn't belong.
+      if (binding.ty.kind !== 'Function' || !binding.ty.async) {
+        diagnostics.error({ code: 'T0056', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
+        return invalid();
+      }
+      if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
+
+      const result = checkApplication(binding.ty, typedArgs.map(a => a.type), diagnostics, expr.span);
+      return { kind: 'asyncCall', callee: expr.callee, args: typedArgs, type: taskOf(result), span: expr.span };
+    }
+
+    case 'await': {
+      // 'await task' — run a Task and yield its value (whitepaper §8). Legal only
+      // in an async context: an 'async fn' body, or the program/REPL top level
+      // (its root). In a plain function it is a compile error to mark that
+      // function 'async' — the colored model, propagated.
+      if (!env.enclosingAsync()) {
+        diagnostics.error({ code: 'T0058', span: expr.span });
+      }
+      const typedTask = synth(expr.task, env, diagnostics);
+      const tt = typedTask.type;
+      if (isInvalidType(tt)) {
+        return { kind: 'await', task: typedTask, type: INVALID_TYPE, span: expr.span };
+      }
+      // Only a Task can be awaited — it is the sole thing '!' produces, so a
+      // non-Task here means you awaited something that was never an async call.
+      if (tt.kind !== 'Task') {
+        diagnostics.error({ code: 'T0057', span: expr.task.span, data: { actual: typeToString(tt) } });
+        return { kind: 'await', task: typedTask, type: INVALID_TYPE, span: expr.span };
+      }
+      return { kind: 'await', task: typedTask, type: tt.result, span: expr.span };
     }
 
     case 'fn': {
@@ -358,12 +422,14 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // need no special case and keeps a signature error local to the signature.
       const paramTypes = expr.params.map(p => typeFromExpr(p.type, env, diagnostics));
       const resultType = typeFromExpr(expr.returnType, env, diagnostics);
-      const fnType = functionType(paramTypes, resultType);
+      const fnType = functionType(paramTypes, resultType, expr.async);
 
       // Check the body in a fresh scope with the parameters bound as fixed slots
       // (whitepaper §5 — every parameter is an ordinary fixed slot). The scope
-      // also records the declared return type so a 'return' inside resolves it.
-      const bodyEnv = env.childForFunction(resultType);
+      // also records the declared return type so a 'return' inside resolves it,
+      // and the function's async color so an 'await' in the body is legal only
+      // when this function is 'async' (whitepaper §8's colored model).
+      const bodyEnv = env.childForFunction(resultType, expr.async);
       expr.params.forEach((p, i) => bodyEnv.set(p.name, paramTypes[i]!, 'fix', p.nameSpan));
       const typedBody = inferBlock(expr.body, bodyEnv, diagnostics);
 
@@ -383,6 +449,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         params: expr.params.map((p, i) => ({ name: p.name, type: paramTypes[i]! })),
         body: typedBody,
         captures: freeVariables(expr.body, expr.params),
+        async: expr.async,
         type: fnType,
         span: expr.span,
       };
@@ -470,8 +537,9 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           case '==': case '!=': {
             // Functions have no equality — comparing them is a compile error
             // (whitepaper §5). Caught here because two identical arrow types
-            // otherwise share a common type and would slip through as Bool.
-            if (lt.kind === 'Function' || rt.kind === 'Function') {
+            // otherwise share a common type and would slip through as Bool. A
+            // Task is the same: inert running work with no structural sense.
+            if (lt.kind === 'Function' || rt.kind === 'Function' || lt.kind === 'Task' || rt.kind === 'Task') {
               type = operandError(diagnostics, expr.op, expr.span, lt, rt);
               break;
             }

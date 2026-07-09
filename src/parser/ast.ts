@@ -22,7 +22,11 @@ export type ResultType = { kind: 'ResultType'; ok: TypeExpr; err: TypeExpr; span
 // — a function that "returns nothing" returns 'Done', so there is always a
 // result to write.
 export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; span: Span };
-export type TypeExpr = TypeName | ListType | OptionalType | ResultType | FnType;
+// 'Task<T>' — the type of an inert async result (whitepaper §8). The same
+// angle-bracket form as 'List<T>'; usually inferred (a slot bound to 'f!(x)'),
+// but writable so a slot holding a prepared task can be annotated.
+export type TaskType = { kind: 'TaskType'; elem: TypeExpr; span: Span };
+export type TypeExpr = TypeName | ListType | OptionalType | ResultType | FnType | TaskType;
 
 export type Literal = (
   | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }
@@ -136,6 +140,18 @@ export type Expr = (
   | Template
   | { kind: 'slot'; name: string; span: Span }
   | { kind: 'call'; callee: string; args: Expr[]; span: Span }
+  // 'fetchUser!(id)' — an async call: it *prepares* an inert 'Task<T>' with its
+  // arguments bound, without running the body (whitepaper §8). The '!' mark is
+  // mandatory (a bare async call is a compile error) and yields the task; the
+  // only way to run it is 'await'. Bare-name callee only in v1 (like 'call'),
+  // matching the whitepaper's 'name!(args)' form — computed async callees are
+  // deferred with the rest of the concurrency surface.
+  | { kind: 'asyncCall'; callee: string; args: Expr[]; span: Span }
+  // 'await task' — starts a 'Task<T>' and waits, yielding the T (whitepaper §8).
+  // Legal only in an async context (an 'async fn' body or the program/REPL top
+  // level, its root); using it in a plain 'fn' is a compile error to mark that
+  // function 'async' — the colored model, propagated.
+  | { kind: 'await'; task: Expr; span: Span }
   // 'callee(args)' where `callee` is a *computed* expression, not a bare name —
   // currying ('adder(3)(4)'), a function pulled from a collection ('fns[0](x)'),
   // or an inline lambda applied ('(fn(x: Int): Int { x })(5)'). A bare-name
@@ -149,7 +165,9 @@ export type Expr = (
   // declaration form. The body is an ordinary block whose last statement is the
   // return value (the block-value rule, §2), so there is one body form and no
   // arrow. Both the parameter types and the return type are mandatory (§7).
-  | { kind: 'fn'; params: FnParam[]; returnType: TypeExpr; body: Block; span: Span }
+  // `async` marks an 'async fn(...)' (whitepaper §8): its color, so its call
+  // requires '!' and yields a 'Task<returnType>'. The body may use 'await'.
+  | { kind: 'fn'; params: FnParam[]; returnType: TypeExpr; body: Block; async: boolean; span: Span }
   // 'return expr' — an early exit from the enclosing function (whitepaper §5).
   // It is an *expression* (of type Never, §7), not a statement, so it composes
   // in value position — a 'match' arm ('… -> return e') or an 'if' branch — and

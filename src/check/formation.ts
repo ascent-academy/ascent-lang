@@ -1,7 +1,7 @@
 import type { TypeExpr, ArgType } from '../parser/ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE,
-  listOfType, optionalOf, resultOf, namedType, functionType,
+  listOfType, optionalOf, resultOf, namedType, functionType, taskOf,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import type { Diagnostics } from './diagnostics.js';
@@ -58,5 +58,8 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
       te.params.map(p => typeFromExpr(p, env, diagnostics)),
       typeFromExpr(te.result, env, diagnostics),
     );
+    // 'Task<T>' — the inert async result (whitepaper §8). Only a 'Fn(...)' type
+    // is ever written 'async'; a Task carries just its awaited result type.
+    case 'TaskType': return taskOf(typeFromExpr(te.elem, env, diagnostics));
   }
 };

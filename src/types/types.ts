@@ -23,6 +23,16 @@ export type AscentType =
   // and the values it yields are always Int — so, unlike List/Optional, it
   // carries no element parameter. Iterating one (a 'for' loop) gives Int.
   | { kind: 'Range' }
+  // whitepaper §8: the inert result of an async call — 'fetchUser!(id)' has
+  // type 'Task<User>'. It is a *description* of work with its arguments already
+  // bound, not running work; the only way to run it is 'await', which yields the
+  // `result` T. Like List/Optional/Result it carries one component type but,
+  // unlike them, it is invariant (a Task<Int> is not a Task<Float>) — awaiting
+  // it would need to coerce the eventual value, so v1 keeps it equal-or-nothing,
+  // exactly as Function is. There are no free-floating tasks: nurseries and
+  // concurrency are deferred (§8's structured-concurrency half), so 'await' is
+  // the sole consumer.
+  | { kind: 'Task'; result: AscentType }
   // design.md §6/§7: a nominal reference to a user-declared type (a record —
   // and, later, a tagged union). Identity is the `name` alone — the type is a
   // lightweight handle; its structure (variants → fields) lives in the
@@ -35,7 +45,11 @@ export type AscentType =
   // List/Optional this is structural in the shallow sense that two arrow types
   // relate only when their arities and every part match exactly — arrow types
   // are *invariant* (subtype() below), keeping §7's "no variance" intact.
-  | { kind: 'Function'; params: AscentType[]; result: AscentType };
+  // `async` is the function's *color* (whitepaper §8): an async function is a
+  // distinct type from a plain one with the same signature — it is called with
+  // '!' to prepare a 'Task<result>', never called directly — so the flag is part
+  // of type identity (typesEqual below compares it).
+  | { kind: 'Function'; params: AscentType[]; result: AscentType; async: boolean };
 
 export type TypeKind = AscentType['kind'];
 
@@ -62,7 +76,8 @@ export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', ele
 export const optionalOf = (elem: AscentType): AscentType => ({ kind: 'Optional', elem });
 export const resultOf = (ok: AscentType, err: AscentType): AscentType => ({ kind: 'Result', ok, err });
 export const namedType = (name: string): AscentType => ({ kind: 'Named', name });
-export const functionType = (params: AscentType[], result: AscentType): AscentType => ({ kind: 'Function', params, result });
+export const functionType = (params: AscentType[], result: AscentType, async = false): AscentType => ({ kind: 'Function', params, result, async });
+export const taskOf = (result: AscentType): AscentType => ({ kind: 'Task', result });
 
 // design.md §4: 'T?' is surface sugar for 'Optional<T>' — render it that way
 // everywhere a type shows up (diagnostics, the REPL, the AST printers)
@@ -79,6 +94,11 @@ export const typeToString = (t: AscentType): string => {
   if (t.kind === 'Result') {
     return `${typeToString(t.ok)} orfail ${typeToString(t.err)}`;
   }
+  // A Task shows as 'Task<T>' — the inferred type of an async call 'f!(x)'
+  // (whitepaper §8), the same angle-bracket form as List<T>.
+  if (t.kind === 'Task') {
+    return `Task<${typeToString(t.result)}>`;
+  }
   // A Named type shows as the name the learner declared ('Person'), never
   // 'Named' — the 'kind' is an implementation label, not user vocabulary.
   if (t.kind === 'Named') {
@@ -86,9 +106,12 @@ export const typeToString = (t: AscentType): string => {
   }
   // A function type shows in its source spelling: 'Fn(Int, String) -> Bool',
   // capitalized (it is a type) with the arrow, no space before the '(' — as
-  // written in an annotation, distinct from the lowercase 'fn(...)' value.
+  // written in an annotation, distinct from the lowercase 'fn(...)' value. An
+  // async function has no writable type in v1, so it is shown with an 'async'
+  // prefix (surfacing only in a dump / an error) to keep its color visible.
   if (t.kind === 'Function') {
-    return `Fn(${t.params.map(typeToString).join(', ')}) -> ${typeToString(t.result)}`;
+    const fn = `Fn(${t.params.map(typeToString).join(', ')}) -> ${typeToString(t.result)}`;
+    return t.async ? `async ${fn}` : fn;
   }
   return t.kind;
 };
@@ -119,6 +142,10 @@ export const containsNever = (t: AscentType): boolean => {
   // 'Success{ … }' freezes err at Never, a 'Failure{ … }' freezes ok at Never,
   // so a bare one in a slot needs an annotation just like '[]'/'None'.
   if (t.kind === 'Result') return containsNever(t.ok) || containsNever(t.err);
+  // A Task carries an unresolved Never whenever its result does — though in
+  // practice an async function's result type is always written explicitly, so
+  // this is for completeness (a slot 'fix t = ...' holding a Task<Never>).
+  if (t.kind === 'Task') return containsNever(t.result);
   return false;
 };
 
@@ -139,6 +166,12 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
     return typesEqual(a.ok, b.ok) && typesEqual(a.err, b.err);
   }
 
+  // Two Tasks are equal exactly when their result types are — Task is invariant,
+  // so this equality is the whole subtyping story for it (whitepaper §8).
+  if (a.kind === 'Task' && b.kind === 'Task') {
+    return typesEqual(a.result, b.result);
+  }
+
   // Nominal: two Named types are the same type exactly when they carry the
   // same declared name (design.md §7 — "a User is a User because it was
   // declared one"). The fields don't enter into it — that's what makes this
@@ -151,7 +184,8 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
   // and the result are pairwise equal — arrow types have no widening of their
   // own (they're invariant, see subtype() below), so equality is the whole story.
   if (a.kind === 'Function' && b.kind === 'Function') {
-    return a.params.length === b.params.length
+    return a.async === b.async
+      && a.params.length === b.params.length
       && a.params.every((p, i) => typesEqual(p, b.params[i]!))
       && typesEqual(a.result, b.result);
   }

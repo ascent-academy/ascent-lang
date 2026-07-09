@@ -48,8 +48,17 @@ const typedExprLines = (expr: TypedExpr): string[] => {
     case 'fn': {
       const sig = `(${expr.params.map(p => `${p.name}: ${typeToString(p.type)}`).join(', ')})`;
       const bodyLines = branch(typedExprLines(expr.body), true);
-      return [`${chalk.cyan('Fn')} ${chalk.dim(sig)}${t}`, ...bodyLines];
+      const label = expr.async ? 'Fn async' : 'Fn';
+      return [`${chalk.cyan(label)} ${chalk.dim(sig)}${t}`, ...bodyLines];
     }
+    case 'asyncCall': {
+      const argLines = expr.args.flatMap((arg, i) =>
+        branch(typedExprLines(arg), i === expr.args.length - 1)
+      );
+      return [`${chalk.cyan('AsyncCall')} ${chalk.green(expr.callee + '!')}${t}`, ...argLines];
+    }
+    case 'await':
+      return [`${chalk.cyan('Await')}${t}`, ...branch(typedExprLines(expr.task), true)];
     case 'return': {
       if (expr.value === null) return [`${chalk.cyan('Return')}${t}`];
       return [`${chalk.cyan('Return')}${t}`, ...branch(typedExprLines(expr.value), true)];

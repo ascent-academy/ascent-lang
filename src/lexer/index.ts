@@ -284,10 +284,10 @@ export class Lexer {
         if (this.c.match('>')) return this.token('FAT_ARROW', start);
         return this.token('EQUALS', start);
       case '!':
-        // Bare '!' has no meaning — negation is the word 'not' (§5), so
-        // only '!=' is a valid token starting with '!'.
+        // '!=' is inequality; a bare '!' is the async-call mark 'f!(id)' that
+        // prepares a Task (§2/§8). Negation is the word 'not' (§5), never '!'.
         if (this.c.match('=')) return this.token('BANG_EQ', start);
-        return this.error('L0001', this.c.spanFrom(start));
+        return this.token('BANG', start);
       case '<':
         if (this.c.match('=')) return this.token('LT_EQ', start);
         return this.token('LT', start);

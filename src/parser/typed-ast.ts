@@ -46,6 +46,14 @@ export type TypedExpr = (
   // Calling a computed function value (see Expr's 'apply' in ast.ts). `callee`
   // is checked to a Function type; `type` is that function's result.
   | { kind: 'apply'; callee: TypedExpr; args: TypedExpr[]; type: AscentType; span: Span }
+  // 'fetchUser!(id)' — prepares an inert Task (whitepaper §8). `type` is
+  // 'Task<result>'; the interpreter evaluates the arguments (binding them) and
+  // captures the function value, but does not run the body until 'await'.
+  | { kind: 'asyncCall'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
+  // 'await task' — runs the Task and yields its value (whitepaper §8). `type` is
+  // the awaited result T (the task's result type). The interpreter runs the
+  // task's body synchronously here (no scheduler in v1) and returns its value.
+  | { kind: 'await'; task: TypedExpr; type: AscentType; span: Span }
   | { kind: 'methodCall'; receiver: TypedExpr; method: string; args: TypedExpr[]; type: AscentType; span: Span }
   | { kind: 'construct'; typeName: string; fields: TypedFieldInit[]; type: AscentType; span: Span }
   // 'base with field = value' — an updated copy of a record (whitepaper §6).
@@ -111,6 +119,9 @@ export type TypedFn = {
   params: TypedFnParam[];
   body: TypedBlock;
   captures: string[];
+  // The function's color (whitepaper §8) — mirrors `type`'s `async` flag; kept
+  // here so the printer / tooling can show it without unpacking the type.
+  async: boolean;
   type: AscentType;
   span: Span;
 };
