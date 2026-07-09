@@ -127,7 +127,9 @@ export type Expr = (
   // call 'f(args)' stays a 'call' (parseAtom), which is also where the builtin
   // 'print' lives; every other callee shape becomes an 'apply' (parseApply).
   | { kind: 'apply'; callee: Expr; args: Expr[]; span: Span }
-  // 'fn(params): Ret { body }' — a first-class function value (whitepaper §5).
+  // 'fn(params): Ret { body }' (or the '=> expr' single-expression sugar, which
+  // the parser desugars into a one-statement block) — a first-class function
+  // value (whitepaper §5).
   // Made only this way ('fix f = fn(...)'); there is no 'fn name(...)'
   // declaration form. The body is an ordinary block whose last statement is the
   // return value (the block-value rule, §2), so there is one body form and no

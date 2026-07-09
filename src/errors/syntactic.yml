@@ -346,3 +346,26 @@
     then the type it produces — like 'Fn(Int) -> String'. (A function *value*
     instead uses a ':' before its return type: 'fn(x: Int): String { … }'.) This
     is where the '->' should be.
+
+- code: S0034
+  name: expected-fn-body
+  category: syntactic
+  summary: "A function's return type wasn't followed by a body."
+  message: "I expected a '{' or '=>' here."
+  explanation: >-
+    A function's body comes right after its return type, in one of two shapes: a
+    '{ … }' block when it runs several statements ('fn(x: Int): Int { fix y = x +
+    1; y * 2 }'), or '=> ' and a single expression for the short case
+    ('fn(x: Int): Int => x + 1'). This is where that '{' or '=>' should be.
+
+- code: S0035
+  name: redundant-arrow-block
+  category: syntactic
+  summary: "A '=>' function body was followed by a '{ … }' block."
+  message: "A '=>' body is a single expression, not a block."
+  explanation: >-
+    The '=>' body form is for one expression, written straight after the arrow —
+    'fn(x: Int): Int => x + 1'. A '{ … }' block is the other form and stands on
+    its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for
+    both at once. Drop the '=>' to keep the block, or drop the braces to keep the
+    single expression.

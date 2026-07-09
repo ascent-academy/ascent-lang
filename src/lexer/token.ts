@@ -43,7 +43,8 @@ export type TokenKind =
   | 'LT_EQ'          // '<=' — less than or equal to
   | 'GT'             // '>' — greater than
   | 'GT_EQ'          // '>=' — greater than or equal to
-  | 'ARROW'          // '->' — separates a 'match' arm's pattern from its result
+  | 'ARROW'          // '->' — separates a 'match' arm's pattern from its result, and a 'Fn(...) -> R' type's result
+  | 'FAT_ARROW'      // '=>' — introduces a function's single-expression body ('fn(x): Int => e')
   | 'DOT'            // '.' — method call operator
   | 'DOTDOT'         // '..' — the half-open range operator, as in '0..n'
   | 'COMMA'          // ',' — separates items in a list or arguments in a function call

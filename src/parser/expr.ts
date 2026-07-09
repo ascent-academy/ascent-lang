@@ -1,5 +1,5 @@
 import type { Token, TokenKind, Span } from '../lexer/token.js';
-import type { Expr, BinaryOp, UnaryOp, TemplatePart, FieldInit, TryElse } from './ast.js';
+import type { Expr, Block, BinaryOp, UnaryOp, TemplatePart, FieldInit, TryElse } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 import { parseBlock, parseIf, parseMatch } from './stmt.js';
 import { parseTypeExpr, parseFnParam } from './type-expr.js';
@@ -489,10 +489,11 @@ function parseReturn(ts: TokenStream): Expr | null {
 
 // 'fn(params): Ret { body }' — a function value (whitepaper §5). Its return type
 // follows a ':' (matching the parameter annotations), where the 'Fn(T) -> R'
-// *type* shape (parseFnType in type-expr.ts) keeps an arrow instead. Its
-// parameters carry names and it ends in a body block, not just a result type.
-// There is one body form (the block) and no body arrow — the body's last
-// statement is the return value (the block-value rule, §2).
+// *type* shape (parseFnType in type-expr.ts) keeps an arrow instead. The body
+// has two forms: a '{ … }' block whose last statement is the value (the
+// block-value rule, §2), or the lighter '=> expr' for a single expression,
+// which parseFnBody desugars into that same one-statement block. `return` is
+// early-exit only (§5), never the body form.
 function parseFn(ts: TokenStream): Expr | null {
   const fnTok = ts.advance(); // consume 'fn'
 
@@ -507,10 +508,7 @@ function parseFn(ts: TokenStream): Expr | null {
   const returnType = parseTypeExpr(ts);
   if (returnType === null) return null;
 
-  const openBrace = ts.expect('LBRACE', 'S0007');
-  if (openBrace === null) return null;
-
-  const body = parseBlock(ts, openBrace);
+  const body = parseFnBody(ts);
   if (body === null) return null;
 
   return {
@@ -520,6 +518,37 @@ function parseFn(ts: TokenStream): Expr | null {
     body,
     span: { start: fnTok.span.start, end: body.span.end },
   };
+}
+
+// The body of a function value — a '{ … }' block, or the single-expression
+// '=> expr' sugar (whitepaper §5). The arrow form is desugared here into a
+// one-statement block '{ expr }', so everything downstream (checker, printer,
+// interpreter) sees a single body shape and the block-value rule does the rest.
+// '=> { … }' is redundant — the arrow already promises an expression — so a '{'
+// straight after '=>' is rejected (S0035); a body that is neither '{' nor '=>'
+// is S0034.
+function parseFnBody(ts: TokenStream): Block | null {
+  const tok = ts.peek();
+
+  if (tok.kind === 'LBRACE') {
+    return parseBlock(ts, ts.advance());
+  }
+
+  if (tok.kind === 'FAT_ARROW') {
+    ts.advance(); // consume '=>'
+    if (ts.peek().kind === 'LBRACE') {
+      ts.report('S0035', ts.peek().span);
+      return null;
+    }
+
+    const expr = parseExpr(ts);
+    if (expr === null) return null;
+
+    return { kind: 'block', stmts: [{ kind: 'expr', expr, span: expr.span }], span: expr.span };
+  }
+
+  ts.report('S0034', tok.span);
+  return null;
 }
 
 // A String's chunks and holes: 'STR_PART' text, then an expression, then the

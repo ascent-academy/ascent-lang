@@ -60,6 +60,50 @@ describe('functions (end-to-end)', () => {
     });
   });
 
+  // The '=> expr' body is sugar for a one-statement '{ expr }' block (§5): the
+  // two forms are interchangeable, and everything below the parser sees a block.
+  describe('expression body (=> sugar)', () => {
+    it('returns the single expression, no braces', () => {
+      assert.deepEqual(run('fix double = fn(x: Int): Int => x * 2; double(5);').value, int(10n));
+    });
+
+    it('is identical to the equivalent block body', () => {
+      assert.deepEqual(run('fix f = fn(x: Int): Int => x + 1; f(3);').value, int(4n));
+    });
+
+    it('takes a match expression straight after the arrow', () => {
+      assert.deepEqual(run('fix f = fn(n: Int): Int => match n { 0 -> 100, else -> n }; f(0);').value, int(100n));
+    });
+
+    it('takes an if expression straight after the arrow', () => {
+      assert.deepEqual(run('fix f = fn(n: Int): Int => if (n > 0) { n } else { 0 - n }; f(-4);').value, int(4n));
+    });
+
+    it('widens an Int expression into a Float return type', () => {
+      assert.deepEqual(run('fix f = fn(x: Int): Float => x; f(3);').value, { type: 'Float', value: 3 });
+    });
+
+    it('captures an outer slot by value', () => {
+      assert.deepEqual(run('fix base = 10; fix add = fn(x: Int): Int => x + base; add(5);').value, int(15n));
+    });
+
+    it('nests — an arrow body returning an arrow-body lambda', () => {
+      assert.deepEqual(run('fix adder = fn(n: Int): Fn(Int) -> Int => fn(x: Int): Int => x + n; adder(3)(4);').value, int(7n));
+    });
+
+    it('still reports a return-type mismatch in an arrow body (T0036)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => "no";'), ['T0036']);
+    });
+
+    it('rejects a block after the arrow — the arrow already means "expression" (S0035)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => { x };'), ['S0035']);
+    });
+
+    it('rejects a body that is neither a block nor an arrow (S0034)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int x;'), ['S0034']);
+    });
+  });
+
   describe('recursion (recursive fix, §5)', () => {
     it('computes factorial by self-reference', () => {
       assert.deepEqual(run('fix fact = fn(n: Int): Int { if (n <= 1) { 1 } else { n * fact(n - 1) } }; fact(5);').value, int(120n));

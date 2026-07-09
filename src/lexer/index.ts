@@ -279,6 +279,9 @@ export class Lexer {
       case '/': return this.token('SLASH', start);
       case '=':
         if (this.c.match('=')) return this.token('EQ_EQ', start);
+        // '=>' introduces a function's single-expression body ('fn(x): Int => e');
+        // a lone '=' is a slot declaration/update.
+        if (this.c.match('>')) return this.token('FAT_ARROW', start);
         return this.token('EQUALS', start);
       case '!':
         // Bare '!' has no meaning — negation is the word 'not' (§5), so
