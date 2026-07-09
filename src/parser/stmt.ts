@@ -17,6 +17,13 @@ export function parseBlock(ts: TokenStream, openTok?: Token): Block | null {
   const parsed = ts.parseSeparated(() => parseStmt(ts), 'SEMICOLON', 'RBRACE', 'S0005', true, openTok.span);
   if (parsed === null) return null;
 
+  // Imports are file-level only (whitepaper §10) — they bring names in for the
+  // whole file and can't be scoped inside any body: a function, a loop, an 'if',
+  // a block expression, or the 'program' body (all of which come through here).
+  for (const stmt of parsed.items) {
+    if (stmt.kind === 'import') ts.report('S0044', stmt.span);
+  }
+
   return { kind: 'block', stmts: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
 }
 

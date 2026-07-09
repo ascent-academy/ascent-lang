@@ -453,3 +453,23 @@
     After 'from' comes the module to import from, written in double quotes, like
     'from "math"'. In this release the module name is a fixed word (a built-in
     library such as "math" or "assert") with no '${…}' inside it.
+
+- code: S0044
+  name: import-inside-body
+  category: syntactic
+  summary: An import appears inside a block or body instead of at the top of the file.
+  message: "An import can't go inside a block — it belongs at the top of the file."
+  explanation: >-
+    An import brings names in for the whole file, so it lives at the top level,
+    never scoped inside a function, a loop, an 'if', or a 'program' body. Move
+    this import up to the start of the file, above everything else.
+
+- code: S0045
+  name: import-not-leading
+  category: syntactic
+  summary: An import appears after other code instead of at the very top of the file.
+  message: "Imports have to come first, before any other statement."
+  explanation: >-
+    All of a file's imports go together at the very top, above the rest of the
+    code (and above 'program'). This import comes after another statement — move
+    it up so every import sits at the start of the file.

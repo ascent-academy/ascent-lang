@@ -178,6 +178,39 @@ describe('stdlib module system (end-to-end)', () => {
     });
   });
 
+  describe('placement — imports lead the file, never inside a body', () => {
+    it('rejects an import inside a function body (S0044)', () => {
+      assert.ok(errorCodes('fix f = fn(): Int { import { max } from "math"; max(2, 9) };').includes('S0044'));
+    });
+
+    it('rejects an import inside a program body (S0044)', () => {
+      assert.ok(errorCodes('program (x: Int) { import { min } from "math"; min(x, 5) }').includes('S0044'));
+    });
+
+    it("rejects an import inside an 'if' body (S0044)", () => {
+      assert.ok(errorCodes('if (True) { import { min } from "math"; min(1, 2) } else { 0 };').includes('S0044'));
+    });
+
+    it('rejects an import that comes after another top-level statement (S0045)', () => {
+      assert.ok(errorCodes('fix a = 1; import { min } from "math"; min(a, 2);').includes('S0045'));
+    });
+
+    it('rejects a top-level import placed after a type declaration (S0045)', () => {
+      assert.ok(errorCodes('type P = { n: Int }; import { min } from "math"; min(1, 2);').includes('S0045'));
+    });
+
+    it('accepts leading imports whose names are used in a later fn / program body', () => {
+      const src = 'import { min, max } from "math";'
+        + ' fix clamp = fn(x: Int): Int => min(max(x, 0), 100);'
+        + ' clamp(250);';
+      assert.deepEqual(evalOk(src), int(100n));
+    });
+
+    it('accepts several contiguous leading imports', () => {
+      assert.deepEqual(errorCodes('import { min } from "math"; import assert from "assert"; min(1, 2);'), []);
+    });
+  });
+
   describe('import syntax errors', () => {
     it('rejects a missing from (S0042)', () => {
       assert.ok(errorCodes('import { min } "math";').includes('S0042'));

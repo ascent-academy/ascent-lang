@@ -233,23 +233,24 @@ ambient free-function exception.
    compiler-known stdlib registry; injects named / namespace bindings into the checker
    scope, both resolving to one `call` node the interpreter dispatches. `export` + user
    files deferred.
-3. *(optional)* `!= None` flow-narrowing sugar.
 
 **Layer 2 (catalog):**
-4. `List` methods: `map`, `filter`, `reduce`, `find`, `at`, `contains` — closes the
+3. `List` methods: `map`, `filter`, `reduce`, `find`, `at`, `contains` — closes the
    loop/`void` teaching story (**T0026 already tells users to use `.map`**). Pure table
    growth (`METHODS` + `METHOD_IMPLS` + parity test).
-5. ✅ `.orAbort()` on `Optional`/`Result` (with #1).
-6. Reconcile `toString` → **`toStr`** (match whitepaper §6).
-7. ✅ Starter stdlib modules: `math` (`min`/`max`/`sqrt`/`floor`/`ceil`/`round`), `assert`
+4. ✅ `.orAbort()` on `Optional`/`Result` (with #1).
+5. Reconcile `toString` → **`toStr`** (match whitepaper §6).
+6. ✅ Starter stdlib modules: `math` (`min`/`max`/`sqrt`/`floor`/`ceil`/`round`), `assert`
    (`assert`/`assertEqual`).
-8. *(hardcoded now)* `sort`/`min`/`max` for scalar elements — 🔒.
-
+7. *(hardcoded now)* `sort`/`min`/`max` for scalar elements — 🔒.
 **Consistency fixes (no new feature):**
 - T0026's message references `.map` — resolved by #4.
 - `toString`/`toStr` naming — resolved by #6.
 
-**No longer in the list** (moved to v2): user `methods {}` on types.
+**No longer in the list** (moved to v2): 
+
+- user `methods {}` on types
+- `!= None` flow-narrowing sugar.
 
 ---
 

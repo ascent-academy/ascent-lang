@@ -72,6 +72,16 @@ const parseProgram = (ts: TokenStream): Program | null => {
   );
   if (parsed === null) return null;
 
+  // Imports must lead the file (whitepaper §10): they group at the very top,
+  // above every other statement (and above 'program'). Once any non-import
+  // top-level statement has appeared, a later 'import' is out of place (S0045).
+  // Imports nested inside a body are caught separately, in parseBlock (S0044).
+  let seenNonImport = false;
+  for (const stmt of parsed.items) {
+    if (stmt.kind !== 'import') seenNonImport = true;
+    else if (seenNonImport) ts.report('S0045', stmt.span);
+  }
+
   if (parsed.close.kind === 'KW_PROGRAM') {
     return parseProgramForm(ts, parsed.items);
   }
