@@ -3,6 +3,7 @@ import { createInterface } from 'node:readline/promises';
 import { readFile } from 'node:fs/promises';
 import chalk from 'chalk';
 import { Lexer } from './lexer/index.js';
+import { isTrivia } from './lexer/token.js';
 import { parse, parseTokens } from './parser/index.js';
 import { typecheck, TypeEnv } from './check/index.js';
 import { formatValue } from './parser/printer.js';
@@ -151,7 +152,7 @@ const runRepl = async (): Promise<void> => {
       const lexResult = new Lexer(line).tokenize();
       let markerIndex = 0;
       const tokenParts = lexResult.tokens
-        .filter(tok => tok.kind !== 'EOF')
+        .filter(tok => tok.kind !== 'EOF' && !isTrivia(tok.kind))
         .map(tok => {
           if (tok.kind === 'ERROR') {
             const code = lexResult.errorMarkers[markerIndex++]?.code ?? '?';

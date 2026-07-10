@@ -9,6 +9,12 @@ export interface LexResult {
   errorMarkers: Marker[];
 }
 
+// Tokens are assembled without their `text` (the raw source slice); tokenize()
+// fills that in for every token from one place, which is what makes the stream
+// lossless by construction rather than by each producer remembering to carry
+// the right raw span (see tokenize).
+type RawToken = Omit<Token, 'text'>;
+
 // A 'string' frame is active while scanning the text of a "..." literal, and
 // 'mstring' the same for a """..."""  one; an 'interp' frame is active while
 // scanning the expression inside a '${ }' hole. All three stack, so a hole
@@ -30,11 +36,11 @@ export class Lexer {
     this.c = new Cursor(src);
   }
 
-  private token(kind: TokenKind, start: Position): Token {
+  private token(kind: TokenKind, start: Position): RawToken {
     return { kind, value: this.c.slice(start), span: this.c.spanFrom(start) };
   }
 
-  private error(code: string, span: Span): Token {
+  private error(code: string, span: Span): RawToken {
     this.errorMarkers.push({ code, span });
     return { kind: 'ERROR', value: '', span };
   }
@@ -70,23 +76,31 @@ export class Lexer {
     this.error('L0008', this.c.spanFrom(start));
   }
 
-  private skipTrivia(): void {
-    while (true) {
+  // Scans one run of trivia — whitespace, a line comment, or a block comment —
+  // and returns it as its own token, or null when the cursor isn't on trivia.
+  // Emitting trivia (rather than silently skipping it, as the lexer once did)
+  // is what keeps the stream lossless; TokenStream drops these again before the
+  // parser runs. One call yields at most one run, so nextToken()'s loop peels
+  // trivia off a piece at a time until a significant token is reached.
+  private readTrivia(): RawToken | null {
+    const start = this.c.mark();
+    if (isWhitespace(this.c.peek())) {
       this.skipWhitespace();
-      const start = this.c.mark();
-      if (this.c.match('#[')) {
-        this.skipBlockComment(start);
-        continue;
-      }
-      if (this.c.peek() === '#') {
-        this.skipLineComment();
-        continue;
-      }
-      break;
+      return this.token('WHITESPACE', start);
     }
+    if (this.c.peek() === '#') {
+      if (this.c.peek(1) === '[') {
+        this.c.match('#[');
+        this.skipBlockComment(start);
+        return this.token('BLOCK_COMMENT', start);
+      }
+      this.skipLineComment();
+      return this.token('LINE_COMMENT', start);
+    }
+    return null;
   }
 
-  private readWord(): Token {
+  private readWord(): RawToken {
     const start = this.c.mark();
     const firstCh = this.c.peek();
     this.consumeWhile(isAlphaNum);
@@ -102,7 +116,7 @@ export class Lexer {
   // plain string). `startOverride` lets the very first chunk's span begin at
   // the opening '"' — matching the old STR_LIT span exactly — while later
   // chunks (resumed after a hole) start fresh at the current position.
-  private readStringChunk(startOverride?: Position): Token {
+  private readStringChunk(startOverride?: Position): RawToken {
     const start = startOverride ?? this.c.mark();
     let value = '';
     while (true) {
@@ -157,7 +171,7 @@ export class Lexer {
   // nothing more than plain string operations — this scanner just needs to
   // still recognise an escaped quote/dollar well enough not to mistake it
   // for the closing '"""' or a hole.
-  private readMultilineChunk(): Token {
+  private readMultilineChunk(): RawToken {
     const start = this.c.mark();
     let value = '';
     while (true) {
@@ -192,7 +206,7 @@ export class Lexer {
     }
   }
 
-  private readNumber(): Token {
+  private readNumber(): RawToken {
     const start = this.c.mark();
     this.consumeWhile(isDigit);
 
@@ -215,10 +229,10 @@ export class Lexer {
     return this.token(kind, start);
   }
 
-  private nextToken(): Token {
+  private nextToken(): RawToken {
     // While a 'string' frame is on top, we're mid-way through a "..." literal's
     // text — scan its next chunk instead of running the ordinary dispatch
-    // below (which would wrongly skip whitespace/comments as trivia).
+    // below (which would wrongly treat whitespace/comments as trivia).
     const top = this.modeStack[this.modeStack.length - 1];
     if (top !== undefined && top.kind === 'string') {
       return this.readStringChunk();
@@ -227,7 +241,13 @@ export class Lexer {
       return this.readMultilineChunk();
     }
 
-    this.skipTrivia();
+    // Trivia is emitted, one run per call, so nextToken() peels it off until a
+    // significant token (or EOF) is reached — the outer tokenize() loop drives
+    // the repetition.
+    const trivia = this.readTrivia();
+    if (trivia !== null) {
+      return trivia;
+    }
 
     if (this.c.atEnd()) {
       // top, if present here, must be an 'interp' frame (a 'string' frame
@@ -349,10 +369,19 @@ export class Lexer {
 
   public tokenize(): LexResult {
     const tokens: Token[] = [];
+    // Each token's raw `text` is the source between where the previous token
+    // ended and where this one ends. The cursor only ever moves forward, so
+    // these slices tile the source with no gaps or overlaps — concatenating
+    // every `text` reproduces the input exactly, whatever the tokens' own spans
+    // look like (an error's span may point back at an earlier opener, for
+    // instance, but its `text` still only claims the characters it consumed).
+    let prevEnd = 0;
     while (true) {
-      const tok = this.nextToken();
-      tokens.push(tok);
-      if (tok.kind === 'EOF') {
+      const raw = this.nextToken();
+      const end = raw.span.end.offset;
+      tokens.push({ ...raw, text: this.c.sliceRange(prevEnd, end) });
+      prevEnd = end;
+      if (raw.kind === 'EOF') {
         break;
       }
     }

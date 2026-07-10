@@ -65,8 +65,18 @@ export type TokenKind =
   | 'QUESTION'       // '?' — the Optional<T> suffix in a type annotation, e.g. 'String?'
   | 'QUESTION_QUESTION' // '??' — the Optional default operator, as in 'nick ?? "anon"'
   | 'PIPE'           // '|' — separates the variants of a tagged-union 'type'
+  | 'WHITESPACE'     // a run of spaces/tabs/newlines — trivia (TokenStream filters it out)
+  | 'LINE_COMMENT'   // '# …' up to (not including) the end of the line — trivia
+  | 'BLOCK_COMMENT'  // '#[ … ]#' (nests) — trivia
   | 'ERROR'          // a character or run the lexer couldn't recognise
   | 'EOF';           // the sentinel that marks the end of source
+
+// Whitespace and comments carry no grammatical meaning; the lexer still emits
+// them (so the token stream is lossless — see Token.text) but TokenStream
+// drops them before the parser ever sees them.
+const TRIVIA_KINDS: ReadonlySet<TokenKind> = new Set(['WHITESPACE', 'LINE_COMMENT', 'BLOCK_COMMENT']);
+
+export const isTrivia = (kind: TokenKind): boolean => TRIVIA_KINDS.has(kind);
 
 export interface Position {
   offset: number;  // 0-based index into the source string
@@ -101,7 +111,15 @@ export interface Marker {
 
 export interface Token {
   kind: TokenKind;
+  // The token's semantic content — what the parser reads. For most tokens this
+  // is identical to `text`, but for string parts it's the *decoded* value
+  // (escapes resolved, delimiters/'${' dropped) while `text` stays raw.
   value: string;
+  // The exact source characters this token spans, trivia and delimiters
+  // included. The lexer is lossless: concatenating every token's `text` in
+  // order reconstructs the source 1:1 (see Lexer.tokenize). `value` may differ
+  // (decoded strings); `text` never does.
+  text: string;
   span: Span;
   // Only set on MSTR_PART_END: the column of the closing '"""' — how many
   // characters precede it on its own line, and so how many leading

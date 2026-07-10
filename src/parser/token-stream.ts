@@ -1,4 +1,5 @@
 import type { Token, TokenKind, Marker, RelatedMarker, Span } from '../lexer/token.js';
+import { isTrivia } from '../lexer/token.js';
 
 // The token stream is everything the grammar productions in expr.ts,
 // stmt.ts and type-expr.ts share but that isn't grammar itself: the
@@ -15,8 +16,11 @@ export class TokenStream {
   // the top-level parse() hands this straight out as errorMarkers.
   public readonly errors: Marker[] = [];
 
+  // The lexer is lossless — it emits whitespace and comment tokens too — but
+  // the grammar has no use for trivia, so it's filtered out here, once, and the
+  // parser only ever sees significant tokens (the trailing EOF included).
   public constructor(tokens: Token[]) {
-    this.tokens = tokens;
+    this.tokens = tokens.filter(tok => !isTrivia(tok.kind));
   }
 
   // The lexer guarantees the last token is always EOF, so the fallback

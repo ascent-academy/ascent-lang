@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict';
 import { Lexer } from '../../src/lexer/index.js';
+import { isTrivia } from '../../src/lexer/token.js';
 import type { TokenKind } from '../../src/lexer/token.js';
 
+// The lexer is lossless, so its raw output carries whitespace/comment trivia.
+// These tests care about the significant tokens (what the parser sees, once
+// TokenStream has filtered trivia), so the helper drops trivia the same way.
 function kinds(src: string): TokenKind[] {
-  return new Lexer(src).tokenize().tokens.map((tok) => tok.kind);
+  return new Lexer(src).tokenize().tokens
+    .filter((tok) => !isTrivia(tok.kind))
+    .map((tok) => tok.kind);
+}
+
+// The significant tokens (trivia dropped), for tests that index into them.
+function significant(src: string) {
+  return new Lexer(src).tokenize().tokens.filter((tok) => !isTrivia(tok.kind));
 }
 
 describe('Lexer', () => {
@@ -122,10 +133,10 @@ describe('Lexer', () => {
   });
 
   it('reports L0008 for a block comment unterminated at EOF', () => {
-    const { tokens, errorMarkers } = new Lexer('1 #[ never closed').tokenize();
-    assert.equal(tokens[0]?.kind, 'INT_LIT');
-    assert.equal(tokens[1]?.kind, 'EOF');
-    assert.equal(errorMarkers[0]?.code, 'L0008');
+    const toks = significant('1 #[ never closed');
+    assert.equal(toks[0]?.kind, 'INT_LIT');
+    assert.equal(toks[1]?.kind, 'EOF');
+    assert.equal(new Lexer('1 #[ never closed').tokenize().errorMarkers[0]?.code, 'L0008');
   });
 
   it('reports L0008 for a nested block comment missing its outer close', () => {
@@ -227,4 +238,72 @@ describe('Multiline strings', () => {
     assert.equal(tokens[0]?.kind, 'ERROR');
     assert.equal(errorMarkers[0]?.code, 'L0005');
   });
+});
+
+describe('Trivia', () => {
+  it('emits a whitespace run as a single WHITESPACE token', () => {
+    const raw = new Lexer('1  \t 2').tokenize().tokens.map((tok) => tok.kind);
+    assert.deepEqual(raw, ['INT_LIT', 'WHITESPACE', 'INT_LIT', 'EOF']);
+  });
+
+  it('emits a line comment as a LINE_COMMENT token, the newline separately', () => {
+    const raw = new Lexer('1 # note\n2').tokenize().tokens.map((tok) => tok.kind);
+    assert.deepEqual(raw, [
+      'INT_LIT', 'WHITESPACE', 'LINE_COMMENT', 'WHITESPACE', 'INT_LIT', 'EOF',
+    ]);
+  });
+
+  it('emits a block comment as a single BLOCK_COMMENT token', () => {
+    const raw = new Lexer('1 #[ a #[ b ]# c ]# 2').tokenize().tokens.map((tok) => tok.kind);
+    assert.deepEqual(raw, [
+      'INT_LIT', 'WHITESPACE', 'BLOCK_COMMENT', 'WHITESPACE', 'INT_LIT', 'EOF',
+    ]);
+  });
+
+  it('carries the raw text of a comment in both value and text', () => {
+    const [, , comment] = new Lexer('1 # hello').tokenize().tokens;
+    assert.equal(comment?.kind, 'LINE_COMMENT');
+    assert.equal(comment?.text, '# hello');
+    assert.equal(comment?.value, '# hello');
+  });
+});
+
+describe('Losslessness', () => {
+  // Concatenating every token's raw `text` must reproduce the source exactly,
+  // for any input — well-formed, malformed, or interpolated.
+  const sources = [
+    '',
+    '   ',
+    '\n\n',
+    'fix x = 1 + 2',
+    '  fix x = 1   # trailing\n',
+    '1 #[ block ]# 2',
+    '"hello world"',
+    String.raw`"a\nb\tc\\d\"e"`,
+    '"Hi ${name}!"',
+    '"${a} and ${b}"',
+    '"${ if (x) { 1 } else { 2 } }"',
+    '"outer ${ "inner" } end"',
+    '"""\n  multi\n  line\n  """',
+    '"""hi ${who}"""',
+    // Error-producing inputs: the lexer must still cover every character.
+    '$',
+    '.5',
+    '123abc',
+    '"unterminated',
+    '"abc\ndef"',
+    String.raw`"\q"`,
+    '"hi ${name',
+    '"""abc',
+    '1 #[ never closed',
+    'ünïcödé $ €',
+  ];
+
+  for (const src of sources) {
+    it(`reconstructs ${JSON.stringify(src)} from token text`, () => {
+      const { tokens } = new Lexer(src).tokenize();
+      assert.equal(tokens.map((tok) => tok.text).join(''), src);
+      assert.equal(tokens[tokens.length - 1]?.kind, 'EOF');
+    });
+  }
 });
