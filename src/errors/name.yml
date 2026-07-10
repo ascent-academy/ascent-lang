@@ -86,7 +86,7 @@
   name: redeclare-builtin-type
   category: name
   summary: A 'type' declaration reuses a built-in type name.
-  message: "'{name}' is a built-in name, so it can't be redeclared."
+  message: "'{name}' is a built-in name, so you can't use it for your own type."
   explanation: >-
     '{name}' already names one of the language's built-in types (Int, Float,
     Bool, String, List, Result) or built-in constructors (Success, Failure), so

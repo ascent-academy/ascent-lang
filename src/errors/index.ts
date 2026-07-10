@@ -166,7 +166,7 @@ export const ERRORS: ErrorEntry[] = [
     "name": "redeclare-builtin-type",
     "category": "name",
     "summary": "A 'type' declaration reuses a built-in type name.",
-    "message": "'{name}' is a built-in name, so it can't be redeclared.",
+    "message": "'{name}' is a built-in name, so you can't use it for your own type.",
     "explanation": "'{name}' already names one of the language's built-in types (Int, Float, Bool, String, List, Result) or built-in constructors (Success, Failure), so a 'type' declaration can't reuse it. Choose a different name for your type."
   },
   {
@@ -726,7 +726,7 @@ export const ERRORS: ErrorEntry[] = [
     "name": "none-needs-annotation",
     "category": "type",
     "summary": "A slot's only starting value is None, so its type has to be written down.",
-    "message": "This value needs a type — 'None' alone doesn't say which.",
+    "message": "This slot needs a type.",
     "explanation": "'None' on its own doesn't say what kind of value the slot will hold — so, just like an empty list '[]', its type has to be written down — for example 'fix nick: String? = None'."
   },
   {
@@ -879,7 +879,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A value passed to 'print' has no text form.",
     "message": "'print' can't show a value of type {actual}.",
-    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a String first."
+    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those."
   },
   {
     "code": "T0020",
