@@ -226,7 +226,7 @@ export const ERRORS: ErrorEntry[] = [
     "name": "unknown-module",
     "category": "name",
     "summary": "An import names a module the standard library doesn't have.",
-    "message": "There's no standard-library module named \"{module}\".",
+    "message": "There's no built-in module named \"{module}\".",
     "explanation": "An import can only bring in one of the built-in library modules. This release has 'math' (min, max, sqrt, floor, ceil, round) and 'assert' (assert, assertEqual). Check the spelling of \"{module}\", or import one of those."
   },
   {
@@ -234,7 +234,7 @@ export const ERRORS: ErrorEntry[] = [
     "name": "unknown-export",
     "category": "name",
     "summary": "An import (or a 'module.name' use) names something the module doesn't export.",
-    "message": "The module \"{module}\" has no export named '{name}'.",
+    "message": "The module \"{module}\" doesn't have anything named '{name}'.",
     "explanation": "Each library module offers a fixed set of functions, and '{name}' isn't one of \"{module}\"'s. Check the spelling against the module's contents."
   },
   {
@@ -726,7 +726,7 @@ export const ERRORS: ErrorEntry[] = [
     "name": "none-needs-annotation",
     "category": "type",
     "summary": "A slot's only starting value is None, so its type has to be written down.",
-    "message": "This slot needs a type.",
+    "message": "This value needs a type — 'None' alone doesn't say which.",
     "explanation": "'None' on its own doesn't say what kind of value the slot will hold — so, just like an empty list '[]', its type has to be written down — for example 'fix nick: String? = None'."
   },
   {
@@ -854,16 +854,16 @@ export const ERRORS: ErrorEntry[] = [
     "name": "not-callable",
     "category": "type",
     "summary": "A name that isn't a function is being called.",
-    "message": "'{name}' is a {type}, not a function, so it can't be called.",
-    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…): … { … }'."
+    "message": "'{name}' has type {type}, which isn't a function, so it can't be called.",
+    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a value of type {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…): … { … }'."
   },
   {
     "code": "T0017",
     "name": "not-callable-value",
     "category": "type",
     "summary": "A value that isn't a function is being called.",
-    "message": "This is a {type}, not a function, so it can't be called.",
-    "explanation": "Only a function can be called with '(…)'. This value is a {type}, which isn't a function, so there is nothing to call. (Calling a name that isn't a function is the same mistake, reported as its own message.)"
+    "message": "This value has type {type}, which isn't a function, so it can't be called.",
+    "explanation": "Only a function can be called with '(…)'. This value has type {type}, which isn't a function, so there is nothing to call. (Calling a name that isn't a function is the same mistake, reported as its own message.)"
   },
   {
     "code": "T0018",
@@ -1087,7 +1087,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A function produces a value that doesn't match its declared return type.",
     "message": "This function returns {expected}, but this value is {actual}.",
-    "explanation": "A function has to give back a value of the return type it declares. This one is declared to return {expected}, but the value it produces here is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.) Produce a {expected}, or change the declared return type.",
+    "explanation": "A function has to give back a value of the return type it declares. This one is declared to return {expected}, but the value it produces here is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.) Produce a value of type {expected}, or change the declared return type.",
     "related": [
       {
         "key": "annotation",
