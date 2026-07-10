@@ -27,6 +27,12 @@
 export { Lexer } from './lexer/index.js';
 export type { LexResult } from './lexer/index.js';
 
+// The token surface, for tools that consume the (lossless) token stream
+// directly — e.g. a syntax highlighter: walk `tokens`, wrap each token's raw
+// `text` in a span of its `syntaxClass`, skipping `isTrivia` kinds if desired.
+export { isTrivia, syntaxClass } from './lexer/token.js';
+export type { Token, TokenKind, SyntaxClass, Span, Position } from './lexer/token.js';
+
 export { parse, parseTokens } from './parser/index.js';
 export type { ParseResult } from './parser/index.js';
 export type { Program, ProgramArg } from './parser/ast.js';

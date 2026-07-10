@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { Lexer } from '../../src/lexer/index.js';
-import { isTrivia } from '../../src/lexer/token.js';
+import { isTrivia, syntaxClass } from '../../src/lexer/token.js';
 import type { TokenKind } from '../../src/lexer/token.js';
 
 // The lexer is lossless, so its raw output carries whitespace/comment trivia.
@@ -306,4 +306,58 @@ describe('Losslessness', () => {
       assert.equal(tokens[tokens.length - 1]?.kind, 'EOF');
     });
   }
+});
+
+describe('Syntax classes', () => {
+  it('classes keywords, including the operator keywords, as keyword', () => {
+    for (const src of ['fix', 'if', 'program', 'match', 'div', 'mod', 'and', 'or', 'not']) {
+      const [tok] = new Lexer(src).tokenize().tokens;
+      assert.equal(syntaxClass(tok!.kind), 'keyword', src);
+    }
+  });
+
+  it('classes type names and the built-in constructors as type', () => {
+    assert.equal(syntaxClass('TYPE_NAME'), 'type');
+    for (const src of ['Int', 'True', 'False', 'None', 'Done']) {
+      const [tok] = new Lexer(src).tokenize().tokens;
+      assert.equal(syntaxClass(tok!.kind), 'type', src);
+    }
+  });
+
+  it('classes numbers and every string chunk as literal', () => {
+    for (const kind of ['INT_LIT', 'FLOAT_LIT', 'STR_PART', 'STR_PART_END', 'MSTR_PART', 'MSTR_PART_END'] as const) {
+      assert.equal(syntaxClass(kind), 'literal', kind);
+    }
+  });
+
+  it('classes operators and delimiters as punctuation', () => {
+    const punct: TokenKind[] = [
+      'PLUS', 'MINUS', 'STAR', 'STAR_STAR', 'SLASH', 'EQ_EQ', 'BANG_EQ', 'BANG',
+      'LT', 'LT_EQ', 'GT', 'GT_EQ', 'ARROW', 'FAT_ARROW', 'DOT', 'DOTDOT', 'COMMA',
+      'SEMICOLON', 'COLON', 'EQUALS', 'QUESTION', 'QUESTION_QUESTION', 'PIPE',
+      'LPAREN', 'RPAREN', 'LBRACE', 'RBRACE', 'LBRACKET', 'RBRACKET',
+    ];
+    for (const kind of punct) assert.equal(syntaxClass(kind), 'punctuation', kind);
+  });
+
+  it('classes comments as comment and a slot as plain', () => {
+    assert.equal(syntaxClass('LINE_COMMENT'), 'comment');
+    assert.equal(syntaxClass('BLOCK_COMMENT'), 'comment');
+    assert.equal(syntaxClass('SLOT'), 'plain');
+  });
+
+  it('classes ERROR as error and renders no class for WHITESPACE / EOF', () => {
+    assert.equal(syntaxClass('ERROR'), 'error');
+    assert.equal(syntaxClass('WHITESPACE'), null);
+    assert.equal(syntaxClass('EOF'), null);
+  });
+
+  it('assigns every token of a real program a class (only trivia go unclassed)', () => {
+    const src = 'fix n: Int = 3.5 * (a + b);   # note\nprint("x=${n}")';
+    for (const tok of new Lexer(src).tokenize().tokens) {
+      const cls = syntaxClass(tok.kind);
+      if (tok.kind === 'WHITESPACE' || tok.kind === 'EOF') assert.equal(cls, null, tok.kind);
+      else assert.notEqual(cls, null, tok.kind);
+    }
+  });
 });

@@ -78,6 +78,100 @@ const TRIVIA_KINDS: ReadonlySet<TokenKind> = new Set(['WHITESPACE', 'LINE_COMMEN
 
 export const isTrivia = (kind: TokenKind): boolean => TRIVIA_KINDS.has(kind);
 
+// The syntax-highlighting class a token renders as. A lossless token stream
+// (see Token.text) plus this map is all a highlighter needs: walk the tokens
+// and wrap each one's raw `text` in a span of its class. `null` means "emit the
+// text with no wrapping" — whitespace needs no class and EOF has no text at
+// all. `error` is meant to be styled as a squiggle rather than a colour.
+export type SyntaxClass =
+  | 'keyword'      // fix, if, and, div, program, … (every KW_*)
+  | 'type'         // TYPE_NAME plus the built-in constructors True/False/None/Done
+  | 'literal'      // Int/Float numbers and every string chunk
+  | 'punctuation'  // operators and delimiters — rendered muted
+  | 'comment'      // line and block comments — rendered muted
+  | 'plain'        // a slot (binding name) — no special colour
+  | 'error';       // an unrecognised character — rendered as a squiggle
+
+// Exhaustive by construction: TokenKind is a Record key, so adding a new kind
+// without classifying it is a compile error rather than a silently-unstyled token.
+const SYNTAX_CLASSES: Record<TokenKind, SyntaxClass | null> = {
+  INT_LIT: 'literal',
+  FLOAT_LIT: 'literal',
+  STR_PART: 'literal',
+  STR_PART_END: 'literal',
+  MSTR_PART: 'literal',
+  MSTR_PART_END: 'literal',
+  BOOL_LIT: 'type',
+  NONE_LIT: 'type',
+  DONE_LIT: 'type',
+  SLOT: 'plain',
+  PLUS: 'punctuation',
+  MINUS: 'punctuation',
+  STAR: 'punctuation',
+  STAR_STAR: 'punctuation',
+  SLASH: 'punctuation',
+  KW_DIV: 'keyword',
+  KW_MOD: 'keyword',
+  KW_AND: 'keyword',
+  KW_OR: 'keyword',
+  KW_NOT: 'keyword',
+  KW_FIX: 'keyword',
+  KW_MUT: 'keyword',
+  KW_IF: 'keyword',
+  KW_ELSE: 'keyword',
+  KW_WHILE: 'keyword',
+  KW_FOR: 'keyword',
+  KW_IN: 'keyword',
+  KW_PROGRAM: 'keyword',
+  KW_TYPE: 'keyword',
+  KW_VOID: 'keyword',
+  KW_MATCH: 'keyword',
+  KW_FN: 'keyword',
+  KW_RETURN: 'keyword',
+  KW_ABORT: 'keyword',
+  KW_ORFAIL: 'keyword',
+  KW_TRY: 'keyword',
+  KW_WITH: 'keyword',
+  KW_ASYNC: 'keyword',
+  KW_AWAIT: 'keyword',
+  KW_IMPORT: 'keyword',
+  KW_FROM: 'keyword',
+  TYPE_NAME: 'type',
+  COLON: 'punctuation',
+  EQUALS: 'punctuation',
+  EQ_EQ: 'punctuation',
+  BANG_EQ: 'punctuation',
+  BANG: 'punctuation',
+  LT: 'punctuation',
+  LT_EQ: 'punctuation',
+  GT: 'punctuation',
+  GT_EQ: 'punctuation',
+  ARROW: 'punctuation',
+  FAT_ARROW: 'punctuation',
+  DOT: 'punctuation',
+  DOTDOT: 'punctuation',
+  COMMA: 'punctuation',
+  SEMICOLON: 'punctuation',
+  LPAREN: 'punctuation',
+  RPAREN: 'punctuation',
+  LBRACE: 'punctuation',
+  RBRACE: 'punctuation',
+  LBRACKET: 'punctuation',
+  RBRACKET: 'punctuation',
+  QUESTION: 'punctuation',
+  QUESTION_QUESTION: 'punctuation',
+  PIPE: 'punctuation',
+  WHITESPACE: null,
+  LINE_COMMENT: 'comment',
+  BLOCK_COMMENT: 'comment',
+  ERROR: 'error',
+  EOF: null,
+};
+
+// The highlighting class for a token kind, or null when it renders no span
+// (WHITESPACE, EOF).
+export const syntaxClass = (kind: TokenKind): SyntaxClass | null => SYNTAX_CLASSES[kind];
+
 export interface Position {
   offset: number;  // 0-based index into the source string
   line: number;    // 1-based
