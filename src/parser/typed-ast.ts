@@ -150,7 +150,7 @@ export type TypedReturn = {
 // 'abort "reason"' typed (whitepaper §7/§9). `type` is always Never — abort
 // diverges, so it satisfies any expected type and makes an enclosing block
 // diverge too. `reason` is the checked String the interpreter evaluates and
-// reports when it crashes (bug-tier, R0009). Unlike 'return'/'try' it needs no
+// reports when it crashes (bug-tier, R0008). Unlike 'return'/'try' it needs no
 // enclosing-function context: it never hands a value back, it just stops.
 export type TypedAbort = {
   kind: 'abort';

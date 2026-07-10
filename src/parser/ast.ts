@@ -104,7 +104,7 @@ export type LiteralPattern = (
 // braces, `fields: []`) matches the variant while binding nothing — the only way
 // to match a case field-free, so it covers both a zero-field enum case ('Red')
 // and a fielded variant matched for its tag alone; empty braces 'Red{}' are the
-// banned redundant spelling (S0028), same one-spelling rule as construction.
+// banned redundant spelling (S0023), same one-spelling rule as construction.
 export type VariantPattern = { kind: 'variantPattern'; tag: string; tagSpan: Span; fields: FieldPattern[]; span: Span };
 // A lowercase name in pattern position — the way to match an Optional's *present*
 // case and pull the value out (whitepaper §4/§7: Optional is 'None | value', with
@@ -187,7 +187,7 @@ export type Expr = (
   // for a single-variant record). `braces` records whether a '{ … }' body was
   // written — false for a bare zero-field-variant construction ('Red'), true for
   // 'Tag{ … }'. The checker uses it to tell an empty-brace 'Red{}' (banned,
-  // S0028) apart from the bare 'Red', since both carry no fields.
+  // S0023) apart from the bare 'Red', since both carry no fields.
   | { kind: 'construct'; typeName: string; typeNameSpan: Span; fields: FieldInit[]; braces: boolean; span: Span }
   // 'base with path = value' (braceless, single) or 'base with { p1 = v1, … }'
   // (braced) — a new value derived from `base` with the positions named by each
@@ -261,7 +261,7 @@ export type FieldPattern = { field: string; fieldSpan: Span; bind: string; bindS
 // in one statement (whitepaper §5, the honest replacement for tuples). Naming a
 // *subset* of fields is fine — the rest are ignored. A refutable pattern (a
 // multi-variant union's case, which might not match) is rejected by the checker
-// (T0033); a plain name always binds. Only a name target may carry a ':' type
+// (T0034); a plain name always binds. Only a name target may carry a ':' type
 // annotation — a record pattern already names its type.
 export type BindTarget = (
   | { kind: 'name'; name: string; nameSpan: Span; span: Span }

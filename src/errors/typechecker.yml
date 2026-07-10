@@ -23,6 +23,36 @@
       label: "this was created holding {expected}"
 
 - code: T0002
+  name: none-needs-annotation
+  category: type
+  summary: A slot's only starting value is None, so its type has to be written down.
+  message: "This slot needs a type."
+  explanation: >-
+    'None' on its own doesn't say what kind of value the slot will hold — so,
+    just like an empty list '[]', its type has to be written down — for
+    example 'fix nick: String? = None'.
+
+- code: T0003
+  name: empty-list-needs-annotation
+  category: type
+  summary: An empty list has no items to show its type, and none was written down.
+  message: "This empty list needs a type."
+  explanation: >-
+    An empty list '[]' has no items to show what it holds, so its type has to be
+    written down — for example 'fix xs: List<Int> = []'.
+
+- code: T0004
+  name: diverging-slot-init
+  category: type
+  summary: A slot is given a value that never actually arrives, because the right-hand side always leaves first.
+  message: "'{name}' never gets a value: the code on the right always leaves first."
+  explanation: >-
+    The right-hand side here never produces a value — it always leaves first,
+    through an 'abort' or a 'return' — so '{name}' can never be given anything,
+    and this line can't run. Remove it, or change the right-hand side so it
+    produces a value.
+
+- code: T0005
   name: incompatible-list-elements
   category: type
   summary: A list mixes items of types that have no common type.
@@ -36,16 +66,37 @@
     - key: element
       label: "this item is {other}"
 
-- code: T0003
-  name: empty-list-needs-annotation
+- code: T0006
+  name: index-requires-list
   category: type
-  summary: An empty list has no items to show its type, and none was written down.
-  message: "This empty list needs a type."
+  summary: "The '[ ]' index was used on something that isn't a list."
+  message: "I can't use '[ ]' here — this has type {actual}, not a list."
   explanation: >-
-    An empty list '[]' has no items to show what it holds, so its type has to be
-    written down — for example 'fix xs: List<Int> = []'.
+    Reading an item with '[ ]', like 'items[0]', works only on a list. This
+    value has type {actual}, which isn't a list.
 
-- code: T0004
+- code: T0007
+  name: index-not-int
+  category: type
+  summary: A list index isn't an Int.
+  message: "A list index has to be an Int, but this has type {actual}."
+  explanation: >-
+    Inside 'items[…]', the value in the brackets picks an item by its position,
+    counting from 0, so it has to be a whole number (Int). This one has type
+    {actual}.
+
+- code: T0008
+  name: operator-type-error
+  category: type
+  summary: An operator was used on types it doesn't accept.
+  message: "I can't use '{op}' on {operands}."
+  explanation: >-
+    Operators only work on certain types: '+', '-', '*', '/', and '**' need
+    numbers (Int or Float); 'div' and 'mod' need whole numbers (Int); 'and',
+    'or', and 'not' need True/False values (Bool); and a comparison needs two
+    values of the same kind. '{op}' doesn't work on {operands}.
+
+- code: T0009
   name: condition-not-bool
   category: type
   summary: "The condition of an 'if' or 'while' isn't a True/False value."
@@ -55,7 +106,7 @@
     condition has to be one — a comparison like 'x > 0', or another Bool. This
     one has type {actual}.
 
-- code: T0005
+- code: T0010
   name: if-branch-mismatch
   category: type
   summary: "The two branches of an 'if' produce different types."
@@ -70,65 +121,7 @@
     - key: else
       label: "this branch gives {else}"
 
-- code: T0006
-  name: no-such-method
-  category: type
-  summary: A method with this name doesn't exist on the value's type.
-  message: "{type} has no method called '{method}'."
-  explanation: >-
-    The methods you can call depend on the value's type. For example, an Int has
-    'toString()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)',
-    'reverse()', and more. Check the spelling of '{method}'.
-
-- code: T0007
-  name: wrong-arg-count
-  category: type
-  summary: A method or function call was given the wrong number of inputs.
-  message: "This call has the wrong number of inputs."
-  explanation: >-
-    It needs {expected}, but was given {got}. Each input goes inside the '( )',
-    separated by commas.
-
-- code: T0008
-  name: wrong-arg-type
-  category: type
-  summary: An input to a method or function has a type that isn't accepted here.
-  message: "This input has type {actual}, but {expected} was expected."
-  explanation: >-
-    Each method or function accepts inputs of certain types. Here {expected} was
-    expected, but the input given is {actual}.
-
-- code: T0009
-  name: operator-type-error
-  category: type
-  summary: An operator was used on types it doesn't accept.
-  message: "I can't use '{op}' on {operands}."
-  explanation: >-
-    Operators only work on certain types: '+', '-', '*', '/', and '**' need
-    numbers (Int or Float); 'div' and 'mod' need whole numbers (Int); 'and',
-    'or', and 'not' need True/False values (Bool); and a comparison needs two
-    values of the same kind. '{op}' doesn't work on {operands}.
-
-- code: T0010
-  name: index-requires-list
-  category: type
-  summary: "The '[ ]' index was used on something that isn't a list."
-  message: "I can't use '[ ]' here — this has type {actual}, not a list."
-  explanation: >-
-    Reading an item with '[ ]', like 'items[0]', works only on a list. This
-    value has type {actual}, which isn't a list.
-
 - code: T0011
-  name: index-not-int
-  category: type
-  summary: A list index isn't an Int.
-  message: "A list index has to be an Int, but this has type {actual}."
-  explanation: >-
-    Inside 'items[…]', the value in the brackets picks an item by its position,
-    counting from 0, so it has to be a whole number (Int). This one has type
-    {actual}.
-
-- code: T0012
   name: no-methods
   category: type
   summary: The value's type has no methods at all.
@@ -137,6 +130,16 @@
     Only some types have methods you can call with '.': Int, Float, String,
     List, and Range. A {type} has none, so 'value.something()' can't be used on
     it.
+
+- code: T0012
+  name: no-such-method
+  category: type
+  summary: A method with this name doesn't exist on the value's type.
+  message: "{type} has no method called '{method}'."
+  explanation: >-
+    The methods you can call depend on the value's type. For example, an Int has
+    'toString()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)',
+    'reverse()', and more. Check the spelling of '{method}'.
 
 - code: T0013
   name: unknown-function
@@ -149,6 +152,44 @@
     like 'x.toString()'.
 
 - code: T0014
+  name: wrong-arg-count
+  category: type
+  summary: A method or function call was given the wrong number of inputs.
+  message: "This call has the wrong number of inputs."
+  explanation: >-
+    It needs {expected}, but was given {got}. Each input goes inside the '( )',
+    separated by commas.
+
+- code: T0015
+  name: wrong-arg-type
+  category: type
+  summary: An input to a method or function has a type that isn't accepted here.
+  message: "This input has type {actual}, but {expected} was expected."
+  explanation: >-
+    Each method or function accepts inputs of certain types. Here {expected} was
+    expected, but the input given is {actual}.
+
+- code: T0016
+  name: not-callable
+  category: type
+  summary: A name that isn't a function is being called.
+  message: "'{name}' is a {type}, not a function, so it can't be called."
+  explanation: >-
+    Only a function can be called with '(…)'. Here '{name}' holds a {type}, which
+    isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the
+    name you meant, or that it was created as a function with 'fn(…): … { … }'.
+
+- code: T0017
+  name: not-callable-value
+  category: type
+  summary: A value that isn't a function is being called.
+  message: "This is a {type}, not a function, so it can't be called."
+  explanation: >-
+    Only a function can be called with '(…)'. This value is a {type}, which isn't
+    a function, so there is nothing to call. (Calling a name that isn't a function
+    is the same mistake, reported as its own message.)
+
+- code: T0018
   name: interpolation-not-scalar
   category: type
   summary: "A '${ }' hole's value isn't an Int, Float, Bool, or String."
@@ -158,17 +199,17 @@
     Float, Bool, and String all have one obvious way to show as text, so
     they're accepted directly. {actual} isn't one of those.
 
-- code: T0015
-  name: none-needs-annotation
+- code: T0019
+  name: print-not-displayable
   category: type
-  summary: A slot's only starting value is None, so its type has to be written down.
-  message: "This slot needs a type."
+  summary: A value passed to 'print' has no text form.
+  message: "'print' can't show a value of type {actual}."
   explanation: >-
-    'None' on its own doesn't say what kind of value the slot will hold — so,
-    just like an empty list '[]', its type has to be written down — for
-    example 'fix nick: String? = None'.
+    'print' shows a value as text, so it needs a value that has one obvious way
+    to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a
+    String first.
 
-- code: T0016
+- code: T0020
   name: range-bounds-not-int
   category: type
   summary: "A range's start or end isn't an Int."
@@ -178,7 +219,7 @@
     including) its end, so both sides have to be whole numbers (Int). This one
     is {actual}.
 
-- code: T0017
+- code: T0021
   name: for-not-iterable
   category: type
   summary: "A 'for' loop was given something that isn't a list or a range."
@@ -188,7 +229,7 @@
     numbers of a range ('for i in 0..n'). This value is {actual}, which isn't
     either of those.
 
-- code: T0018
+- code: T0022
   name: missing-field
   category: type
   summary: A record is built without all of its fields.
@@ -197,7 +238,7 @@
     Building a record fills in every field the type declares. Add a value for
     {fields}, so '{type}' has every field it needs.
 
-- code: T0019
+- code: T0023
   name: unknown-field
   category: type
   summary: A record is built with a field its type doesn't have.
@@ -207,7 +248,7 @@
     doesn't have a field '{field}' — check the spelling against the type's
     declaration, or remove it.
 
-- code: T0020
+- code: T0024
   name: duplicate-field-value
   category: type
   summary: A record is built with the same field given twice.
@@ -216,7 +257,7 @@
     Each field of a record gets one value when it's built. '{field}' is listed
     twice, so it isn't clear which value to use — remove one of them.
 
-- code: T0021
+- code: T0025
   name: field-type-mismatch
   category: type
   summary: A field is built with a value of the wrong type.
@@ -230,7 +271,7 @@
     - key: field
       label: "this field is declared {expected}"
 
-- code: T0022
+- code: T0026
   name: field-access-non-record
   category: type
   summary: "A '.field' was read from a value that isn't a record."
@@ -239,7 +280,7 @@
     Reading a field with '.name' works on a record — a value of a type declared
     with 'type Name = { … }'. This value is {type}, which has no fields to read.
 
-- code: T0023
+- code: T0027
   name: no-such-field
   category: type
   summary: A field was read that the record's type doesn't have.
@@ -248,51 +289,18 @@
     A record only has the fields its type declares. '{type}' doesn't have a
     field '{field}' — check the spelling against the type's declaration.
 
-- code: T0024
-  name: print-not-displayable
-  category: type
-  summary: A value passed to 'print' has no text form.
-  message: "'print' can't show a value of type {actual}."
-  explanation: >-
-    'print' shows a value as text, so it needs a value that has one obvious way
-    to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a
-    String first.
-
-- code: T0025
-  name: value-dropped-by-next-statement
-  category: type
-  summary: A value is produced but thrown away because another statement comes after it.
-  message: "This {actual} value isn't used by anything."
-  explanation: >-
-    Only the last statement in a block keeps its value; another statement comes
-    after this one, so its {actual} value would be quietly thrown away — and a
-    thrown-away value is usually a mistake, like calling a method for its result
-    and forgetting to use it. Use the value: give it a name ('fix x = …'), pass
-    it to a function, or make it the last statement. If throwing it away is what
-    you meant, write 'void' in front ('void …') to say so on purpose.
-
-- code: T0026
-  name: value-dropped-by-loop
-  category: type
-  summary: A loop body ends in a value the loop throws away each time around.
-  message: "This {actual} value is thrown away on every pass of the loop."
-  explanation: >-
-    A 'for' or 'while' loop doesn't build a value — it runs its body for the
-    effect and yields Done, so whatever the body ends with is thrown away on
-    every pass. Here that value is {actual}. If throwing it away is what you
-    meant, write 'void' in front ('void …') to say so on purpose.
-
-- code: T0027
-  name: void-nothing-to-discard
-  category: type
-  summary: "'void' is used on a value that is already Done."
-  message: "There's nothing to throw away here — this is already Done."
-  explanation: >-
-    'void' throws away a value in a spot where it would otherwise be kept. This
-    expression is already Done — it produces no value (an effect like 'print',
-    or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'.
-
 - code: T0028
+  name: field-access-on-union
+  category: type
+  summary: "A '.field' was read from a value that has more than one variant."
+  message: "'{type}' has more than one variant, so it has no fields to read directly."
+  explanation: >-
+    Reading a field with '.name' works on a record — a type with a single
+    variant, whose fields are always the same. '{type}' has more than one
+    variant ({variants}), so which fields it has depends on which one it is.
+    A 'match' looks at each variant on its own and reads that variant's fields.
+
+- code: T0029
   name: match-pattern-type-mismatch
   category: type
   summary: "A 'match' pattern can't be compared to the value being matched."
@@ -305,7 +313,7 @@
     - key: subject
       label: "this value is {expected}"
 
-- code: T0029
+- code: T0030
   name: match-not-exhaustive
   category: type
   summary: "A 'match' doesn't cover every possible value."
@@ -315,7 +323,17 @@
     arms together have to cover every case. Add an 'else' arm to handle any value
     the arms above didn't list, like 'else -> 0'.
 
-- code: T0030
+- code: T0031
+  name: match-missing-variants
+  category: type
+  summary: "A 'match' on a union doesn't handle every variant."
+  message: "This 'match' doesn't handle {missing}."
+  explanation: >-
+    A 'match' has to produce a value for every case it might be given. '{type}'
+    has the variants {variants}, but this 'match' has no arm for {missing}. Add
+    an arm for each one it's missing, or an 'else' arm to cover the rest.
+
+- code: T0032
   name: match-arms-mismatch
   category: type
   summary: "The arms of a 'match' produce different types."
@@ -327,7 +345,7 @@
     - key: arm
       label: "this arm gives {other}"
 
-- code: T0031
+- code: T0033
   name: unreachable-match-arm
   category: type
   summary: "A 'match' arm can never be reached."
@@ -342,18 +360,7 @@
     - key: shadow
       label: "this earlier arm already matches it"
 
-- code: T0032
-  name: field-access-on-union
-  category: type
-  summary: "A '.field' was read from a value that has more than one variant."
-  message: "'{type}' has more than one variant, so it has no fields to read directly."
-  explanation: >-
-    Reading a field with '.name' works on a record — a type with a single
-    variant, whose fields are always the same. '{type}' has more than one
-    variant ({variants}), so which fields it has depends on which one it is.
-    A 'match' looks at each variant on its own and reads that variant's fields.
-
-- code: T0033
+- code: T0034
   name: refutable-binding
   category: type
   summary: A union variant is destructured in a 'fix'/'mut' binding, where it might not match.
@@ -365,27 +372,79 @@
     them, and a pattern naming one case would not match the others. Use 'match'
     to handle each variant on its own.
 
-- code: T0034
-  name: match-missing-variants
-  category: type
-  summary: "A 'match' on a union doesn't handle every variant."
-  message: "This 'match' doesn't handle {missing}."
-  explanation: >-
-    A 'match' has to produce a value for every case it might be given. '{type}'
-    has the variants {variants}, but this 'match' has no arm for {missing}. Add
-    an arm for each one it's missing, or an 'else' arm to cover the rest.
-
 - code: T0035
-  name: not-callable
+  name: with-step-not-navigable
   category: type
-  summary: A name that isn't a function is being called.
-  message: "'{name}' is a {type}, not a function, so it can't be called."
+  summary: "A 'with' path steps into a value that isn't a record or a list."
+  message: "There's nothing to update inside this — it has type {type}."
   explanation: >-
-    Only a function can be called with '(…)'. Here '{name}' holds a {type}, which
-    isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the
-    name you meant, or that it was created as a function with 'fn(…): … { … }'.
+    A 'with' path reaches the value to change by stepping into a record by a
+    field name ('.city') or into a list by position ('[0]'). Here it reached a
+    value of type {type}, which is neither a record nor a list, so there's
+    nothing inside it to reach. Check that each step leads through a record or a
+    list to the value you mean to change.
 
 - code: T0036
+  name: with-step-on-union
+  category: type
+  summary: "A 'with' path steps into a value that has more than one variant."
+  message: "'{type}' has more than one variant, so 'with' can't reach inside it here."
+  explanation: >-
+    '{type}' has more than one variant ({variants}), so which fields it has
+    depends on which one it is — there is no single set of fields to step into.
+    Use a 'match' to handle each variant on its own, then build the updated value
+    inside that arm.
+
+- code: T0037
+  name: with-unknown-field
+  category: type
+  summary: "A 'with' path names a field the record's type doesn't have."
+  message: "'{type}' has no field named '{field}'."
+  explanation: >-
+    A 'with' update can only change the fields the record's type declares.
+    '{type}' doesn't have a field '{field}' — check the spelling against the
+    type's declaration, or remove it.
+
+- code: T0038
+  name: with-field-on-list
+  category: type
+  summary: "A 'with' path names a field on a list, but a list is updated by position."
+  message: "A list is updated by position, not by a field name like '{field}'."
+  explanation: >-
+    The path reached a list here, and a list's items don't have names — they're
+    picked by position, in brackets. To change one, use '[index]' — for example
+    'xs with [0] = 9'. (A field name like '{field}' names a place in a record.)
+
+- code: T0039
+  name: with-index-on-record
+  category: type
+  summary: "A 'with' path uses '[index]' on a record, but a record is updated by field name."
+  message: "'{type}' is a record, so it's updated by field name, not by position."
+  explanation: >-
+    The path used '[…]' here, but '{type}' is a record — its parts have names,
+    not numbered positions. Name the field to change — for example
+    'p with age = 31'. (Position '[i]' picks an item in a list.)
+
+- code: T0040
+  name: with-element-type-mismatch
+  category: type
+  summary: "A list item is updated with a value of the wrong type."
+  message: "This list holds {expected}, but this value is {actual}."
+  explanation: >-
+    Every item of a list shares one type, so a 'with' update has to keep it — this
+    list holds {expected}, but the new value is {actual}, and those don't match.
+    (An Int can go where a Float is expected, but not the other way around.)
+
+- code: T0041
+  name: with-duplicate-path
+  category: type
+  summary: "A 'with' update changes the same position more than once."
+  message: "'{path}' is updated more than once here."
+  explanation: >-
+    Each position in a 'with' update gets one new value. '{path}' is changed
+    twice, so it isn't clear which value to keep — remove one of them.
+
+- code: T0042
   name: return-type-mismatch
   category: type
   summary: A function produces a value that doesn't match its declared return type.
@@ -399,7 +458,7 @@
     - key: annotation
       label: "the return type was set to {expected} here"
 
-- code: T0037
+- code: T0043
   name: return-outside-function
   category: type
   summary: "A 'return' was written outside any function."
@@ -410,17 +469,7 @@
     no enclosing function to return from. At the top level, a program's value is
     simply its last statement (no 'return' needed).
 
-- code: T0038
-  name: not-callable-value
-  category: type
-  summary: A value that isn't a function is being called.
-  message: "This is a {type}, not a function, so it can't be called."
-  explanation: >-
-    Only a function can be called with '(…)'. This value is a {type}, which isn't
-    a function, so there is nothing to call. (Calling a name that isn't a function
-    is the same mistake, reported as its own message.)
-
-- code: T0039
+- code: T0044
   name: coalesce-left-not-optional
   category: type
   summary: "The left side of '??' isn't an optional value."
@@ -431,37 +480,7 @@
     {actual}, which is never None, so there is nothing for '??' to fall back
     from. Drop the '?? …', or make the left side an optional.
 
-- code: T0041
-  name: name-pattern-not-optional
-  category: type
-  summary: A name pattern was used to match a value that isn't an optional.
-  message: "A name pattern only matches an optional value, but this is {actual}."
-  explanation: >-
-    A name in a 'match' arm (like 'value ->') pulls the present value out of an
-    optional — so the value being matched has to be an optional (a type written
-    with a '?', like 'String?'). This one is {actual}. To handle any other value
-    in one arm, use 'else' instead.
-  related:
-    - key: subject
-      label: "this value is {actual}"
-  # Retired: a bare name in a 'match' arm is now a general catch-all that binds
-  # the residual (whitepaper §5), legal on any subject — not Optional-only. On a
-  # non-optional it simply binds the value, the same as 'else' but keeping it. A
-  # catch-all after full coverage is unreachable (T0031) instead.
-  retired: true
-
-- code: T0042
-  name: optional-match-not-exhaustive
-  category: type
-  summary: "A 'match' on an optional doesn't handle both of its cases."
-  message: "This 'match' on {type} doesn't handle {missing}."
-  explanation: >-
-    An optional is one of two cases — 'None', or a present value — and a 'match'
-    has to produce a value for both. This one has no arm for {missing}. Add a
-    'None' arm for the absent case and a name arm like 'value ->' to catch the
-    present value, or an 'else' arm to cover whatever is left.
-
-- code: T0040
+- code: T0045
   name: coalesce-default-mismatch
   category: type
   summary: "The default after '??' has a type that doesn't fit the optional's value."
@@ -476,7 +495,29 @@
     - key: default
       label: "this default is {default}"
 
-- code: T0043
+- code: T0046
+  name: optional-match-not-exhaustive
+  category: type
+  summary: "A 'match' on an optional doesn't handle both of its cases."
+  message: "This 'match' on {type} doesn't handle {missing}."
+  explanation: >-
+    An optional is one of two cases — 'None', or a present value — and a 'match'
+    has to produce a value for both. This one has no arm for {missing}. Add a
+    'None' arm for the absent case and a name arm like 'value ->' to catch the
+    present value, or an 'else' arm to cover whatever is left.
+
+- code: T0047
+  name: redundant-optional
+  category: type
+  summary: A type is marked optional more than once, but an optional can't nest.
+  message: "This '?' is redundant — the type is already optional."
+  explanation: >-
+    A '?' makes a type optional, so it can hold a value or 'None'. Marking it '?'
+    again adds nothing, because an optional doesn't nest — there is no "maybe a
+    maybe-String", only "maybe a String". Write a single '?' — 'String?', not
+    'String??'.
+
+- code: T0048
   name: result-needs-annotation
   category: type
   summary: "A 'Success'/'Failure' on its own doesn't say what the whole Result type is."
@@ -487,7 +528,7 @@
     neither one shows the whole 'T orfail E' type. Write it down where the slot
     is created, for example 'fix result: Int orfail ReadError = Success{ value: 1 }'.
 
-- code: T0044
+- code: T0049
   name: try-outside-function
   category: type
   summary: "A 'try' is used outside any function."
@@ -498,7 +539,7 @@
     function to leave, so there's nowhere for the failure to go. Move this into a
     function whose return type is an optional or a 'T orfail E'.
 
-- code: T0045
+- code: T0050
   name: try-not-fallible
   category: type
   summary: "A 'try' is used on a value that can't fail."
@@ -509,7 +550,7 @@
     empty/failure case. This value is {actual}, which is neither, so there's
     nothing for 'try' to unwrap.
 
-- code: T0046
+- code: T0051
   name: try-return-type-mismatch
   category: type
   summary: "A 'try' propagates a failure the enclosing function can't return."
@@ -521,7 +562,7 @@
     'T orfail E' (or a '?' optional when the failure is 'None'), or handle the
     case here with 'match' instead of 'try'.
 
-- code: T0047
+- code: T0052
   name: try-else-binds-optional
   category: type
   summary: "A 'try … else' names an error, but the value is an optional (which has none)."
@@ -531,79 +572,7 @@
     that is empty is just 'None' — there's no error value to name. Drop the name
     and write 'try opt else -> ...' to supply the error to propagate instead.
 
-- code: T0048
-  name: with-step-not-navigable
-  category: type
-  summary: "A 'with' path steps into a value that isn't a record or a list."
-  message: "There's nothing to update inside this — it has type {type}."
-  explanation: >-
-    A 'with' path reaches the value to change by stepping into a record by a
-    field name ('.city') or into a list by position ('[0]'). Here it reached a
-    value of type {type}, which is neither a record nor a list, so there's
-    nothing inside it to reach. Check that each step leads through a record or a
-    list to the value you mean to change.
-
-- code: T0049
-  name: with-step-on-union
-  category: type
-  summary: "A 'with' path steps into a value that has more than one variant."
-  message: "'{type}' has more than one variant, so 'with' can't reach inside it here."
-  explanation: >-
-    '{type}' has more than one variant ({variants}), so which fields it has
-    depends on which one it is — there is no single set of fields to step into.
-    Use a 'match' to handle each variant on its own, then build the updated value
-    inside that arm.
-
-- code: T0050
-  name: with-unknown-field
-  category: type
-  summary: "A 'with' path names a field the record's type doesn't have."
-  message: "'{type}' has no field named '{field}'."
-  explanation: >-
-    A 'with' update can only change the fields the record's type declares.
-    '{type}' doesn't have a field '{field}' — check the spelling against the
-    type's declaration, or remove it.
-
-- code: T0051
-  name: with-duplicate-path
-  category: type
-  summary: "A 'with' update changes the same position more than once."
-  message: "'{path}' is updated more than once here."
-  explanation: >-
-    Each position in a 'with' update gets one new value. '{path}' is changed
-    twice, so it isn't clear which value to keep — remove one of them.
-
-- code: T0052
-  name: with-field-on-list
-  category: type
-  summary: "A 'with' path names a field on a list, but a list is updated by position."
-  message: "A list is updated by position, not by a field name like '{field}'."
-  explanation: >-
-    The path reached a list here, and a list's items don't have names — they're
-    picked by position, in brackets. To change one, use '[index]' — for example
-    'xs with [0] = 9'. (A field name like '{field}' names a place in a record.)
-
 - code: T0053
-  name: with-index-on-record
-  category: type
-  summary: "A 'with' path uses '[index]' on a record, but a record is updated by field name."
-  message: "'{type}' is a record, so it's updated by field name, not by position."
-  explanation: >-
-    The path used '[…]' here, but '{type}' is a record — its parts have names,
-    not numbered positions. Name the field to change — for example
-    'p with age = 31'. (Position '[i]' picks an item in a list.)
-
-- code: T0054
-  name: with-element-type-mismatch
-  category: type
-  summary: "A list item is updated with a value of the wrong type."
-  message: "This list holds {expected}, but this value is {actual}."
-  explanation: >-
-    Every item of a list shares one type, so a 'with' update has to keep it — this
-    list holds {expected}, but the new value is {actual}, and those don't match.
-    (An Int can go where a Float is expected, but not the other way around.)
-
-- code: T0055
   name: bare-async-call
   category: type
   summary: An async function is called directly instead of being prepared into a task.
@@ -615,7 +584,7 @@
     'fetchUser!(id)', which binds the arguments but runs nothing yet. Then 'await'
     starts the task and waits for its value: 'fix user = await fetchUser!(id)'.
 
-- code: T0056
+- code: T0054
   name: async-mark-on-nonasync
   category: type
   summary: "The '!' async-call mark is used on something that isn't an async function."
@@ -625,7 +594,7 @@
     Here '{name}' is {type}, which isn't an async function, so there is no task to
     prepare. If it's an ordinary function, call it without '!': '{name}(…)'.
 
-- code: T0057
+- code: T0055
   name: await-not-task
   category: type
   summary: "'await' is used on a value that isn't a task."
@@ -635,7 +604,7 @@
     from an async call — the '!' mark, like 'fetchUser!(id)'. This value is
     {actual}, which is not a task, so there is nothing for 'await' to run.
 
-- code: T0058
+- code: T0056
   name: await-outside-async
   category: type
   summary: "'await' is used inside a function that isn't async."
@@ -647,7 +616,41 @@
     'await' it. (At the program's top level 'await' works directly — that is the
     starting point.)
 
+- code: T0057
+  name: value-dropped-by-next-statement
+  category: type
+  summary: A value is produced but thrown away because another statement comes after it.
+  message: "This {actual} value isn't used by anything."
+  explanation: >-
+    Only the last statement in a block keeps its value; another statement comes
+    after this one, so its {actual} value would be quietly thrown away — and a
+    thrown-away value is usually a mistake, like calling a method for its result
+    and forgetting to use it. Use the value: give it a name ('fix x = …'), pass
+    it to a function, or make it the last statement. If throwing it away is what
+    you meant, write 'void' in front ('void …') to say so on purpose.
+
+- code: T0058
+  name: value-dropped-by-loop
+  category: type
+  summary: A loop body ends in a value the loop throws away each time around.
+  message: "This {actual} value is thrown away on every pass of the loop."
+  explanation: >-
+    A 'for' or 'while' loop doesn't build a value — it runs its body for the
+    effect and yields Done, so whatever the body ends with is thrown away on
+    every pass. Here that value is {actual}. If throwing it away is what you
+    meant, write 'void' in front ('void …') to say so on purpose.
+
 - code: T0059
+  name: void-nothing-to-discard
+  category: type
+  summary: "'void' is used on a value that is already Done."
+  message: "There's nothing to throw away here — this is already Done."
+  explanation: >-
+    'void' throws away a value in a spot where it would otherwise be kept. This
+    expression is already Done — it produces no value (an effect like 'print',
+    or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'.
+
+- code: T0060
   name: abort-reason-not-string
   category: type
   summary: "'abort' was given a reason that isn't a String."
@@ -658,29 +661,7 @@
     String — for example 'abort "this list is never empty here"'. This reason is
     {actual}.
 
-- code: T0060
-  name: diverging-slot-init
-  category: type
-  summary: A slot is given a value that never actually arrives, because the right-hand side always leaves first.
-  message: "'{name}' never gets a value: the code on the right always leaves first."
-  explanation: >-
-    The right-hand side here never produces a value — it always leaves first,
-    through an 'abort' or a 'return' — so '{name}' can never be given anything,
-    and this line can't run. Remove it, or change the right-hand side so it
-    produces a value.
-
 - code: T0061
-  name: redundant-optional
-  category: type
-  summary: A type is marked optional more than once, but an optional can't nest.
-  message: "This '?' is redundant — the type is already optional."
-  explanation: >-
-    A '?' makes a type optional, so it can hold a value or 'None'. Marking it '?'
-    again adds nothing, because an optional doesn't nest — there is no "maybe a
-    maybe-String", only "maybe a String". Write a single '?' — 'String?', not
-    'String??'.
-
-- code: T0062
   name: min-max-not-comparable
   category: type
   summary: "'min' or 'max' was given values that can't be ordered against each other."
@@ -691,7 +672,7 @@
     and a Float mix, promoting), or two Strings. {left} and {right} can't be
     ordered against each other.
 
-- code: T0063
+- code: T0062
   name: assert-equal-mismatch
   category: type
   summary: "'assertEqual' was given two values of unrelated types, which can never be equal."

@@ -129,7 +129,7 @@ export class TypeEnv {
   }
 
   // The declared return type of the nearest enclosing function, or null when not
-  // inside one (a 'return' there is out of place — T0037).
+  // inside one (a 'return' there is out of place — T0043).
   public enclosingReturn(): AscentType | null {
     return this.funcReturn ?? this.parent?.enclosingReturn() ?? null;
   }

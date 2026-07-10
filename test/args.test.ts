@@ -114,9 +114,9 @@ describe('program inputs (program (…) { … } header)', () => {
       );
     });
 
-    it('reports S0029 for a program with an empty input list', () => {
+    it('reports S0028 for a program with an empty input list', () => {
       // 'program ()' is banned — a program with no inputs is written bare.
-      assert.deepEqual(errorCodes('program () { 1 }'), ['S0029']);
+      assert.deepEqual(errorCodes('program () { 1 }'), ['S0028']);
     });
 
     it('reports S0030 for content after the program block', () => {
@@ -124,14 +124,14 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.deepEqual(errorCodes('program (age: Int) { age } 1'), ['S0030']);
     });
 
-    it('reports S0032 for an empty program body', () => {
+    it('reports S0029 for an empty program body', () => {
       // A 'program' block with nothing in it runs nothing and uses no inputs —
-      // the counterpart of the empty-input ban (S0029).
-      assert.deepEqual(errorCodes('program (age: Int) { }'), ['S0032']);
+      // the counterpart of the empty-input ban (S0028).
+      assert.deepEqual(errorCodes('program (age: Int) { }'), ['S0029']);
     });
 
     it('checks the empty inputs first when both parens and body are empty', () => {
-      assert.deepEqual(errorCodes('program () { }'), ['S0029']);
+      assert.deepEqual(errorCodes('program () { }'), ['S0028']);
     });
   });
 
@@ -163,8 +163,8 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.deepEqual(output, ['setup', '3']);
     });
 
-    it('a bare non-Done value before program is still a dropped value (T0025)', () => {
-      assert.deepEqual(errorCodes('fix x = 5; x + 1; program (n: Int) { n }'), ['T0025']);
+    it('a bare non-Done value before program is still a dropped value (T0057)', () => {
+      assert.deepEqual(errorCodes('fix x = 5; x + 1; program (n: Int) { n }'), ['T0057']);
     });
 
     it('the inputs are NOT visible to statements before program (N0001)', () => {
@@ -173,12 +173,12 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.deepEqual(errorCodes('fix d = n * 2; program (n: Int) { d }'), ['N0001']);
     });
 
-    it('rejects an empty program body, even with leading statements (S0032)', () => {
-      assert.deepEqual(errorCodes('print("setup"); program (n: Int) { }'), ['S0032']);
+    it('rejects an empty program body, even with leading statements (S0029)', () => {
+      assert.deepEqual(errorCodes('print("setup"); program (n: Int) { }'), ['S0029']);
     });
 
-    it('still requires a semicolon before program, like any statement (S0011)', () => {
-      assert.deepEqual(errorCodes('fix a = 1 program (n: Int) { n }'), ['S0011']);
+    it('still requires a semicolon before program, like any statement (S0006)', () => {
+      assert.deepEqual(errorCodes('fix a = 1 program (n: Int) { n }'), ['S0006']);
     });
 
     it('rejects anything after program even with a separating semicolon (S0030)', () => {

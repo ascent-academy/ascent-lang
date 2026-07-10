@@ -88,18 +88,18 @@ describe('Optional (T?) (end-to-end)', () => {
       assert.deepEqual(evalOk('fix x: Int? = 5; x ?? [1][10];'), { type: 'Int', value: 5n });
     });
 
-    it('reports T0039 when the left side is not optional', () => {
-      assert.deepEqual(errorCodes('fix x: Int = 5; x ?? 0;'), ['T0039']);
+    it('reports T0044 when the left side is not optional', () => {
+      assert.deepEqual(errorCodes('fix x: Int = 5; x ?? 0;'), ['T0044']);
     });
 
-    it('reports T0040 when the default type does not fit the optional value', () => {
-      assert.deepEqual(errorCodes('fix x: Int? = 5; x ?? "hi";'), ['T0040']);
+    it('reports T0045 when the default type does not fit the optional value', () => {
+      assert.deepEqual(errorCodes('fix x: Int? = 5; x ?? "hi";'), ['T0045']);
     });
   });
 
   describe('type errors', () => {
-    it('reports T0015 for a bare None with no annotation', () => {
-      assert.deepEqual(errorCodes('fix x = None;'), ['T0015']);
+    it('reports T0002 for a bare None with no annotation', () => {
+      assert.deepEqual(errorCodes('fix x = None;'), ['T0002']);
     });
 
     it('reports T0001 when None is assigned to a non-Optional slot', () => {

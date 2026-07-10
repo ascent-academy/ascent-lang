@@ -90,9 +90,9 @@ describe("Iterable trait — the associated type 'Item'", () => {
       assert.deepEqual(evalOk('mut s = 0; for i in 1..5 { s = s + i }; s;'), { type: 'Int', value: 10n });
     });
 
-    it('rejects looping over a non-iterable (T0017)', () => {
-      assert.ok(errorCodes('for x in 42 { void x };').includes('T0017'));
-      assert.ok(errorCodes('for c in "hi" { void c };').includes('T0017'));
+    it('rejects looping over a non-iterable (T0021)', () => {
+      assert.ok(errorCodes('for x in 42 { void x };').includes('T0021'));
+      assert.ok(errorCodes('for c in "hi" { void c };').includes('T0021'));
     });
   });
 });

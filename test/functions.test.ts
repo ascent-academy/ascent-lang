@@ -91,16 +91,16 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(run('fix adder = fn(n: Int): Fn(Int) -> Int => fn(x: Int): Int => x + n; adder(3)(4);').value, int(7n));
     });
 
-    it('still reports a return-type mismatch in an arrow body (T0036)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => "no";'), ['T0036']);
+    it('still reports a return-type mismatch in an arrow body (T0042)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => "no";'), ['T0042']);
     });
 
-    it('rejects a block after the arrow — the arrow already means "expression" (S0035)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => { x };'), ['S0035']);
+    it('rejects a block after the arrow — the arrow already means "expression" (S0027)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => { x };'), ['S0027']);
     });
 
-    it('rejects a body that is neither a block nor an arrow (S0034)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int x;'), ['S0034']);
+    it('rejects a body that is neither a block nor an arrow (S0026)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int x;'), ['S0026']);
     });
   });
 
@@ -170,8 +170,8 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(run('fix add = fn(n: Int): Fn(Int) -> Int { fn(x: Int): Int { x + n } }; fix add5 = add(5); fix f = fn(): Int { add5(10) }; f();').value, int(15n));
     });
 
-    it('rejects calling a value that is not a function (T0038)', () => {
-      assert.deepEqual(errorCodes('fix x = 5; (x)(3);'), ['T0038']);
+    it('rejects calling a value that is not a function (T0017)', () => {
+      assert.deepEqual(errorCodes('fix x = 5; (x)(3);'), ['T0017']);
     });
 
     // The builtin 'print' has no first-class type yet, so using it as a value —
@@ -188,12 +188,12 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(errorCodes('fix print = fn(x: Int): Int { x }; print;'), []);
     });
 
-    it('rejects a wrong argument count on a computed callee (T0007)', () => {
-      assert.deepEqual(errorCodes('(fn(x: Int): Int { x })(1, 2);'), ['T0007']);
+    it('rejects a wrong argument count on a computed callee (T0014)', () => {
+      assert.deepEqual(errorCodes('(fn(x: Int): Int { x })(1, 2);'), ['T0014']);
     });
 
-    it('rejects a wrong argument type on a computed callee (T0008)', () => {
-      assert.deepEqual(errorCodes('(fn(x: Int): Int { x })("s");'), ['T0008']);
+    it('rejects a wrong argument type on a computed callee (T0015)', () => {
+      assert.deepEqual(errorCodes('(fn(x: Int): Int { x })("s");'), ['T0015']);
     });
   });
 
@@ -208,42 +208,42 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(errorCodes('fix f: Fn(Int) -> Float = fn(x: Int): Int { x };'), ['T0001']);
     });
 
-    it('rejects a function argument of the wrong type (T0008)', () => {
+    it('rejects a function argument of the wrong type (T0015)', () => {
       assert.deepEqual(
         errorCodes('fix apply = fn(g: Fn(Int) -> Int, x: Int): Int { g(x) }; fix bad = fn(x: Float): Float { x }; apply(bad, 1);'),
-        ['T0008'],
+        ['T0015'],
       );
     });
   });
 
   describe('errors', () => {
-    it('rejects calling a name that is not a function (T0035)', () => {
-      assert.deepEqual(errorCodes('fix x = 5; x(3);'), ['T0035']);
+    it('rejects calling a name that is not a function (T0016)', () => {
+      assert.deepEqual(errorCodes('fix x = 5; x(3);'), ['T0016']);
     });
 
     it('rejects calling an unknown name (T0013)', () => {
       assert.deepEqual(errorCodes('nope(3);'), ['T0013']);
     });
 
-    it('rejects a wrong argument count (T0007)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f(1, 2);'), ['T0007']);
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f();'), ['T0007']);
+    it('rejects a wrong argument count (T0014)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f(1, 2);'), ['T0014']);
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f();'), ['T0014']);
     });
 
-    it('rejects an argument of the wrong type (T0008)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f("s");'), ['T0008']);
+    it('rejects an argument of the wrong type (T0015)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f("s");'), ['T0015']);
     });
 
-    it('rejects a body whose value does not match the return type (T0036)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { "no" };'), ['T0036']);
+    it('rejects a body whose value does not match the return type (T0042)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { "no" };'), ['T0042']);
     });
 
-    it('rejects comparing functions with == (T0009)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f == f;'), ['T0009']);
+    it('rejects comparing functions with == (T0008)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f == f;'), ['T0008']);
     });
 
-    it('rejects a signature with no return type (S0031)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int) { x };'), ['S0031']);
+    it('rejects a signature with no return type (S0024)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int) { x };'), ['S0024']);
     });
 
     it('still reports an undefined name used in a function body (N0001)', () => {
@@ -290,20 +290,20 @@ describe('functions (end-to-end)', () => {
 
     // A block that diverges (a 'return' before its end) is typed Never, so an
     // unreachable trailing value doesn't wrongly fail the return-type check.
-    it('allows an unreachable trailing value after a return (no T0036)', () => {
+    it('allows an unreachable trailing value after a return (no T0042)', () => {
       assert.deepEqual(run('fix f = fn(): Int { return 5; 99 }; f();').value, int(5n));
     });
 
-    it('rejects a return outside any function (T0037)', () => {
-      assert.deepEqual(errorCodes('return 5;'), ['T0037']);
+    it('rejects a return outside any function (T0043)', () => {
+      assert.deepEqual(errorCodes('return 5;'), ['T0043']);
     });
 
-    it('rejects a returned value that does not fit the return type (T0036)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { return "no" };'), ['T0036']);
+    it('rejects a returned value that does not fit the return type (T0042)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { return "no" };'), ['T0042']);
     });
 
-    it('rejects a bare return in a function that must return a value (T0036)', () => {
-      assert.deepEqual(errorCodes('fix f = fn(): Int { return };'), ['T0036']);
+    it('rejects a bare return in a function that must return a value (T0042)', () => {
+      assert.deepEqual(errorCodes('fix f = fn(): Int { return };'), ['T0042']);
     });
   });
 });

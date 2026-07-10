@@ -18,34 +18,34 @@ export interface ParseResult {
 // statements parsed before it (declarations, or plain statements — anything is
 // allowed *before* 'program') run first, so the flattened `stmts` is
 // leading-then-body and downstream a wrapped program is indistinguishable from a
-// bare one. An empty input list ('program ()') is banned (S0029) — a program
+// bare one. An empty input list ('program ()') is banned (S0028) — a program
 // with no inputs is written as a bare statement sequence, no 'program' at all —
 // and nothing may follow the block (S0030): 'program' is always the last thing.
 const parseProgramForm = (ts: TokenStream, leading: Statement[]): Program | null => {
   ts.advance(); // consume 'program'
 
-  const open = ts.expect('LPAREN', 'S0006');
+  const open = ts.expect('LPAREN', 'S0010');
   if (open === null) return null;
 
   const parsed = ts.parseSeparated(() => parseParam(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
 
   if (parsed.items.length === 0) {
-    ts.report('S0029', { start: open.span.start, end: parsed.close.span.end });
+    ts.report('S0028', { start: open.span.start, end: parsed.close.span.end });
     return null;
   }
 
-  const openBrace = ts.expect('LBRACE', 'S0007');
+  const openBrace = ts.expect('LBRACE', 'S0009');
   if (openBrace === null) return null;
 
   const body = parseBlock(ts, openBrace);
   if (body === null) return null;
 
   // The body must do something: an empty '{ }' runs nothing and uses none of the
-  // inputs, so it's banned (S0032) — the counterpart of the empty-input ban
-  // (S0029). Reported but not fatal, so a trailing-content error can still fire.
+  // inputs, so it's banned (S0029) — the counterpart of the empty-input ban
+  // (S0028). Reported but not fatal, so a trailing-content error can still fire.
   if (body.stmts.length === 0) {
-    ts.report('S0032', body.span);
+    ts.report('S0029', body.span);
   }
 
   // Nothing follows the 'program' block — anything can go *before* it, nothing
@@ -68,18 +68,18 @@ const parseProgramForm = (ts: TokenStream, leading: Statement[]): Program | null
 // statements seen so far in ahead of the body.
 const parseProgram = (ts: TokenStream): Program | null => {
   const parsed = ts.parseSeparated(
-    () => parseStmt(ts), 'SEMICOLON', 'EOF', 'S0011', true, null, 'KW_PROGRAM',
+    () => parseStmt(ts), 'SEMICOLON', 'EOF', 'S0006', true, null, 'KW_PROGRAM',
   );
   if (parsed === null) return null;
 
   // Imports must lead the file (whitepaper §10): they group at the very top,
   // above every other statement (and above 'program'). Once any non-import
-  // top-level statement has appeared, a later 'import' is out of place (S0045).
-  // Imports nested inside a body are caught separately, in parseBlock (S0044).
+  // top-level statement has appeared, a later 'import' is out of place (S0043).
+  // Imports nested inside a body are caught separately, in parseBlock (S0042).
   let seenNonImport = false;
   for (const stmt of parsed.items) {
     if (stmt.kind !== 'import') seenNonImport = true;
-    else if (seenNonImport) ts.report('S0045', stmt.span);
+    else if (seenNonImport) ts.report('S0043', stmt.span);
   }
 
   if (parsed.close.kind === 'KW_PROGRAM') {

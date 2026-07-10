@@ -53,12 +53,12 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
       const inner = typeFromExpr(te.elem, env, diagnostics);
       // A '?' applied to something already Optional — a written 'String??' or
       // '(String?)?'. Optional doesn't nest (no runtime 'Some(…)', §4/§7), so the
-      // extra '?' is redundant: report it (T0061), then let optionalOf collapse
+      // extra '?' is redundant: report it (T0047), then let optionalOf collapse
       // it away. (Only source-written '?' reaches here; a nested Optional formed
       // by composition is collapsed silently in optionalOf, never routed through
       // this case.)
       if (inner.kind === 'Optional') {
-        diagnostics.error({ code: 'T0061', span: te.span });
+        diagnostics.error({ code: 'T0047', span: te.span });
       }
       return optionalOf(inner);
     }

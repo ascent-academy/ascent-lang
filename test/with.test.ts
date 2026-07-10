@@ -197,20 +197,20 @@ describe("'with' record update (end-to-end)", () => {
       assert.equal(result.error.marker.code, 'R0005');
     });
 
-    it('rejects a non-Int index (T0011)', () => {
-      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with ["a"] = 0;'), ['T0011']);
+    it('rejects a non-Int index (T0007)', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with ["a"] = 0;'), ['T0007']);
     });
 
-    it('rejects a value of the wrong element type (T0054)', () => {
-      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with [0] = "x";'), ['T0054']);
+    it('rejects a value of the wrong element type (T0040)', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with [0] = "x";'), ['T0040']);
     });
 
-    it('rejects a field step on a list, pointing to [index] (T0052)', () => {
-      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with foo = 0;'), ['T0052']);
+    it('rejects a field step on a list, pointing to [index] (T0038)', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs with foo = 0;'), ['T0038']);
     });
 
-    it('rejects an index step on a record, pointing to a field name (T0053)', () => {
-      assert.deepEqual(errorCodes(`${P} p with [0] = 2;`), ['T0053']);
+    it('rejects an index step on a record, pointing to a field name (T0039)', () => {
+      assert.deepEqual(errorCodes(`${P} p with [0] = 2;`), ['T0039']);
     });
   });
 
@@ -263,29 +263,29 @@ describe("'with' record update (end-to-end)", () => {
       assert.equal(result.error.marker.code, 'R0005');
     });
 
-    it('reports a clear update error mid-path: index into a scalar (T0048)', () => {
-      assert.deepEqual(errorCodes(`${P} p with age[0] = 2;`), ['T0048']);
+    it('reports a clear update error mid-path: index into a scalar (T0035)', () => {
+      assert.deepEqual(errorCodes(`${P} p with age[0] = 2;`), ['T0035']);
     });
 
-    it('reports a clear update error mid-path: field on a scalar (T0048)', () => {
-      assert.deepEqual(errorCodes(`${P} p with age.x = 2;`), ['T0048']);
+    it('reports a clear update error mid-path: field on a scalar (T0035)', () => {
+      assert.deepEqual(errorCodes(`${P} p with age.x = 2;`), ['T0035']);
     });
 
-    it('reports a clear update error mid-path: unknown field (T0050)', () => {
-      assert.deepEqual(errorCodes(`${M} m with users[0].nope = "x";`), ['T0050']);
+    it('reports a clear update error mid-path: unknown field (T0037)', () => {
+      assert.deepEqual(errorCodes(`${M} m with users[0].nope = "x";`), ['T0037']);
     });
 
-    it('reports a clear update error mid-path: non-Int index (T0011)', () => {
-      assert.deepEqual(errorCodes(`${M} m with users["a"].name = "x";`), ['T0011']);
+    it('reports a clear update error mid-path: non-Int index (T0007)', () => {
+      assert.deepEqual(errorCodes(`${M} m with users["a"].name = "x";`), ['T0007']);
     });
 
-    it('mid-path field on a list points to [index] (T0052)', () => {
+    it('mid-path field on a list points to [index] (T0038)', () => {
       // 'users.name' forgot the '[i]' — a common beginner slip the error catches.
-      assert.deepEqual(errorCodes(`${M} m with users.name = "x";`), ['T0052']);
+      assert.deepEqual(errorCodes(`${M} m with users.name = "x";`), ['T0038']);
     });
 
-    it('flags a duplicated deep path (T0051)', () => {
-      assert.deepEqual(errorCodes(`${M} m with { users[0].name = "x", users[0].name = "y" };`), ['T0051']);
+    it('flags a duplicated deep path (T0041)', () => {
+      assert.deepEqual(errorCodes(`${M} m with { users[0].name = "x", users[0].name = "y" };`), ['T0041']);
     });
 
     it('does not flag a duplicate with a computed index (undecidable)', () => {
@@ -295,37 +295,37 @@ describe("'with' record update (end-to-end)", () => {
   });
 
   describe('errors', () => {
-    it('rejects updating inside a non-record, non-list value (T0048)', () => {
-      assert.deepEqual(errorCodes('fix x = 5; x with foo = 3;'), ['T0048']);
+    it('rejects updating inside a non-record, non-list value (T0035)', () => {
+      assert.deepEqual(errorCodes('fix x = 5; x with foo = 3;'), ['T0035']);
     });
 
-    it('rejects a multi-variant union, pointing to match (T0049)', () => {
+    it('rejects a multi-variant union, pointing to match (T0036)', () => {
       const src = 'type Shape = Circle{ r: Int } | Square{ s: Int }; fix c = Circle{ r: 1 }; c with r = 2;';
-      assert.deepEqual(errorCodes(src), ['T0049']);
+      assert.deepEqual(errorCodes(src), ['T0036']);
     });
 
-    it("rejects a field the record doesn't have (T0050)", () => {
-      assert.deepEqual(errorCodes(`${P} p with nickname = "A";`), ['T0050']);
+    it("rejects a field the record doesn't have (T0037)", () => {
+      assert.deepEqual(errorCodes(`${P} p with nickname = "A";`), ['T0037']);
     });
 
-    it('rejects updating the same position twice (T0051)', () => {
-      assert.deepEqual(errorCodes(`${P} p with { age = 31, age = 32 };`), ['T0051']);
+    it('rejects updating the same position twice (T0041)', () => {
+      assert.deepEqual(errorCodes(`${P} p with { age = 31, age = 32 };`), ['T0041']);
     });
 
-    it('rejects a value of the wrong type (T0021)', () => {
-      assert.deepEqual(errorCodes(`${P} p with age = "old";`), ['T0021']);
+    it('rejects a value of the wrong type (T0025)', () => {
+      assert.deepEqual(errorCodes(`${P} p with age = "old";`), ['T0025']);
     });
 
-    it('rejects a missing field name after with (S0036)', () => {
-      assert.deepEqual(errorCodes(`${P} p with = 3;`), ['S0036']);
+    it('rejects a missing field name after with (S0031)', () => {
+      assert.deepEqual(errorCodes(`${P} p with = 3;`), ['S0031']);
     });
 
-    it('rejects a missing = in an update (S0037)', () => {
-      assert.deepEqual(errorCodes(`${P} p with age 3;`), ['S0037']);
+    it('rejects a missing = in an update (S0032)', () => {
+      assert.deepEqual(errorCodes(`${P} p with age 3;`), ['S0032']);
     });
 
-    it('rejects empty update braces (S0038)', () => {
-      assert.deepEqual(errorCodes(`${P} p with { };`), ['S0038']);
+    it('rejects empty update braces (S0033)', () => {
+      assert.deepEqual(errorCodes(`${P} p with { };`), ['S0033']);
     });
   });
 });

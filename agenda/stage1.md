@@ -39,7 +39,7 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** type `42`, get `42`. The entire pipeline exists end-to-end on the simplest possible value.
 
-- **Technical:** token `INT_LIT` (and `EOF`); the smallest grammar (`program := expr`; `expr := INT_LIT`); a `Literal` AST node holding a `BigInt`; an evaluator that returns it; the REPL loop that reads a line, runs the pipeline, prints the value. Representation: `Int` is `BigInt` and *why that's already correct* for exactness. Errors reachable: `L0001` (a character that starts no token), `L0002` (malformed number — `123abc`, leading/trailing dot), `S0002` (expected an expression on empty input). 
+- **Technical:** token `INT_LIT` (and `EOF`); the smallest grammar (`program := expr`; `expr := INT_LIT`); a `Literal` AST node holding a `BigInt`; an evaluator that returns it; the REPL loop that reads a line, runs the pipeline, prints the value. Representation: `Int` is `BigInt` and *why that's already correct* for exactness. Errors reachable: `L0001` (a character that starts no token), `L0002` (malformed number — `123abc`, leading/trailing dot), `S0004` (expected an expression on empty input). 
 - **Reasoning:** why build the *whole pipeline* on one value first (architecture once, features after — the cure for the 40%-parser problem); why integers before everything; why a tree-walking interpreter before bytecode (§12); why `BigInt` (exactness, §4 "traps, no silent wraparound" foreshadowed); the `42` literal rule and why digits-both-sides for floats is foreshadowed but not yet needed.
 - **Run it:** `42 → 42`; `7 → 7`; `12abc → [L0002]`; `@ → [L0001]`.
 - **Whitepaper source:** §2 (literals, identifiers, tokens), §4 (`Int`), §12.
@@ -49,7 +49,7 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** `1 + 2 * 3` → `7`, with correct precedence and grouping.
 
-- **Technical:** tokens `PLUS MINUS STAR LPAREN RPAREN`. Introduce **Pratt parsing** on this tiny grammar — explain binding powers concretely on `+ - *`, left-associativity, and grouping with parens. AST: a `Binary{op, left, right}` node and a `Unary{op, operand}` node (unary `-`). Evaluation over `BigInt`; **`Int` overflow traps** → `R0002`. The precedence ladder so far: `+ -` < `* /`-tier < unary `-` < atoms. Errors reachable: `S0004` (unclosed `(`), `S0001`/`S0002` (e.g. `1 +`), `R0002` (overflow).
+- **Technical:** tokens `PLUS MINUS STAR LPAREN RPAREN`. Introduce **Pratt parsing** on this tiny grammar — explain binding powers concretely on `+ - *`, left-associativity, and grouping with parens. AST: a `Binary{op, left, right}` node and a `Unary{op, operand}` node (unary `-`). Evaluation over `BigInt`; **`Int` overflow traps** → `R0002`. The precedence ladder so far: `+ -` < `* /`-tier < unary `-` < atoms. Errors reachable: `S0008` (unclosed `(`), `S0001`/`S0004` (e.g. `1 +`), `R0002` (overflow).
 - **Reasoning:** why Pratt over a hand-rolled precedence cascade or a generated parser (§12 — readability, error quality, ports to Rust); why these precedences (match mainstream so it transfers); why trap overflow instead of wrapping (§4, honesty); why words-vs-symbols isn't relevant yet (that's logic, §5).
 - **Run it:** `1 + 2 * 3 → 7`; `(1 + 2) * 3 → 9`; `-(2 * 3) → -6`; `(1 + → [S00xx]`.
 - **Whitepaper source:** §5 (operators, precedence table), §4 (`Int` overflow), §12 (Pratt).
@@ -70,7 +70,7 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 **Goal:** `7 / 2` → `3.5`; `7 div 2` → `3`.
 
 - **Technical:** token `KW_DIV` (the word `div`, a reserved keyword); `/` already lexes as `SLASH`. Rules: **`/` always yields `Float`** (both operands promoted if needed); **`div` is `Int`-only floor division** (toward −∞), and `div` on a `Float` is `T0003`. Division by zero (`/` or `div`) is `R0001`. Where these checks sit in the evaluator. Extend the precedence ladder: `div` joins the `*`/`/` tier. Errors: `R0001` (divide by zero), `T0003` (`div` on Float).
-- **Reasoning:** why `/` always floats (kills the silent integer-truncation/average bug *without* day-one ceremony — §5); why a separate `div` rather than overloading `/` (honest: integer vs real division are different operations); why the keyword `div` and not `//` (the `//` collision — comment in C-family, floor-div in Python — §2); floor-toward-−∞ choice; divide-by-zero as a loud crash not a `NaN`/`Infinity` (§4, §9). Note `T0002 division-needs-float` is **retired** and why.
+- **Reasoning:** why `/` always floats (kills the silent integer-truncation/average bug *without* day-one ceremony — §5); why a separate `div` rather than overloading `/` (honest: integer vs real division are different operations); why the keyword `div` and not `//` (the `//` collision — comment in C-family, floor-div in Python — §2); floor-toward-−∞ choice; divide-by-zero as a loud crash not a `NaN`/`Infinity` (§4, §9). Note `T0005 division-needs-float` is **retired** and why.
 - **Run it:** `7 / 2 → 3.5`; `6 / 2 → 3.0`; `7 div 2 → 3`; `7 div 0 → [R0001]`; `2.5 div 2 → [T0003]`.
 - **Whitepaper source:** §5 (division), §9 (crash model), §2 (`//` vacated).
 - **Depends on:** §3.
@@ -79,9 +79,9 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** `true and not false` → `true`.
 
-- **Technical:** tokens `BOOL_LIT` (`true`/`false`), `KW_AND KW_OR KW_NOT`. `Bool` = JS boolean. **Operators are words, Bool-only**: `and`/`or` (binary), `not` (unary, prefix). No truthiness — a non-`Bool` operand is `T0004`. Short-circuit evaluation for `and`/`or` (state it explicitly). Extend the precedence ladder: `or` < `and` < `not`, all looser than the arithmetic tiers established so far. Errors: `T0004` (non-Bool operand).
+- **Technical:** tokens `BOOL_LIT` (`true`/`false`), `KW_AND KW_OR KW_NOT`. `Bool` = JS boolean. **Operators are words, Bool-only**: `and`/`or` (binary), `not` (unary, prefix). No truthiness — a non-`Bool` operand is `T0009`. Short-circuit evaluation for `and`/`or` (state it explicitly). Extend the precedence ladder: `or` < `and` < `not`, all looser than the arithmetic tiers established so far. Errors: `T0009` (non-Bool operand).
 - **Reasoning:** why words not `&& || !` (they'd be a *false friend* — JS `||` coerces and returns an operand; words honestly signal "stricter, Bool-only" — §5); **no truthiness** and why that's load-bearing for honesty (§1); short-circuit semantics; why `not` is a keyword not `!` (the lexer already rejects bare `!` as `L0001`, foreshadowing — §, the existing lexer).
-- **Run it:** `true and false → false`; `not (1 == 1) → false` *(forward-peek: comparisons land next; use `not true` if avoiding `==` here)* → prefer `not true → false`; `1 and true → [T0004]`.
+- **Run it:** `true and false → false`; `not (1 == 1) → false` *(forward-peek: comparisons land next; use `not true` if avoiding `==` here)* → prefer `not true → false`; `1 and true → [T0009]`.
 - **Whitepaper source:** §5 (logic operators, no truthiness), §1.
 - **Depends on:** §2 (precedence machinery). Note: keep examples to Bool literals so this section doesn't depend on comparisons.
 
@@ -89,9 +89,9 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** `1 + 1 == 2` → `true`; `1 < 2.5` → `true`.
 
-- **Technical:** tokens `EQ_EQ BANG_EQ LT LT_EQ GT GT_EQ`. `==`/`!=` are **structural and same-type**, *except* `Int`/`Float` compare as numbers (`1 == 1.0` is `true`, via the one-way promotion); `< <= > >=` on `Int`/`Float`/`String`, with `Int`/`Float` mixing allowed. Comparisons are **non-associative** (no `a < b < c` chaining) — say how the parser enforces that. Results are `Bool`. Cross-type comparison of unrelated types (e.g. `Int` vs `Bool`) is `T0005`. Place comparisons in the precedence ladder (between `or`/`and`/`not` and `+ -`). Errors: `T0005` (operand-type-mismatch).
+- **Technical:** tokens `EQ_EQ BANG_EQ LT LT_EQ GT GT_EQ`. `==`/`!=` are **structural and same-type**, *except* `Int`/`Float` compare as numbers (`1 == 1.0` is `true`, via the one-way promotion); `< <= > >=` on `Int`/`Float`/`String`, with `Int`/`Float` mixing allowed. Comparisons are **non-associative** (no `a < b < c` chaining) — say how the parser enforces that. Results are `Bool`. Cross-type comparison of unrelated types (e.g. `Int` vs `Bool`) is `T0010`. Place comparisons in the precedence ladder (between `or`/`and`/`not` and `+ -`). Errors: `T0010` (operand-type-mismatch).
 - **Reasoning:** why coercion-free `==` (it's everyone-but-JS; teaches "yours is TS's `===`" — §5); why extend numeric promotion to comparison (consistency with arithmetic — the same one rule, §5); why non-associative comparisons (chaining is a footgun / ambiguous); structural equality and why function comparison is forbidden (foreshadow §4).
-- **Run it:** `2 == 2 → true`; `1 == 1.0 → true`; `1 < 2.5 → true`; `2 != 3 → true`; `1 == true → [T0005]`.
+- **Run it:** `2 == 2 → true`; `1 == 1.0 → true`; `1 < 2.5 → true`; `2 != 3 → true`; `1 == true → [T0010]`.
 - **Whitepaper source:** §5 (`==`, comparisons, promotion).
 - **Depends on:** §3 (promotion), §5 (Bool result type).
 
@@ -99,9 +99,9 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** `"hello"` → `hello` (literal strings as values; no interpolation yet).
 
-- **Technical:** token `STRING_LIT`; the lexer's string reader — double quotes only, escapes `\" \\ \n \t \r` (invalid escape → `L0004`), unterminated → `L0005`. `String` = JS string, immutable, Unicode. **No integer indexing, no `Char` type** (chars are length-1 strings); `length` counts code points (note even if `length` isn't wired yet). Single quotes are not string syntax. Errors: `L0004` (invalid escape), `L0005` (unterminated string).
+- **Technical:** token `STRING_LIT`; the lexer's string reader — double quotes only, escapes `\" \\ \n \t \r` (invalid escape → `L0003`), unterminated → `L0008`. `String` = JS string, immutable, Unicode. **No integer indexing, no `Char` type** (chars are length-1 strings); `length` counts code points (note even if `length` isn't wired yet). Single quotes are not string syntax. Errors: `L0003` (invalid escape), `L0008` (unterminated string).
 - **Reasoning:** double-quote-only and why single quotes are unused (one way; the apostrophe-in-content argument — §4 and the strings discussion); no `Char` and why (avoids the Unicode-index bug class — §4); immutability; why `${`/`$` are still just literal characters *here* (interpolation is the next section, and the lexer reads them as plain text until then).
-- **Run it:** `"hello" → hello`; `"line\nbreak" → ` (two lines); `"oops\q" → [L0004]`; `"unterminated → [L0005]`.
+- **Run it:** `"hello" → hello`; `"line\nbreak" → ` (two lines); `"oops\q" → [L0003]`; `"unterminated → [L0008]`.
 - **Whitepaper source:** §4 (`String`), §2 (comments/strings lexing), and the existing `lexer.ts` `readString`.
 - **Depends on:** §1 (pipeline).
 
@@ -109,7 +109,7 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** `"sum is ${1 + 2}"` → `sum is 3`.
 
-- **Technical:** the **stateful lexer**: `${` flips from string-mode to expression-mode, the inner expression is lexed/parsed with the machinery from §§1–6, brace-balancing finds the matching `}`, then string-mode resumes. A literal `${` is escaped `\$`; a lone `$` and bare `{ }` are literal. AST: a `Interpolation` node (a sequence of string chunks and expression holes) or equivalent; evaluation concatenates chunk values, coercing each expression's value to its string form. Note how values render (Int, Float, Bool, String) to text. Errors: existing codes from the embedded expression (e.g. `S0002` inside `${}`), plus an unterminated-interpolation case if you choose to add one (allocate the next free `L` code if so — append to the registry, never reuse).
+- **Technical:** the **stateful lexer**: `${` flips from string-mode to expression-mode, the inner expression is lexed/parsed with the machinery from §§1–6, brace-balancing finds the matching `}`, then string-mode resumes. A literal `${` is escaped `\$`; a lone `$` and bare `{ }` are literal. AST: a `Interpolation` node (a sequence of string chunks and expression holes) or equivalent; evaluation concatenates chunk values, coercing each expression's value to its string form. Note how values render (Int, Float, Bool, String) to text. Errors: existing codes from the embedded expression (e.g. `S0004` inside `${}`), plus an unterminated-interpolation case if you choose to add one (allocate the next free `L` code if so — append to the registry, never reuse).
 - **Reasoning:** always-on but `${`-triggered, and why that frees literal braces (§4); `${}` over bare `{}` (visual + the JS template-literal transfer, with the backtick false-friend taught as a graduation note — §4 and the interpolation discussion); why interpolation is a lexer concern (the stateful-lexing rationale, §12); why a hand-written lexer is what makes this clean (§12).
 - **Run it:** `"sum is ${1 + 2}" → sum is 3`; `"${2 * 3} done" → 6 done`; `"price $5" → price $5`; `"literal \${x}" → literal ${x}`.
 - **Whitepaper source:** §4 (interpolation model), §12 (stateful lexing).
@@ -119,9 +119,9 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** a program of several `;`-separated statements runs, and its value is the last one: `1 + 1; 2 * 3` → `6`.
 
-- **Technical:** the grammar shifts from "one expression" to `program := stmt*`, with `;` terminating statements; an expression-statement. **Every block yields the value of its last statement**, and the trailing `;` is optional (like a list's trailing comma). A statement that isn't a value yields `Done` (introduce the `Done`/`{}` unit value here, minimally). Errors: `S0003` (expected `;`).
+- **Technical:** the grammar shifts from "one expression" to `program := stmt*`, with `;` terminating statements; an expression-statement. **Every block yields the value of its last statement**, and the trailing `;` is optional (like a list's trailing comma). A statement that isn't a value yields `Done` (introduce the `Done`/`{}` unit value here, minimally). Errors: `S0007` (expected `;`).
 - **Reasoning:** the last-statement-value rule and why it's *one* rule for everything (the resolved duality — §2, §15-retired); why optional trailing `;` (not load-bearing, the trailing-comma analogy — §2); why this is cleaner than Rust's semicolon-significance; how it sets up "a program is the body of an implicit `main`" (§11, foreshadow `args`); `Done` as the value of non-value statements.
-- **Run it:** `1 + 1; 2 * 3 → 6`; `41; 42; → 42` (trailing `;` fine); `1 + 1 2 * 3 → [S0003]`.
+- **Run it:** `1 + 1; 2 * 3 → 6`; `41; 42; → 42` (trailing `;` fine); `1 + 1 2 * 3 → [S0007]`.
 - **Whitepaper source:** §2 (block-value rule), §4 (`Done`), §11 (implicit `main`).
 - **Depends on:** §§1–6 (expressions to sequence).
 
@@ -129,9 +129,9 @@ Suggested filenames: `00-orientation.md`, `01-a-number.md`, … numbered to matc
 
 **Goal:** `fix x = 1 + 2; x * x` → `9`; `mut n = 0; n = n + 1; n` → `1`.
 
-- **Technical:** tokens `KW_FIX KW_MUT`, identifiers as references, `EQ` for declaration and assignment. Grammar: `decl := ("fix" | "mut") IDENT "=" expr ";"`; `assign := IDENT "=" expr ";"`; `IDENT` as an expression (a reference). The environment: a single global scope (a name→value map) for now. The **name → slot → value** model; **value semantics** (assignment copies). Rules and their codes: reference to an undeclared name → `N0001`; redeclaring in scope → `N0002`; assigning to a `fix` slot → `N0003`; assigning to a never-declared name → `N0004`; `fix`/`mut` not followed by a name → `S0005`.
+- **Technical:** tokens `KW_FIX KW_MUT`, identifiers as references, `EQ` for declaration and assignment. Grammar: `decl := ("fix" | "mut") IDENT "=" expr ";"`; `assign := IDENT "=" expr ";"`; `IDENT` as an expression (a reference). The environment: a single global scope (a name→value map) for now. The **name → slot → value** model; **value semantics** (assignment copies). Rules and their codes: reference to an undeclared name → `N0001`; redeclaring in scope → `N0002`; assigning to a `fix` slot → `N0003`; assigning to a never-declared name → `N0004`; `fix`/`mut` not followed by a name → `S0002`.
 - **Reasoning:** `fix`/`mut` with **no default** and why (every declaration legible alone; the aliasing argument doesn't apply under value semantics — §3); why not `let`/`const`/`val` (cross-language false friends — §3); the slot-as-container-not-reference model and how it *is* the value-semantics lesson (§3); why `fix` is reassignment-not-deep-immutability; why a single global scope is enough for now (lexical scope is a later section, §12 stage 2).
-- **Run it:** `fix x = 1 + 2; x * x → 9`; `mut n = 0; n = n + 1; n → 1`; `fix y = 1; y = 2; → [N0003]`; `z + 1 → [N0001]`; `fix = 5 → [S0005]`.
+- **Run it:** `fix x = 1 + 2; x * x → 9`; `mut n = 0; n = n + 1; n → 1`; `fix y = 1; y = 2; → [N0003]`; `z + 1 → [N0001]`; `fix = 5 → [S0002]`.
 - **Whitepaper source:** §3 (slots), §1 (value semantics), §12 (stage 1 scope rules).
 - **Depends on:** §9 (statements), §§1–6 (expressions).
 

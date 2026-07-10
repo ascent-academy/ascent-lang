@@ -69,13 +69,13 @@ Pulled straight from the whitepaper — these are givens, not choices:
 > suite green (395 passing), `tsc --noEmit` clean. Two things surfaced during
 > implementation and were handled:
 > - **`Done` in type position.** `-> Done` (and any `Done` annotation) failed
->   S0010 because `Done` lexes as a value constructor (`DONE_LIT`), not a
+>   S0012 because `Done` lexes as a value constructor (`DONE_LIT`), not a
 >   `TYPE_NAME`. Fixed: `parseTypeExpr` admits `DONE_LIT` as the `Done` type, and
 >   `formation.ts` maps the name `Done` → `DONE_TYPE`. Position disambiguates
 >   (design.md §2), same as any type/constructor overlap.
 > - **Calling a function that isn't a bare name is still deferred** (Decision 1).
 >   `b.op(9)` (a function-typed *field*) parses as a *method* call and reports
->   T0012, since methods don't exist yet; the workaround is `fix op = b.op; op(9)`.
+>   T0011, since methods don't exist yet; the workaround is `fix op = b.op; op(9)`.
 >   Free variable capture, recursion, higher-order params/returns, `Int→Float`
 >   arg widening, `Never`-widening empty-list bodies, and cross-REPL-line closures
 >   all work.
@@ -120,17 +120,17 @@ its block value only; that is already enough for realistic functions.
 - [formation.ts](../src/check/formation.ts): `FnType` → `Function` type.
 - New `synth` case `'fn'`: form the `Function` type from the signature; check the
   body in a child scope with the params bound (as `fix`); require
-  `body.type <: result` (new **T0036**); compute `captures` (names used in the
+  `body.type <: result` (new **T0042**); compute `captures` (names used in the
   body but not bound by params or locals).
 - `'call'` case: if `callee ∈ FUNCTIONS` → today's path (keeps `print`'s
   `Display`-bounded genericity untouched). Otherwise look up the slot binding:
-  a `Function` type → check arity (T0007) + args (T0008), result is the
-  function's `result`; a non-function binding → new **T0035** ("this name isn't a
+  a `Function` type → check arity (T0014) + args (T0015), result is the
+  function's `result`; a non-function binding → new **T0016** ("this name isn't a
   function, so it can't be called"); no binding → T0013 as today.
 - **Recursion** — in `inferStmt` `fix`/`mut`, when the initializer is an `fn`
   literal, form its type from the signature and bind the name *before* checking
   the body. This falls straight out of explicit signatures.
-- `==` / `!=`: reject `Function` operands (T0009). §5 forbids comparing functions;
+- `==` / `!=`: reject `Function` operands (T0008). §5 forbids comparing functions;
   without this, two equal arrow types would slip through `leastCommonType` and be
   silently allowed.
 
@@ -153,11 +153,11 @@ its block value only; that is already enough for realistic functions.
   value happens to be a function.
 
 ### Errors (append-only)
-- **S0031** — expected `->` and a return type in a function signature.
-- **T0035** — this name isn't a function, so it can't be called.
-- **T0036** — the function is declared to return `X` but produces `Y` (reused for
+- **S0024** — expected `->` and a return type in a function signature.
+- **T0016** — this name isn't a function, so it can't be called.
+- **T0042** — the function is declared to return `X` but produces `Y` (reused for
   the body value now, and for `return` in Stage 2).
-- Arity and argument mismatches reuse **T0007** / **T0008**.
+- Arity and argument mismatches reuse **T0014** / **T0015**.
 
 ### Tests — `test/functions.test.ts`
 Definition + call; arity/type errors; higher-order (`xs.map(double)` with a named
@@ -170,7 +170,7 @@ loop-footgun snapshot — the defining behavioural test); invariant function typ
 ## Stage 2 — `return` (early exit)
 
 > **Status: DONE.** `return` landed as a Never-typed expression across parser →
-> checker → interpreter, with `T0037` (return outside a function) and 11 added
+> checker → interpreter, with `T0043` (return outside a function) and 11 added
 > tests (functions suite 38, full suite 406 passing, `tsc` clean). Notes:
 > - **Block divergence.** `inferBlock` now types a block that contains a
 >   diverging (`Never`) statement as `Never`, so an unreachable trailing value
@@ -192,14 +192,14 @@ loop-footgun snapshot — the defining behavioural test); invariant function typ
   `Failure{ error } -> return Failure{ error }`).
 - Checker: thread the enclosing function's declared return type on `TypeEnv`, set
   when entering an `fn` body (e.g. a `childForFunction(returnType)` variant of
-  `child()`). `return e` requires `e.type <: enclosingReturn` (reuse **T0036**);
-  `return` outside any function → new **T0037**. A bare `return` returns `Done`.
+  `child()`). `return e` requires `e.type <: enclosingReturn` (reuse **T0042**);
+  `return` outside any function → new **T0043**. A bare `return` returns `Done`.
 - Interpreter: `return` throws a `ReturnSignal`, caught at the function-application
   boundary; the value is coerced to the declared return type.
 - Defer the "unreachable code after `return`" reachability warning.
 
 ### Tests
-Early return; return-type mismatch; `return` outside a function (T0037); bare
+Early return; return-type mismatch; `return` outside a function (T0043); bare
 `return` in a `Done`-returning function.
 
 ---
@@ -216,7 +216,7 @@ in a `program (…) { … }` form. Everything before `program` runs first; the
 program body holds the output (its last value). `program` is always the last
 thing — **S0030** still fires for anything after its block (even with a
 separating `;`). The explicit form must be non-degenerate: empty inputs
-`program ()` are **S0029** and an empty body `program (…) { }` is **S0032** (it
+`program ()` are **S0028** and an empty body `program (…) { }` is **S0029** (it
 would run nothing and use none of its inputs). An empty *bare* program (an empty
 file / blank REPL line) stays valid — only the explicit form is checked.
 
@@ -235,9 +235,9 @@ file / blank REPL line) stays valid — only the explicit form is checked.
   unchanged, so `program.stmts` readers (the REPL, tooling) and the bare-form
   recovery are untouched. The checker and interpreter bind the inputs **at
   `bodyStart`** (right before the body), not upfront — so inputs are in scope
-  only for the body (see below). The dropped-value rule (T0025) treats every
+  only for the body (see below). The dropped-value rule (T0057) treats every
   leading statement *and* every non-final body statement as Done-required (a bare
-  value before `program` still needs `void`); `S0029` (empty `program ()`) is
+  value before `program` still needs `void`); `S0028` (empty `program ()`) is
   untouched.
 - **Inputs are body-scoped (fixed after the initial flatten approach).** A
   statement before `program` cannot see the inputs — `fix d = n * 2;
@@ -247,14 +247,14 @@ file / blank REPL line) stays valid — only the explicit form is checked.
   program body correctly yields `Done` (the leading statements are all
   Done-required and run for effect only).
 - **Unchanged / for the author:** the no-paren `program { }` form and scalar-only
-  params are not part of this rule change (`program { … }` is still S0006). The
+  params are not part of this rule change (`program { … }` is still S0010). The
   whitepaper §11 prose still describes the old "execution only inside program"
   rule and should be updated by the author to match.
 
 ### Tests (in [test/args.test.ts](../test/args.test.ts))
 `type`/`fix` decls before `program` visible in the body; a helper `fn` before
 `program`; an effectful statement before `program` runs first; a bare value
-before `program` is still T0025; missing `;` before `program` is S0011; anything
+before `program` is still T0057; missing `;` before `program` is S0006; anything
 after `program` (even `; …`) is S0030.
 
 ---
@@ -268,9 +268,9 @@ Bare-name calls stay a `call` node (`callee: string`), which keeps `print`'s
 separate **`apply`** node (`callee: Expr`), added as an `LPAREN` postfix operator
 in the Pratt loop; `parseAtom` still consumes a bare name's first `(`, so only
 non-name / chained callees become `apply`. The checker shares one
-`checkApplication` helper between `call` and `apply` (arity T0007, args T0008,
-result = the function's result); a non-function computed callee is **T0038** (the
-nameless twin of T0035). Closures capture through an `apply` callee (captures.ts
+`checkApplication` helper between `call` and `apply` (arity T0014, args T0015,
+result = the function's result); a non-function computed callee is **T0017** (the
+nameless twin of T0016). Closures capture through an `apply` callee (captures.ts
 visits it). Tests in the "calling a computed function (apply)" block of
 [test/functions.test.ts](../test/functions.test.ts).
 

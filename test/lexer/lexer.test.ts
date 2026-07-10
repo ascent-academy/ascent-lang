@@ -71,16 +71,16 @@ describe('Lexer', () => {
     assert.equal(errorMarkers[0]?.code, 'L0001');
   });
 
-  it('reports L0003 for a string unterminated at EOF', () => {
+  it('reports L0004 for a string unterminated at EOF', () => {
     const { tokens, errorMarkers } = new Lexer('"abc').tokenize();
     assert.equal(tokens[0]?.kind, 'ERROR');
-    assert.equal(errorMarkers[0]?.code, 'L0003');
+    assert.equal(errorMarkers[0]?.code, 'L0004');
   });
 
-  it('reports L0003 for a string unterminated at a newline', () => {
+  it('reports L0004 for a string unterminated at a newline', () => {
     const { tokens, errorMarkers } = new Lexer('"abc\ndef"').tokenize();
     assert.equal(tokens[0]?.kind, 'ERROR');
-    assert.equal(errorMarkers[0]?.code, 'L0003');
+    assert.equal(errorMarkers[0]?.code, 'L0004');
   });
 
   it('reports L0002 for a number glued to a letter', () => {
@@ -89,10 +89,10 @@ describe('Lexer', () => {
     assert.equal(errorMarkers[0]?.code, 'L0002');
   });
 
-  it('reports L0004 for a leading-dot float', () => {
+  it('reports L0003 for a leading-dot float', () => {
     const { tokens, errorMarkers } = new Lexer('.5').tokenize();
     assert.equal(tokens[0]?.kind, 'ERROR');
-    assert.equal(errorMarkers[0]?.code, 'L0004');
+    assert.equal(errorMarkers[0]?.code, 'L0003');
   });
 
   it('skips a line comment running to end of line', () => {
@@ -121,16 +121,16 @@ describe('Lexer', () => {
     ]);
   });
 
-  it('reports L0005 for a block comment unterminated at EOF', () => {
+  it('reports L0008 for a block comment unterminated at EOF', () => {
     const { tokens, errorMarkers } = new Lexer('1 #[ never closed').tokenize();
     assert.equal(tokens[0]?.kind, 'INT_LIT');
     assert.equal(tokens[1]?.kind, 'EOF');
-    assert.equal(errorMarkers[0]?.code, 'L0005');
+    assert.equal(errorMarkers[0]?.code, 'L0008');
   });
 
-  it('reports L0005 for a nested block comment missing its outer close', () => {
+  it('reports L0008 for a nested block comment missing its outer close', () => {
     const { errorMarkers } = new Lexer('#[ outer #[ inner ]# unclosed').tokenize();
-    assert.equal(errorMarkers[0]?.code, 'L0005');
+    assert.equal(errorMarkers[0]?.code, 'L0008');
   });
 });
 
@@ -180,12 +180,12 @@ describe('Interpolation', () => {
     assert.equal(tok?.value, '${literal}');
   });
 
-  it('reports L0006 for an interpolation unterminated at EOF', () => {
+  it('reports L0007 for an interpolation unterminated at EOF', () => {
     const { tokens, errorMarkers } = new Lexer('"hi ${name').tokenize();
     assert.equal(tokens[0]?.kind, 'STR_PART');
     assert.equal(tokens[1]?.kind, 'SLOT');
     assert.equal(tokens[2]?.kind, 'ERROR');
-    assert.equal(errorMarkers[0]?.code, 'L0006');
+    assert.equal(errorMarkers[0]?.code, 'L0007');
   });
 });
 
@@ -222,9 +222,9 @@ describe('Multiline strings', () => {
     assert.equal(tok?.value, String.raw`a\nb`);
   });
 
-  it('reports L0007 for a multiline string unterminated at EOF', () => {
+  it('reports L0005 for a multiline string unterminated at EOF', () => {
     const { tokens, errorMarkers } = new Lexer('"""abc').tokenize();
     assert.equal(tokens[0]?.kind, 'ERROR');
-    assert.equal(errorMarkers[0]?.code, 'L0007');
+    assert.equal(errorMarkers[0]?.code, 'L0005');
   });
 });

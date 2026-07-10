@@ -123,7 +123,7 @@ whitepaper's; "→ Layer 2" marks a paragraph that only *points at* a stdlib mem
 | **§5** Expressions & control flow | `if`/`else if`/`match`/`while`/`for…in`, word operators, `Int→Float` promotion, `/`·`div`·`mod`·`**`, precedence, `??` | `src/check`, `src/interpreter.ts` | ✅ |
 | §5 | functions: `fn` value, `=>` + block bodies, `Fn` type, **value-capture closures**, **recursive `fix`**, `return` | ✅ | ✅ |
 | §5 | `for`-loop iterability | intrinsic `Iterable` trait (assoc. type `Item`), hardcoded `List`\|`Range` | 🔒 (→ user `Iterable`) |
-| **§6** Data model | `type` records / enums / multi-variant unions, construction, **field-access rule**, `match`, **irrefutable destructuring** (refutable → T0033), **`with`** (fields/index/nested) | parser + `src/check` + interp | ✅ |
+| **§6** Data model | `type` records / enums / multi-variant unions, construction, **field-access rule**, `match`, **irrefutable destructuring** (refutable → T0034), **`with`** (fields/index/nested) | parser + `src/check` + interp | ✅ |
 | §6 | **user `methods {}` clause** | — | ⏭️ **v2** — behaviour via free functions |
 | §6 | `make {}` guarded construction, `opaque type` | — | ⏭️ |
 | §6 | built-in conversion + collection methods | → Layer 2 | — |
@@ -197,8 +197,8 @@ ambient free-function exception.
 | `length` | `Int` | ✅ |
 | `first` / `last` | `String?` | ✅ |
 | `chars` | `List<String>` | ✅ |
-| `slice(Range)` | `String` | ✅ (R0007 on bad bound) |
-| `repeat(Int)` | `String` | ✅ (R0008 on negative) |
+| `slice(Range)` | `String` | ✅ (R0006 on bad bound) |
+| `repeat(Int)` | `String` | ✅ (R0007 on negative) |
 | `trim` / `padLeft(Int)` | `String` | ✅ |
 | `split` / `join` / `concat` / `contains` / `toUpper` / `toLower` / `codePoints` / `bytes` | — | ⏭️ growable |
 
@@ -241,7 +241,7 @@ ambient free-function exception.
 
 **Layer 2 (catalog):**
 3. `List` methods: `map`, `filter`, `reduce`, `find`, `at`, `contains` — closes the
-   loop/`void` teaching story (**T0026 already tells users to use `.map`**). Pure table
+   loop/`void` teaching story (**T0058 already tells users to use `.map`**). Pure table
    growth (`METHODS` + `METHOD_IMPLS` + parity test).
 4. ✅ `.orAbort()` on `Optional`/`Result` (with #1).
 5. Reconcile `toString` → **`toStr`** (match whitepaper §6).
@@ -249,7 +249,7 @@ ambient free-function exception.
    (`assert`/`assertEqual`).
 7. *(hardcoded now)* `sort`/`min`/`max` for scalar elements — 🔒.
 **Consistency fixes (no new feature):**
-- T0026's message references `.map` — resolved by #4.
+- T0058's message references `.map` — resolved by #4.
 - `toString`/`toStr` naming — resolved by #6.
 
 **No longer in the list** (moved to v2): 

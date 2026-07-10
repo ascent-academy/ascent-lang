@@ -80,24 +80,24 @@ describe('Never / List<Never> (end-to-end)', () => {
 
   // A *bare* Never (a diverging initializer) is a different fault from the
   // '[]'/'None' "needs an annotation" family: the value never arrives, so the
-  // binding is dead code (T0060), not merely under-typed (T0003).
+  // binding is dead code (T0004), not merely under-typed (T0003).
   describe('a slot bound to a diverging value', () => {
-    it("reports T0060 (not the '[]' T0003) for 'fix x = abort …'", () => {
-      assert.deepEqual(errorCodes('fix x = abort "unreachable";'), ['T0060']);
+    it("reports T0004 (not the '[]' T0003) for 'fix x = abort …'", () => {
+      assert.deepEqual(errorCodes('fix x = abort "unreachable";'), ['T0004']);
     });
 
-    it('reports T0060 for a diverging return initializer', () => {
-      assert.deepEqual(errorCodes('fix f = fn(): Int { fix x = return 5; x };'), ['T0060']);
+    it('reports T0004 for a diverging return initializer', () => {
+      assert.deepEqual(errorCodes('fix f = fn(): Int { fix x = return 5; x };'), ['T0004']);
     });
 
-    it('reports T0060 when every branch of the initializer diverges', () => {
+    it('reports T0004 when every branch of the initializer diverges', () => {
       const src = 'fix f = fn(b: Bool): Int { fix x = match b { True -> abort "a", False -> abort "b" }; x };';
-      assert.deepEqual(errorCodes(src), ['T0060']);
+      assert.deepEqual(errorCodes(src), ['T0004']);
     });
 
     it('suppresses the cascade: a later use of the dead slot adds no second error', () => {
-      // Without the Invalid tombstone, 'print(x)' on a Never slot would add T0024.
-      assert.deepEqual(errorCodes('fix x = abort "boom"; print(x);'), ['T0060']);
+      // Without the Invalid tombstone, 'print(x)' on a Never slot would add T0019.
+      assert.deepEqual(errorCodes('fix x = abort "boom"; print(x);'), ['T0004']);
     });
 
     it('still allows an annotated diverging init as a deliberate stub', () => {

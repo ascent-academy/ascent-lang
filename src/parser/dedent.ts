@@ -87,7 +87,7 @@ export function dedent(chunks: RawChunk[], margin: number): DedentResult {
 // line is exempt from the requirement — it strips whatever whitespace it
 // has, up to margin — since a separator line shouldn't need padding out to
 // match. A non-blank line needs at least `margin` leading whitespace
-// characters; anything less is a hard error (L0008), not a silent partial
+// characters; anything less is a hard error (L0006), not a silent partial
 // strip, matching this project's no-silent-anything stance.
 const stripMargin = (line: string, margin: number, span: Span, errors: DedentError[]): string => {
   if (line.trim() === '') {
@@ -95,7 +95,7 @@ const stripMargin = (line: string, margin: number, span: Span, errors: DedentErr
   }
   const prefix = line.slice(0, margin);
   if (prefix.length < margin || prefix.trim() !== '') {
-    errors.push({ code: 'L0008', span });
+    errors.push({ code: 'L0006', span });
     return line;
   }
   return line.slice(margin);

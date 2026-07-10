@@ -66,7 +66,7 @@ describe('parenthesized types (end-to-end)', () => {
     });
 
     it("a written 'String??' collapses to 'String?' and is usable as one", () => {
-      // It still reports T0061 (see below), but the resulting slot type is the
+      // It still reports T0047 (see below), but the resulting slot type is the
       // collapsed 'String?', so '??' defaults it like any Optional.
       const { program } = parse('fix pick = fn(): String?? { None }; pick() ?? "default";');
       assert.ok(program !== null);
@@ -77,17 +77,17 @@ describe('parenthesized types (end-to-end)', () => {
     });
   });
 
-  describe('an explicitly-written redundant ? (T0061)', () => {
+  describe('an explicitly-written redundant ? (T0047)', () => {
     it("flags 'String??' (adjacent, lexed as one '??' token)", () => {
-      assert.deepEqual(errorCodes('fix x: String?? = None;'), ['T0061']);
+      assert.deepEqual(errorCodes('fix x: String?? = None;'), ['T0047']);
     });
 
     it("flags '(String?)?' (redundant via a parenthesized group)", () => {
-      assert.deepEqual(errorCodes('fix x: (String?)? = None;'), ['T0061']);
+      assert.deepEqual(errorCodes('fix x: (String?)? = None;'), ['T0047']);
     });
 
     it("flags a redundant '?' on a compound type — 'List<Int>??'", () => {
-      assert.deepEqual(errorCodes('fix x: List<Int>?? = None;'), ['T0061']);
+      assert.deepEqual(errorCodes('fix x: List<Int>?? = None;'), ['T0047']);
     });
 
     it('does NOT flag a single, legitimate ?', () => {

@@ -43,9 +43,9 @@ describe('Ranges and for loops', () => {
       assert.deepEqual(evalOk('0..3 == 0..4;'), { type: 'Bool', value: false });
     });
 
-    it('rejects a non-Int bound with T0016', () => {
-      assert.deepEqual(errorCodes('0..3.5;'), ['T0016']);
-      assert.deepEqual(errorCodes('"a".."z";'), ['T0016']);
+    it('rejects a non-Int bound with T0020', () => {
+      assert.deepEqual(errorCodes('0..3.5;'), ['T0020']);
+      assert.deepEqual(errorCodes('"a".."z";'), ['T0020']);
     });
   });
 
@@ -105,14 +105,14 @@ describe('Ranges and for loops', () => {
       assert.deepEqual(errorCodes('for i in 0..3 { i = i + 1; };'), ['N0002']);
     });
 
-    it('rejects a non-iterable with T0017', () => {
-      assert.deepEqual(errorCodes('for x in 5 { x; };'), ['T0017']);
-      assert.deepEqual(errorCodes('for c in "hi" { c; };'), ['T0017']);
+    it('rejects a non-iterable with T0021', () => {
+      assert.deepEqual(errorCodes('for x in 5 { x; };'), ['T0021']);
+      assert.deepEqual(errorCodes('for c in "hi" { c; };'), ['T0021']);
     });
 
-    it('needs a loop name and an in (S0016 / S0017)', () => {
-      assert.equal(errorCodes('for in xs { 1; };')[0], 'S0016');
-      assert.equal(errorCodes('for x xs { 1; };')[0], 'S0017');
+    it('needs a loop name and an in (S0015 / S0016)', () => {
+      assert.equal(errorCodes('for in xs { 1; };')[0], 'S0015');
+      assert.equal(errorCodes('for x xs { 1; };')[0], 'S0016');
     });
   });
 });

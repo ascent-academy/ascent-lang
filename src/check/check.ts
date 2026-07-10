@@ -28,7 +28,7 @@ import { synth, joinElementTypes } from './synth.js';
 // `code` is the mismatch code to report when the synthesized type doesn't fit
 // `expected` — T0001 (slot/annotation) by default, but a caller checking a
 // value against a different kind of expected slot passes its own (e.g. a record
-// construction reports T0021 for a field). It never changes *what* is checked,
+// construction reports T0025 for a field). It never changes *what* is checked,
 // only the diagnostic's prose.
 export const check = (
   expr: Expr, expected: AscentType, env: TypeEnv, diagnostics: Diagnostics,

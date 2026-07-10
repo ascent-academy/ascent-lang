@@ -98,26 +98,26 @@ describe('destructuring bindings', () => {
       assert.deepEqual(errorCodes(src), ['N0002']);
     });
 
-    it('T0033 — a union variant is refutable, so it can’t be destructured in a binding', () => {
+    it('T0034 — a union variant is refutable, so it can’t be destructured in a binding', () => {
       const src = 'type Shape = Circle{ radius: Float } | Square{ side: Float };'
         + ' fix s: Shape = Circle{ radius: 2.0 }; fix Circle{ radius } = s;';
-      assert.deepEqual(errorCodes(src), ['T0033']);
+      assert.deepEqual(errorCodes(src), ['T0034']);
     });
 
-    it('T0033 — the union type name itself is refutable too', () => {
+    it('T0034 — the union type name itself is refutable too', () => {
       const src = 'type Shape = Circle{ radius: Float } | Square{ side: Float };'
         + ' fix s: Shape = Circle{ radius: 2.0 }; fix Shape{ radius } = s;';
-      assert.deepEqual(errorCodes(src), ['T0033']);
+      assert.deepEqual(errorCodes(src), ['T0034']);
     });
 
-    it('T0019 — a field the record doesn’t declare', () => {
+    it('T0023 — a field the record doesn’t declare', () => {
       const src = `${PERSON} fix p = Person{ name: "Bob", age: 30 }; fix Person{ height } = p;`;
-      assert.deepEqual(errorCodes(src), ['T0019']);
+      assert.deepEqual(errorCodes(src), ['T0023']);
     });
 
-    it('T0020 — the same field named twice', () => {
+    it('T0024 — the same field named twice', () => {
       const src = `${PERSON} fix p = Person{ name: "Bob", age: 30 }; fix Person{ name, name } = p;`;
-      assert.deepEqual(errorCodes(src), ['T0020']);
+      assert.deepEqual(errorCodes(src), ['T0024']);
     });
 
     it('T0001 — the value isn’t of the pattern’s record type', () => {
@@ -140,9 +140,9 @@ describe('destructuring bindings', () => {
       assert.deepEqual(errorCodes(src), ['N0012']);
     });
 
-    it('S0028 — empty pattern braces bind nothing', () => {
+    it('S0023 — empty pattern braces bind nothing', () => {
       const src = `${PERSON} fix p = Person{ name: "Bob", age: 30 }; fix Person{ } = p;`;
-      assert.deepEqual(errorCodes(src), ['S0028']);
+      assert.deepEqual(errorCodes(src), ['S0023']);
     });
   });
 });

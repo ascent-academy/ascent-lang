@@ -25,7 +25,7 @@ export type { AssignResult, OutputSink };
 
 // A 'return' unwinds the tree walk up to the nearest function-application
 // boundary (whitepaper §5). Thrown by evaluateExpr's 'return' case and caught
-// only in applyFunction, so it can never escape a function — the checker (T0037)
+// only in applyFunction, so it can never escape a function — the checker (T0043)
 // guarantees a 'return' is always inside one. Not a RuntimeError: it is normal
 // control flow, not a crash.
 class ReturnSignal {
@@ -142,10 +142,10 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
     case 'abort': {
       // 'abort "reason"' diverges through the bug-tier crash (whitepaper §9). The
       // reason is checked to a String, so evaluating it yields a StringValue; its
-      // text is the only information there is, reported by R0009. The span points
+      // text is the only information there is, reported by R0008. The span points
       // at the whole 'abort …' so the caret lands on the deliberate stop.
       const reason = evaluateExpr(expr.reason, env) as Extract<RuntimeValue, { type: 'String' }>;
-      throw new RuntimeError({ code: 'R0009', span: expr.span, data: { reason: reason.value } });
+      throw new RuntimeError({ code: 'R0008', span: expr.span, data: { reason: reason.value } });
     }
     case 'methodCall': {
       const receiver = evaluateExpr(expr.receiver, env);

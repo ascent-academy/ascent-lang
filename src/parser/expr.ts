@@ -159,7 +159,7 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
     // so it's handled here rather than through INFIX_OPS. The right bound
     // is parsed at RANGE + 1 so a second '..' can't nest into it; a Range
     // isn't an Int, so `a..b..c` is meaningless — it parses as `(a..b)..c`
-    // and the checker rejects the Range bound (T0016) rather than the
+    // and the checker rejects the Range bound (T0020) rather than the
     // parser guessing a grouping.
     if (kind === 'DOTDOT') {
       if (BP.RANGE < minBp) break;
@@ -202,7 +202,7 @@ export function parseExpr(ts: TokenStream, minBp = 0): Expr | null {
 
     if (infix.assoc === 'none') {
       if (chained) {
-        ts.report('S0008', ts.peek().span);
+        ts.report('S0005', ts.peek().span);
         return null;
       }
       chained = true;
@@ -247,7 +247,7 @@ function parseDotAccess(ts: TokenStream, receiver: Expr): Expr | null {
 
   const memberTok = ts.peek();
   if (memberTok.kind !== 'SLOT') {
-    ts.report('S0012', memberTok.span);
+    ts.report('S0013', memberTok.span);
     return null;
   }
   ts.advance(); // consume member name
@@ -301,7 +301,7 @@ function parseIndex(ts: TokenStream, list: Expr): Expr | null {
   const index = parseExpr(ts);
   if (index === null) return null;
 
-  const rbracket = ts.expect('RBRACKET', 'S0013', [{ key: 'opener', span: openBracket.span }]);
+  const rbracket = ts.expect('RBRACKET', 'S0003', [{ key: 'opener', span: openBracket.span }]);
   if (rbracket === null) return null;
 
   return {
@@ -440,12 +440,12 @@ function parseAtom(ts: TokenStream): Expr | null {
   }
 
   // 'async fn(...)' — a function whose call prepares a Task (whitepaper §8).
-  // 'async' must be immediately followed by 'fn' (S0040); it only colors a
+  // 'async' must be immediately followed by 'fn' (S0037); it only colors a
   // function literal, nothing else.
   if (tok.kind === 'KW_ASYNC') {
     const asyncTok = ts.advance(); // consume 'async'
     if (ts.peek().kind !== 'KW_FN') {
-      ts.report('S0040', ts.peek().span);
+      ts.report('S0037', ts.peek().span);
       return null;
     }
     return parseFn(ts, true, asyncTok.span);
@@ -468,7 +468,7 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseTry(ts);
   }
 
-  ts.report('S0002', tok.span);
+  ts.report('S0004', tok.span);
   return null;
 }
 
@@ -495,7 +495,7 @@ function parseTry(ts: TokenStream): Expr | null {
       binding = { name: nameTok.value, span: nameTok.span };
     }
 
-    if (ts.expect('ARROW', 'S0026') === null) return null;
+    if (ts.expect('ARROW', 'S0036') === null) return null;
 
     const body = parseExpr(ts);
     if (body === null) return null;
@@ -531,9 +531,9 @@ function parseReturn(ts: TokenStream): Expr | null {
 
 // 'abort "reason"' — a diverging expression (type Never, whitepaper §9). A nud
 // like 'return', but the reason is mandatory: 'abort' with nothing after it
-// falls through to parseExpr's S0002 ("expected a value"). The reason is a full
+// falls through to parseExpr's S0004 ("expected a value"). The reason is a full
 // parseExpr, so an interpolated or concatenated String ('abort "bad: ${x}"')
-// reads as the whole reason. Its String-ness is a checker concern (T0059).
+// reads as the whole reason. Its String-ness is a checker concern (T0060).
 function parseAbort(ts: TokenStream): Expr | null {
   const abortTok = ts.advance(); // consume 'abort'
 
@@ -555,13 +555,13 @@ function parseFn(ts: TokenStream, async: boolean, startSpan?: Span): Expr | null
   // For 'async fn', the span begins at 'async' (passed in); otherwise at 'fn'.
   const spanStart = (startSpan ?? fnTok.span).start;
 
-  const open = ts.expect('LPAREN', 'S0006');
+  const open = ts.expect('LPAREN', 'S0010');
   if (open === null) return null;
 
   const parsed = ts.parseSeparated(() => parseFnParam(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
 
-  if (ts.expect('COLON', 'S0031') === null) return null;
+  if (ts.expect('COLON', 'S0024') === null) return null;
 
   const returnType = parseTypeExpr(ts);
   if (returnType === null) return null;
@@ -581,12 +581,12 @@ function parseFn(ts: TokenStream, async: boolean, startSpan?: Span): Expr | null
 
 // 'name!(arg, …)' — an async call preparing a Task (whitepaper §8). The name is
 // already consumed by parseAtom; here we consume the '!' and the argument list.
-// The '!' with no argument list following ('f!' alone) is S0039 — a mark without
+// The '!' with no argument list following ('f!' alone) is S0038 — a mark without
 // a call is meaningless.
 function parseAsyncCall(ts: TokenStream, callee: Token): Expr | null {
   ts.advance(); // consume '!'
 
-  const open = ts.expect('LPAREN', 'S0039');
+  const open = ts.expect('LPAREN', 'S0038');
   if (open === null) return null;
 
   const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
@@ -620,8 +620,8 @@ function parseAwait(ts: TokenStream): Expr | null {
 // one-statement block '{ expr }', so everything downstream (checker, printer,
 // interpreter) sees a single body shape and the block-value rule does the rest.
 // '=> { … }' is redundant — the arrow already promises an expression — so a '{'
-// straight after '=>' is rejected (S0035); a body that is neither '{' nor '=>'
-// is S0034.
+// straight after '=>' is rejected (S0027); a body that is neither '{' nor '=>'
+// is S0026.
 function parseFnBody(ts: TokenStream): Block | null {
   const tok = ts.peek();
 
@@ -632,7 +632,7 @@ function parseFnBody(ts: TokenStream): Block | null {
   if (tok.kind === 'FAT_ARROW') {
     ts.advance(); // consume '=>'
     if (ts.peek().kind === 'LBRACE') {
-      ts.report('S0035', ts.peek().span);
+      ts.report('S0027', ts.peek().span);
       return null;
     }
 
@@ -642,7 +642,7 @@ function parseFnBody(ts: TokenStream): Block | null {
     return { kind: 'block', stmts: [{ kind: 'expr', expr, span: expr.span }], span: expr.span };
   }
 
-  ts.report('S0034', tok.span);
+  ts.report('S0026', tok.span);
   return null;
 }
 
@@ -674,7 +674,7 @@ function parseStringTemplate(ts: TokenStream): Expr | null {
       // The hole's expression stopped before the lexer's forced closing
       // point (e.g. '${ 1 2 }' — two atoms, no operator between them) —
       // there's leftover content the hole can't hold.
-      ts.report('S0015', chunk.span);
+      ts.report('S0014', chunk.span);
       return null;
     }
     ts.advance();
@@ -710,8 +710,8 @@ function parseMultilineStringTemplate(ts: TokenStream): Expr | null {
 
     const chunk = ts.peek();
     if (chunk.kind !== 'MSTR_PART' && chunk.kind !== 'MSTR_PART_END') {
-      // Same S0015 as a single-line hole: leftover content the hole can't hold.
-      ts.report('S0015', chunk.span);
+      // Same S0014 as a single-line hole: leftover content the hole can't hold.
+      ts.report('S0014', chunk.span);
       return null;
     }
     ts.advance();
@@ -756,12 +756,12 @@ function parseCall(ts: TokenStream, callee: Token): Expr | null {
 function parseFieldInit(ts: TokenStream): FieldInit | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
-    ts.report('S0021', nameTok.span);
+    ts.report('S0020', nameTok.span);
     return null;
   }
   ts.advance(); // consume field name
 
-  if (ts.expect('COLON', 'S0022') === null) return null;
+  if (ts.expect('COLON', 'S0021') === null) return null;
 
   const value = parseExpr(ts);
   if (value === null) return null;
@@ -773,7 +773,7 @@ function parseFieldInit(ts: TokenStream): FieldInit | null {
 // already consumed by parseAtom, and an LBRACE confirmed on lookahead.
 function parseConstruct(ts: TokenStream, typeNameTok: Token): Expr | null {
   const open = ts.advance(); // consume '{'
-  const parsed = ts.parseSeparated(() => parseFieldInit(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  const parsed = ts.parseSeparated(() => parseFieldInit(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
   if (parsed === null) return null;
 
   return {
@@ -796,14 +796,14 @@ function parseWith(ts: TokenStream, base: Expr): Expr | null {
 
   if (ts.peek().kind === 'LBRACE') {
     const open = ts.advance(); // consume '{'
-    const parsed = ts.parseSeparated(() => parseWithUpdate(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+    const parsed = ts.parseSeparated(() => parseWithUpdate(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
     if (parsed === null) return null;
 
     // Empty braces 'base with { }' update nothing — banned (the one-spelling
-    // rule, as S0028 bans empty construction braces); a real update names at
+    // rule, as S0023 bans empty construction braces); a real update names at
     // least one step.
     if (parsed.items.length === 0) {
-      ts.report('S0038', { start: open.span.start, end: parsed.close.span.end });
+      ts.report('S0033', { start: open.span.start, end: parsed.close.span.end });
       return null;
     }
 
@@ -837,7 +837,7 @@ function parseWithUpdate(ts: TokenStream): WithUpdate | null {
   const path = parseUpdatePath(ts);
   if (path === null) return null;
 
-  if (ts.expect('EQUALS', 'S0037') === null) return null;
+  if (ts.expect('EQUALS', 'S0032') === null) return null;
 
   const value = parseExpr(ts);
   if (value === null) return null;
@@ -862,7 +862,7 @@ function parseUpdatePath(ts: TokenStream): PathStep[] | null {
     ts.advance();
     steps.push({ kind: 'field', field: first.value, fieldSpan: first.span, span: first.span });
   } else {
-    ts.report('S0036', first.span);
+    ts.report('S0031', first.span);
     return null;
   }
 
@@ -873,7 +873,7 @@ function parseUpdatePath(ts: TokenStream): PathStep[] | null {
       ts.advance(); // consume '.'
       const nameTok = ts.peek();
       if (nameTok.kind !== 'SLOT') {
-        ts.report('S0012', nameTok.span);
+        ts.report('S0013', nameTok.span);
         return null;
       }
       ts.advance(); // consume field name
@@ -896,7 +896,7 @@ function parseIndexStep(ts: TokenStream): PathStep | null {
   const open = ts.advance(); // consume '['
   const index = parseExpr(ts);
   if (index === null) return null;
-  const close = ts.expect('RBRACKET', 'S0013', [{ key: 'opener', span: open.span }]);
+  const close = ts.expect('RBRACKET', 'S0003', [{ key: 'opener', span: open.span }]);
   if (close === null) return null;
   return { kind: 'index', index, span: { start: open.span.start, end: close.span.end } };
 }
@@ -904,7 +904,7 @@ function parseIndexStep(ts: TokenStream): PathStep | null {
 // '[' expr, expr, … ']' — list literal. Already peeked '[' in parseAtom.
 function parseList(ts: TokenStream): Expr | null {
   const openTok = ts.advance(); // consume '['
-  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RBRACKET', 'S0013', false, openTok.span);
+  const parsed = ts.parseSeparated(() => parseExpr(ts), 'COMMA', 'RBRACKET', 'S0003', false, openTok.span);
   if (parsed === null) return null;
 
   return { kind: 'list', elements: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };

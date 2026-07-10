@@ -10,26 +10,26 @@ function errorCodes(src: string): string[] {
 // the smallest program that reaches exactly one rule, so a regression names it.
 describe('checker rules (type & name)', () => {
   describe('type errors', () => {
-    it('reports T0002 for a list whose items differ in type', () => {
-      assert.deepEqual(errorCodes('[1, "a"];'), ['T0002']);
+    it('reports T0005 for a list whose items differ in type', () => {
+      assert.deepEqual(errorCodes('[1, "a"];'), ['T0005']);
     });
 
-    it('reports T0008 for a method argument of the wrong type', () => {
+    it('reports T0015 for a method argument of the wrong type', () => {
       // append onto a List<Int> wants an Int, not a String.
-      assert.deepEqual(errorCodes('[1, 2].append("a");'), ['T0008']);
+      assert.deepEqual(errorCodes('[1, 2].append("a");'), ['T0015']);
     });
 
-    it('reports T0010 for indexing a value that is not a list', () => {
-      assert.deepEqual(errorCodes('fix x = 5; x[0];'), ['T0010']);
+    it('reports T0006 for indexing a value that is not a list', () => {
+      assert.deepEqual(errorCodes('fix x = 5; x[0];'), ['T0006']);
     });
 
-    it('reports T0011 for a list index that is not an Int', () => {
-      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs["a"];'), ['T0011']);
+    it('reports T0007 for a list index that is not an Int', () => {
+      assert.deepEqual(errorCodes('fix xs = [1, 2]; xs["a"];'), ['T0007']);
     });
 
-    it('reports T0012 for a method call on a type that has none', () => {
-      // Bool carries no methods, so any '.method()' on it is T0012.
-      assert.deepEqual(errorCodes('fix b = True; b.foo();'), ['T0012']);
+    it('reports T0011 for a method call on a type that has none', () => {
+      // Bool carries no methods, so any '.method()' on it is T0011.
+      assert.deepEqual(errorCodes('fix b = True; b.foo();'), ['T0011']);
     });
   });
 

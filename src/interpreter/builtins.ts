@@ -82,7 +82,7 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
     const end = Number(range.hi);
     if (start < 0 || end > chars.length || start > end) {
       throw new RuntimeError({
-        code: 'R0007', span,
+        code: 'R0006', span,
         data: { start: String(start), end: String(end), length: String(chars.length) },
       });
     }
@@ -91,7 +91,7 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
   repeat: (r, args, { span }) => {
     const count = (args[0] as IntValue).value;
     if (count < 0n) {
-      throw new RuntimeError({ code: 'R0008', span, data: { count: String(count) } });
+      throw new RuntimeError({ code: 'R0007', span, data: { count: String(count) } });
     }
     return strVal(r.value.repeat(Number(count)));
   },
@@ -190,18 +190,18 @@ const evalOrAbort = (receiver: RuntimeValue, args: RuntimeValue[], ctx: MethodCt
 
   if (ctx.receiverType.kind === 'Optional') {
     // A present Optional is already the bare value (no wrapper, §4); only None
-    // has nothing to unwrap, so it aborts (R0011).
+    // has nothing to unwrap, so it aborts (R0010).
     if (receiver.type === 'None') {
-      throw new RuntimeError({ code: 'R0011', span: ctx.span, data: { context } });
+      throw new RuntimeError({ code: 'R0010', span: ctx.span, data: { context } });
     }
     return receiver;
   }
   // Result: a Success unwraps to its 'value'; a Failure aborts, reporting the
-  // carried error — the most informative thing there is (R0010).
+  // carried error — the most informative thing there is (R0009).
   const rec = receiver as Extract<RuntimeValue, { type: 'Record' }>;
   if (rec.name === 'Failure') {
     throw new RuntimeError({
-      code: 'R0010', span: ctx.span,
+      code: 'R0009', span: ctx.span,
       data: { error: valueToString(rec.fields.get('error')!), context },
     });
   }

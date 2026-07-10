@@ -26,7 +26,7 @@ import { check } from './check.js';
 // itself would poison (see each case's own "already Invalid" guard below).
 
 // The join of a non-empty list literal's typed elements, pairwise against
-// the first — T0002 when two elements share no common supertype. Shared by
+// the first — T0005 when two elements share no common supertype. Shared by
 // synth (the result is the list's type, as-is) and check (which may still
 // widen the result further toward an expected element type). leastCommonType
 // is already Invalid-aware, so an element that failed on its own quietly
@@ -37,7 +37,7 @@ export const joinElementTypes = (typedElements: TypedExpr[], span: Span, diagnos
     const ct = leastCommonType(elemType, te.type);
     if (ct === null) {
       diagnostics.error({
-        code: 'T0002', span,
+        code: 'T0005', span,
         data: { first: typeToString(elemType), other: typeToString(te.type) },
         related: [{ key: 'element', span: te.span }],
       });
@@ -73,8 +73,8 @@ export const pathDisplay = (path: PathStep[]): string => {
   return out;
 };
 
-// Check a call's arguments against a function type: arity (T0007), then each
-// argument assignable to its parameter (T0008 — assignable, not exact, so an Int
+// Check a call's arguments against a function type: arity (T0014), then each
+// argument assignable to its parameter (T0015 — assignable, not exact, so an Int
 // widens into a Float parameter, the one-way rule of §5). Returns the function's
 // result type, or Invalid on the first failure. Shared by a by-name call
 // ('call') and a computed call ('apply').
@@ -87,7 +87,7 @@ export const checkApplication = (
   if (!requireArity(fn.params.length, argTypes.length, diagnostics, span)) return INVALID_TYPE;
   for (let i = 0; i < fn.params.length; i++) {
     if (!isAssignableTo(argTypes[i]!, fn.params[i]!)) {
-      return typeMismatch('T0008', diagnostics, span, fn.params[i]!, argTypes[i]!);
+      return typeMismatch('T0015', diagnostics, span, fn.params[i]!, argTypes[i]!);
     }
   }
   return fn.result;
@@ -100,7 +100,7 @@ export const checkApplication = (
 // Never, which widens into whatever 'T orfail E' the value flows into (an
 // annotation, a return type), exactly as a bare 'None' widens into 'T?'. The one
 // declared field ('value'/'error') is required, and the same missing / unknown /
-// duplicate-field rules a record gets apply (T0018 / T0019 / T0020). At runtime
+// duplicate-field rules a record gets apply (T0022 / T0023 / T0024). At runtime
 // the value is just a record named 'Success'/'Failure' carrying that field, so
 // the interpreter builds and matches it with no Result-specific machinery.
 const synthResultConstruct = (
@@ -115,18 +115,18 @@ const synthResultConstruct = (
   for (const f of expr.fields) {
     const typedValue = synth(f.value, env, diagnostics);
     if (seen.has(f.name)) {
-      diagnostics.error({ code: 'T0020', span: f.nameSpan, data: { field: f.name, type: tag } });
+      diagnostics.error({ code: 'T0024', span: f.nameSpan, data: { field: f.name, type: tag } });
       continue;
     }
     seen.add(f.name);
     if (f.name !== fieldName) {
-      diagnostics.error({ code: 'T0019', span: f.nameSpan, data: { field: f.name, type: tag } });
+      diagnostics.error({ code: 'T0023', span: f.nameSpan, data: { field: f.name, type: tag } });
       continue;
     }
     payload = typedValue;
   }
   if (payload === null) {
-    diagnostics.error({ code: 'T0018', span: expr.typeNameSpan, data: { type: tag, fields: fieldName } });
+    diagnostics.error({ code: 'T0022', span: expr.typeNameSpan, data: { type: tag, fields: fieldName } });
   }
   const payloadType = payload?.type ?? INVALID_TYPE;
   const type = tag === 'Success' ? resultOf(payloadType, NEVER_TYPE) : resultOf(NEVER_TYPE, payloadType);
@@ -138,8 +138,8 @@ const synthResultConstruct = (
 
 // whitepaper §9: 'try expr' / 'try expr else [e] -> mapExpr'. `try` unwraps the
 // good case of an Optional/Result and continues, or early-returns the bad case
-// from the enclosing function — so it must sit inside a function (T0044) whose
-// declared return type can carry that bad case (T0046). The plain form
+// from the enclosing function — so it must sit inside a function (T0049) whose
+// declared return type can carry that bad case (T0051). The plain form
 // propagates the failure/None unchanged; the 'else' form maps the error to a new
 // value and propagates it as a 'Failure'. The whole expression's type is the
 // unwrapped good value's type T (the bad path diverges via return, so it doesn't
@@ -168,13 +168,13 @@ const synthTry = (
     errType = st.err;
     subjectShape = 'result';
   } else if (!isInvalidType(st)) {
-    diagnostics.error({ code: 'T0045', span: expr.subject.span, data: { actual: typeToString(st) } });
+    diagnostics.error({ code: 'T0050', span: expr.subject.span, data: { actual: typeToString(st) } });
   }
 
   // 'try' hands the bad case to the enclosing function; outside one there is
-  // nowhere for it to go (the same shape as a 'return' outside a function, T0037).
+  // nowhere for it to go (the same shape as a 'return' outside a function, T0043).
   if (returnType === null) {
-    diagnostics.error({ code: 'T0044', span: expr.span });
+    diagnostics.error({ code: 'T0049', span: expr.span });
   }
 
   // The value returned on the bad path, and a human phrase for the diagnostic.
@@ -197,7 +197,7 @@ const synthTry = (
     if (expr.elseClause.binding !== null) {
       if (subjectShape === 'optional') {
         // An Optional's absent case is 'None' — it carries no error to bind.
-        diagnostics.error({ code: 'T0047', span: expr.elseClause.binding.span });
+        diagnostics.error({ code: 'T0052', span: expr.elseClause.binding.span });
       }
       armEnv.set(expr.elseClause.binding.name, errType ?? INVALID_TYPE, 'fix', expr.elseClause.binding.span);
     }
@@ -214,7 +214,7 @@ const synthTry = (
   if (returnType !== null && subjectShape !== null && !isInvalidType(propagateType)
     && !isAssignableTo(propagateType, returnType)) {
     diagnostics.error({
-      code: 'T0046', span: expr.span,
+      code: 'T0051', span: expr.span,
       data: { propagated, ret: typeToString(returnType) },
     });
   }
@@ -272,7 +272,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
     // own type is always String regardless of a hole's validity — unlike an
     // arithmetic operand, a hole's type never decides *what kind of value*
     // the template produces, so there's no reason to poison it with Invalid;
-    // an already-Invalid hole just skips the redundant T0014 (its own
+    // an already-Invalid hole just skips the redundant T0018 (its own
     // failure was reported where it was synthesized).
     case 'template': {
       const typedParts: TypedTemplatePart[] = [];
@@ -285,7 +285,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         // A hole is a Display-bounded position (the same bound as print's
         // argument) — it must have a canonical text form to splice in.
         if (!isInvalidType(typedHole.type) && !satisfies('Display', typedHole.type)) {
-          diagnostics.error({ code: 'T0014', span: part.expr.span, data: { actual: typeToString(typedHole.type) } });
+          diagnostics.error({ code: 'T0018', span: part.expr.span, data: { actual: typeToString(typedHole.type) } });
         }
         typedParts.push({ kind: 'hole', expr: typedHole });
       }
@@ -327,12 +327,12 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           const argType = typedArgs[i]!.type;
           if (!paramAccepts(param, argType)) {
             // A concrete parameter that doesn't match is an ordinary type
-            // mismatch (T0008); an unmet trait bound (only print's Display today)
+            // mismatch (T0015); an unmet trait bound (only print's Display today)
             // has no single "expected type" to name, so it gets its own message.
             if (isTraitBound(param)) {
-              diagnostics.error({ code: 'T0024', span: expr.span, data: { actual: typeToString(argType) } });
+              diagnostics.error({ code: 'T0019', span: expr.span, data: { actual: typeToString(argType) } });
             } else {
-              typeMismatch('T0008', diagnostics, expr.span, param, argType);
+              typeMismatch('T0015', diagnostics, expr.span, param, argType);
             }
             return invalid();
           }
@@ -368,14 +368,14 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       if (isInvalidType(binding.ty)) return invalid();
       if (binding.ty.kind !== 'Function') {
         // The name exists but isn't a function, so it can't be called.
-        diagnostics.error({ code: 'T0035', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
+        diagnostics.error({ code: 'T0016', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
         return invalid();
       }
       // A bare call of an async function is a compile error (whitepaper §8):
       // calling-and-running is not something an async function can do — it must
       // be prepared into a Task with '!' and then awaited.
       if (binding.ty.async) {
-        diagnostics.error({ code: 'T0055', span: expr.span });
+        diagnostics.error({ code: 'T0053', span: expr.span });
         return invalid();
       }
       if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
@@ -395,8 +395,8 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       if (isInvalidType(typedCallee.type) || typedArgs.some(a => isInvalidType(a.type))) return invalid();
       if (typedCallee.type.kind !== 'Function') {
         // The callee is a value that isn't a function, so it can't be called
-        // (T0038 — the nameless twin of T0035 for a by-name call).
-        diagnostics.error({ code: 'T0038', span: expr.callee.span, data: { type: typeToString(typedCallee.type) } });
+        // (T0017 — the nameless twin of T0016 for a by-name call).
+        diagnostics.error({ code: 'T0017', span: expr.callee.span, data: { type: typeToString(typedCallee.type) } });
         return invalid();
       }
       // An async function reached in computed position can't be run directly
@@ -404,7 +404,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // name in v1, so there is no way to call this. Report the same bare-async
       // error (whitepaper §8); {found} names the offending call in the message.
       if (typedCallee.type.async) {
-        diagnostics.error({ code: 'T0055', span: expr.span });
+        diagnostics.error({ code: 'T0053', span: expr.span });
         return invalid();
       }
       const result = checkApplication(typedCallee.type, typedArgs.map(a => a.type), diagnostics, expr.span);
@@ -429,7 +429,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // A plain function (or any non-function) can't be prepared, so this is the
       // mirror of the bare-async error — you wrote '!' where it doesn't belong.
       if (binding.ty.kind !== 'Function' || !binding.ty.async) {
-        diagnostics.error({ code: 'T0056', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
+        diagnostics.error({ code: 'T0054', span: expr.span, data: { name: expr.callee, type: typeToString(binding.ty) } });
         return invalid();
       }
       if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
@@ -444,7 +444,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // (its root). In a plain function it is a compile error to mark that
       // function 'async' — the colored model, propagated.
       if (!env.enclosingAsync()) {
-        diagnostics.error({ code: 'T0058', span: expr.span });
+        diagnostics.error({ code: 'T0056', span: expr.span });
       }
       const typedTask = synth(expr.task, env, diagnostics);
       const tt = typedTask.type;
@@ -454,7 +454,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // Only a Task can be awaited — it is the sole thing '!' produces, so a
       // non-Task here means you awaited something that was never an async call.
       if (tt.kind !== 'Task') {
-        diagnostics.error({ code: 'T0057', span: expr.task.span, data: { actual: typeToString(tt) } });
+        diagnostics.error({ code: 'T0055', span: expr.task.span, data: { actual: typeToString(tt) } });
         return { kind: 'await', task: typedTask, type: INVALID_TYPE, span: expr.span };
       }
       return { kind: 'await', task: typedTask, type: tt.result, span: expr.span };
@@ -482,7 +482,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // type that already failed doesn't add a second, misleading diagnostic.
       if (!isAssignableTo(typedBody.type, resultType)) {
         diagnostics.error({
-          code: 'T0036', span: typedBody.span,
+          code: 'T0042', span: typedBody.span,
           data: { expected: typeToString(resultType), actual: typeToString(typedBody.type) },
           related: [{ key: 'annotation', span: expr.returnType.span }],
         });
@@ -503,16 +503,16 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // A 'return' diverges (whitepaper §7), so its own type is always Never —
       // it satisfies any expected type and makes an enclosing block diverge too.
       // Its value must fit the enclosing function's declared return type (the
-      // same T0036 the function's fall-through value uses). Outside any function
-      // there is nothing to return from (T0037). A bare 'return' yields Done.
+      // same T0042 the function's fall-through value uses). Outside any function
+      // there is nothing to return from (T0043). A bare 'return' yields Done.
       const typedValue = expr.value !== null ? synth(expr.value, env, diagnostics) : null;
       const valueType = typedValue !== null ? typedValue.type : DONE_TYPE;
       const expected = env.enclosingReturn();
       if (expected === null) {
-        diagnostics.error({ code: 'T0037', span: expr.span });
+        diagnostics.error({ code: 'T0043', span: expr.span });
       } else if (!isAssignableTo(valueType, expected)) {
         diagnostics.error({
-          code: 'T0036', span: (expr.value ?? expr).span,
+          code: 'T0042', span: (expr.value ?? expr).span,
           data: { expected: typeToString(expected), actual: typeToString(valueType) },
         });
       }
@@ -523,10 +523,10 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // 'abort "reason"' diverges (whitepaper §7/§9), so its own type is always
       // Never — it satisfies any expected type and makes an enclosing block
       // diverge too. The reason is the only information there is, so it must be a
-      // String (T0059); an already-Invalid reason skips the redundant report.
+      // String (T0060); an already-Invalid reason skips the redundant report.
       const typedReason = synth(expr.reason, env, diagnostics);
       if (!isInvalidType(typedReason.type) && !typesEqual(typedReason.type, STRING_TYPE)) {
-        diagnostics.error({ code: 'T0059', span: expr.reason.span, data: { actual: typeToString(typedReason.type) } });
+        diagnostics.error({ code: 'T0060', span: expr.reason.span, data: { actual: typeToString(typedReason.type) } });
       }
       return { kind: 'abort', reason: typedReason, type: NEVER_TYPE, span: expr.span };
     }
@@ -562,7 +562,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         // of them inspects lt/rt's *kind* directly rather than going through
         // an Invalid-aware helper like subtype/leastCommonType, so without
         // this guard an already-reported failure would cascade into a
-        // spurious T0009 here.
+        // spurious T0008 here.
         type = INVALID_TYPE;
       } else {
         switch (expr.op) {
@@ -629,7 +629,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // 'opt ?? default' (design.md §9). The left must be an Optional — that's
       // the whole point ("seeing '??' tells you the left side is an Optional").
       // A bare 'None' is allowed as the degenerate always-absent case; anything
-      // else can never be None, so '??' on it is meaningless (T0039). The result
+      // else can never be None, so '??' on it is meaningless (T0044). The result
       // is the least common type of the optional's present value and the default
       // — so `intOpt ?? 3.0` is a Float, just as a list or an 'if' would join.
       const typedLeft = synth(expr.left, env, diagnostics);
@@ -641,7 +641,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       if (isInvalidType(lt) || isInvalidType(rt)) {
         type = INVALID_TYPE;
       } else if (lt.kind !== 'Optional' && lt.kind !== 'None') {
-        diagnostics.error({ code: 'T0039', span: expr.left.span, data: { actual: typeToString(lt) } });
+        diagnostics.error({ code: 'T0044', span: expr.left.span, data: { actual: typeToString(lt) } });
         type = INVALID_TYPE;
       } else {
         // The present-value type: an Optional's element, or Never for a bare
@@ -650,7 +650,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         const joined = leastCommonType(presentType, rt);
         if (joined === null) {
           diagnostics.error({
-            code: 'T0040', span: expr.span,
+            code: 'T0045', span: expr.span,
             data: { value: typeToString(presentType), default: typeToString(rt) },
             related: [{ key: 'default', span: expr.right.span }],
           });
@@ -694,7 +694,7 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // high one is the culprit.
       if (typedLo.type.kind !== 'Int' || typedHi.type.kind !== 'Int') {
         const bad = typedLo.type.kind !== 'Int' ? typedLo : typedHi;
-        diagnostics.error({ code: 'T0016', span: bad.span, data: { actual: typeToString(bad.type) } });
+        diagnostics.error({ code: 'T0020', span: bad.span, data: { actual: typeToString(bad.type) } });
         return { kind: 'range', lo: typedLo, hi: typedHi, type: INVALID_TYPE, span: expr.span };
       }
       return { kind: 'range', lo: typedLo, hi: typedHi, type: RANGE_TYPE, span: expr.span };
@@ -707,11 +707,11 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         return { kind: 'index', list: typedList, index: typedIndex, type: INVALID_TYPE, span: expr.span };
       }
       if (typedList.type.kind !== 'List') {
-        diagnostics.error({ code: 'T0010', span: expr.list.span, data: { actual: typeToString(typedList.type) } });
+        diagnostics.error({ code: 'T0006', span: expr.list.span, data: { actual: typeToString(typedList.type) } });
         return { kind: 'index', list: typedList, index: typedIndex, type: INVALID_TYPE, span: expr.span };
       }
       if (typedIndex.type.kind !== 'Int') {
-        diagnostics.error({ code: 'T0011', span: expr.index.span, data: { actual: typeToString(typedIndex.type) } });
+        diagnostics.error({ code: 'T0007', span: expr.index.span, data: { actual: typeToString(typedIndex.type) } });
         return { kind: 'index', list: typedList, index: typedIndex, type: INVALID_TYPE, span: expr.span };
       }
       return { kind: 'index', list: typedList, index: typedIndex, type: typedList.type.elem, span: expr.span };
@@ -781,29 +781,29 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const declaredNames = new Set(declaredFields.map(d => d.name));
 
       // A zero-field variant is written bare ('Red'), never 'Red{}' — empty
-      // braces are banned (S0028), the one-spelling rule. This is the only
+      // braces are banned (S0023), the one-spelling rule. This is the only
       // place the check can live: 'Circle{}' looks identical but its variant
-      // *does* declare fields, so it's a missing-field mistake (T0018), not this
+      // *does* declare fields, so it's a missing-field mistake (T0022), not this
       // one. Reported here; the build itself is otherwise fine, so we carry on.
       if (expr.braces && declaredFields.length === 0 && expr.fields.length === 0) {
-        diagnostics.error({ code: 'S0028', span: expr.span });
+        diagnostics.error({ code: 'S0023', span: expr.span });
       }
 
       // Pass 1: record the first init for each field name, and flag the
-      // provided fields that won't be checked in pass 2 — a duplicate (T0020)
-      // or a name the type doesn't declare (T0019). Those still get synth'd so
+      // provided fields that won't be checked in pass 2 — a duplicate (T0024)
+      // or a name the type doesn't declare (T0023). Those still get synth'd so
       // errors inside them aren't lost; declared fields wait for the checked
       // pass so they can widen/adopt against their declared type.
       const provided = new Map<string, FieldInit>();
       for (const f of expr.fields) {
         if (provided.has(f.name)) {
-          diagnostics.error({ code: 'T0020', span: f.nameSpan, data: { field: f.name, type: expr.typeName } });
+          diagnostics.error({ code: 'T0024', span: f.nameSpan, data: { field: f.name, type: expr.typeName } });
           synth(f.value, env, diagnostics);
           continue;
         }
         provided.set(f.name, f);
         if (!declaredNames.has(f.name)) {
-          diagnostics.error({ code: 'T0019', span: f.nameSpan, data: { field: f.name, type: expr.typeName } });
+          diagnostics.error({ code: 'T0023', span: f.nameSpan, data: { field: f.name, type: expr.typeName } });
           synth(f.value, env, diagnostics);
         }
       }
@@ -820,11 +820,11 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           missing.push(decl.name);
           continue;
         }
-        const value = check(init.value, decl.type, env, diagnostics, [{ key: 'field', span: decl.span }], 'T0021');
+        const value = check(init.value, decl.type, env, diagnostics, [{ key: 'field', span: decl.span }], 'T0025');
         typedFields.push({ name: decl.name, declaredType: decl.type, value });
       }
       if (missing.length > 0) {
-        diagnostics.error({ code: 'T0018', span: expr.typeNameSpan, data: { type: expr.typeName, fields: missing.join(', ') } });
+        diagnostics.error({ code: 'T0022', span: expr.typeNameSpan, data: { type: expr.typeName, fields: missing.join(', ') } });
       }
 
       return { kind: 'construct', typeName: expr.typeName, fields: typedFields, type: namedType(ctor.info.name), span: expr.span };
@@ -848,10 +848,10 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         // Walk the path from the base type, mirroring how the same path *reads*
         // (whitepaper §6 — "the update path is the read path") but reporting in
         // terms of the *update*: a '.field' step needs a record (a list wants
-        // '[index]' → T0052, a union wants 'match' → T0049, anything else has no
-        // fields → T0048; an unknown field is T0050); an '[index]' step needs a
-        // list (a record wants a field name → T0053, a union 'match' → T0049,
-        // anything else can't be indexed → T0048). These fire at any depth, so a
+        // '[index]' → T0038, a union wants 'match' → T0036, anything else has no
+        // fields → T0035; an unknown field is T0037); an '[index]' step needs a
+        // list (a record wants a field name → T0039, a union 'match' → T0036,
+        // anything else can't be indexed → T0035). These fire at any depth, so a
         // beginner sees the same guidance for 'users.city' as for the base. A
         // step that fails poisons `current` to Invalid, which then absorbs the
         // value check with no cascade; `leafFieldSpan` is a *final* field step's
@@ -867,20 +867,20 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
             if (isInvalidType(current)) {
               // Upstream already reported; keep walking to shape the typed node.
             } else if (current.kind === 'List') {
-              diagnostics.error({ code: 'T0052', span: step.fieldSpan, data: { field: step.field } });
+              diagnostics.error({ code: 'T0038', span: step.fieldSpan, data: { field: step.field } });
               current = INVALID_TYPE;
             } else if (current.kind !== 'Named') {
-              diagnostics.error({ code: 'T0048', span: currentSpan, data: { type: typeToString(current) } });
+              diagnostics.error({ code: 'T0035', span: currentSpan, data: { type: typeToString(current) } });
               current = INVALID_TYPE;
             } else {
               const info = env.getType(current.name);
               if (info !== null && info.variants.length !== 1) {
-                diagnostics.error({ code: 'T0049', span: currentSpan, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+                diagnostics.error({ code: 'T0036', span: currentSpan, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
                 current = INVALID_TYPE;
               } else {
                 const field = info?.variants[0]?.fields.find(f => f.name === step.field);
                 if (field === undefined) {
-                  diagnostics.error({ code: 'T0050', span: step.fieldSpan, data: { field: step.field, type: current.name } });
+                  diagnostics.error({ code: 'T0037', span: step.fieldSpan, data: { field: step.field, type: current.name } });
                   current = INVALID_TYPE;
                 } else {
                   current = field.type;
@@ -897,19 +897,19 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
               // Upstream already reported.
             } else if (current.kind === 'List') {
               if (!isInvalidType(typedIndex.type) && typedIndex.type.kind !== 'Int') {
-                diagnostics.error({ code: 'T0011', span: step.index.span, data: { actual: typeToString(typedIndex.type) } });
+                diagnostics.error({ code: 'T0007', span: step.index.span, data: { actual: typeToString(typedIndex.type) } });
               }
               current = current.elem;
             } else if (current.kind === 'Named') {
               const info = env.getType(current.name);
               if (info !== null && info.variants.length !== 1) {
-                diagnostics.error({ code: 'T0049', span: currentSpan, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+                diagnostics.error({ code: 'T0036', span: currentSpan, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
               } else {
-                diagnostics.error({ code: 'T0053', span: step.span, data: { type: current.name } });
+                diagnostics.error({ code: 'T0039', span: step.span, data: { type: current.name } });
               }
               current = INVALID_TYPE;
             } else {
-              diagnostics.error({ code: 'T0048', span: currentSpan, data: { type: typeToString(current) } });
+              diagnostics.error({ code: 'T0035', span: currentSpan, data: { type: typeToString(current) } });
               current = INVALID_TYPE;
             }
             typedPath.push({ kind: 'index', index: typedIndex });
@@ -917,21 +917,21 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           }
         }
 
-        // Flag a repeat of a statically-known path (T0051) — the update is an
+        // Flag a repeat of a statically-known path (T0041) — the update is an
         // error, so the program won't run; every update is still checked.
         const key = pathKey(u.path);
         if (key !== null) {
-          if (seen.has(key)) diagnostics.error({ code: 'T0051', span: u.span, data: { path: pathDisplay(u.path) } });
+          if (seen.has(key)) diagnostics.error({ code: 'T0041', span: u.span, data: { path: pathDisplay(u.path) } });
           else seen.add(key);
         }
 
         // Check the new value against the leaf position's type — an Int widens to
         // a Float field/element, a bare '[]' adopts a List's element type, all as
-        // a construction field (T0021) does. The last step's kind picks the code:
-        // a field leaf reports T0021, a list-element leaf T0054.
+        // a construction field (T0025) does. The last step's kind picks the code:
+        // a field leaf reports T0025, a list-element leaf T0040.
         const lastKind = u.path[u.path.length - 1]!.kind;
         const related = leafFieldSpan !== null ? [{ key: 'field', span: leafFieldSpan }] : [];
-        const value = check(u.value, current, childEnv, diagnostics, related, lastKind === 'field' ? 'T0021' : 'T0054');
+        const value = check(u.value, current, childEnv, diagnostics, related, lastKind === 'field' ? 'T0025' : 'T0040');
 
         return { path: typedPath, declaredType: current, value };
       });
@@ -947,21 +947,21 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
       }
       // Field access needs a value with fields to read. A non-Named type has
-      // none (T0022); a Named type does, but only a *record* (one variant) — a
+      // none (T0026); a Named type does, but only a *record* (one variant) — a
       // multi-variant union has no single field set, so '.field' on one is
-      // T0032 (its cases are told apart with 'match', not a field read).
+      // T0028 (its cases are told apart with 'match', not a field read).
       if (typedReceiver.type.kind !== 'Named') {
-        diagnostics.error({ code: 'T0022', span: expr.receiver.span, data: { type: typeToString(typedReceiver.type) } });
+        diagnostics.error({ code: 'T0026', span: expr.receiver.span, data: { type: typeToString(typedReceiver.type) } });
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
       }
       const info = env.getType(typedReceiver.type.name);
       if (info !== null && info.variants.length !== 1) {
-        diagnostics.error({ code: 'T0032', span: expr.receiver.span, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
+        diagnostics.error({ code: 'T0028', span: expr.receiver.span, data: { type: info.name, variants: info.variants.map(v => v.tag).join(', ') } });
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
       }
       const field = info?.variants[0]?.fields.find(f => f.name === expr.field);
       if (field === undefined) {
-        diagnostics.error({ code: 'T0023', span: expr.fieldSpan, data: { field: expr.field, type: typedReceiver.type.name } });
+        diagnostics.error({ code: 'T0027', span: expr.fieldSpan, data: { field: expr.field, type: typedReceiver.type.name } });
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
       }
       return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: field.type, span: expr.span };

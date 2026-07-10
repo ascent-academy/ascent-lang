@@ -32,7 +32,7 @@ import { type AscentType, INT_TYPE, isScalarType } from '../types/types.js';
 export type Trait = 'Display' | 'Comparable' | 'Iterable';
 
 // Iterable's associated type, `Item` — the type a 'for x in xs' loop binds each
-// pass. `null` when `t` can't be iterated (the loop then reports T0017). This is
+// pass. `null` when `t` can't be iterated (the loop then reports T0021). This is
 // the projection a real trait system would spell `<T as Iterable>::Item`; here
 // its two implementors are hardcoded — a `List<T>` yields its element `T`, a
 // `Range` yields `Int` — the same "hard-coded until traits land" state Display

@@ -57,16 +57,16 @@ describe('abort (end-to-end)', () => {
     });
   });
 
-  describe('runtime crash (R0009)', () => {
+  describe('runtime crash (R0008)', () => {
     it('aborts with the written reason', () => {
       const marker = evalCrash('fix f = fn(b: Bool): Int { if (b) { 1 } else { abort "hit the impossible branch" } }; f(False);');
-      assert.equal(marker.code, 'R0009');
+      assert.equal(marker.code, 'R0008');
       assert.equal(marker.data?.reason, 'hit the impossible branch');
     });
 
     it('reports an interpolated reason with its runtime values filled in', () => {
       const marker = evalCrash('fix f = fn(n: Int): Int { if (n > 0) { n } else { abort "n was ${n}, expected positive" } }; f(0);');
-      assert.equal(marker.code, 'R0009');
+      assert.equal(marker.code, 'R0008');
       assert.equal(marker.data?.reason, 'n was 0, expected positive');
     });
 
@@ -77,9 +77,9 @@ describe('abort (end-to-end)', () => {
     });
   });
 
-  describe('reason must be a String (T0059)', () => {
+  describe('reason must be a String (T0060)', () => {
     it('rejects a non-String reason', () => {
-      assert.ok(errorCodes('fix f = fn(b: Bool): Int { if (b) { 1 } else { abort 42 } }; f(True);').includes('T0059'));
+      assert.ok(errorCodes('fix f = fn(b: Bool): Int { if (b) { 1 } else { abort 42 } }; f(True);').includes('T0060'));
     });
 
     it('accepts an interpolated String reason', () => {
@@ -101,9 +101,9 @@ describe('.orAbort() on Result / Optional (end-to-end)', () => {
       assert.deepEqual(evalOk(`${parseFn}parse(True).orAbort() + 8;`), { type: 'Int', value: 50n });
     });
 
-    it('crashes on a Failure (R0010), reporting the carried error', () => {
+    it('crashes on a Failure (R0009), reporting the carried error', () => {
       const marker = evalCrash(`${parseFn}parse(False).orAbort();`);
-      assert.equal(marker.code, 'R0010');
+      assert.equal(marker.code, 'R0009');
       assert.equal(marker.data?.error, 'E{ msg: bad input }');
       assert.equal(marker.data?.context, '');
     });
@@ -111,7 +111,7 @@ describe('.orAbort() on Result / Optional (end-to-end)', () => {
     it('augments the crash with an optional message, never replacing the error', () => {
       const src = `${parseFn}parse(False).orAbort("while loading config");`;
       const marker = evalCrash(src);
-      assert.equal(marker.code, 'R0010');
+      assert.equal(marker.code, 'R0009');
       assert.equal(marker.data?.context, ' (while loading config)');
       // Both the underlying error and the context appear in the rendered message.
       const message = elaborate(marker, src).message;
@@ -125,36 +125,36 @@ describe('.orAbort() on Result / Optional (end-to-end)', () => {
       assert.deepEqual(evalOk('"hello".first().orAbort();'), { type: 'String', value: 'h' });
     });
 
-    it('crashes on None (R0011)', () => {
+    it('crashes on None (R0010)', () => {
       const marker = evalCrash('"".first().orAbort();');
-      assert.equal(marker.code, 'R0011');
+      assert.equal(marker.code, 'R0010');
       assert.equal(marker.data?.context, '');
     });
 
     it('carries the optional message on a None crash', () => {
       const marker = evalCrash('"".first().orAbort("reading the head");');
-      assert.equal(marker.code, 'R0011');
+      assert.equal(marker.code, 'R0010');
       assert.equal(marker.data?.context, ' (reading the head)');
     });
   });
 
   describe('type errors', () => {
-    it('rejects more than one message argument (T0007)', () => {
-      assert.ok(errorCodes('"hi".first().orAbort("a", "b");').includes('T0007'));
+    it('rejects more than one message argument (T0014)', () => {
+      assert.ok(errorCodes('"hi".first().orAbort("a", "b");').includes('T0014'));
     });
 
-    it('rejects a non-String message (T0008)', () => {
-      assert.ok(errorCodes('"hi".first().orAbort(42);').includes('T0008'));
+    it('rejects a non-String message (T0015)', () => {
+      assert.ok(errorCodes('"hi".first().orAbort(42);').includes('T0015'));
     });
 
-    it("reports another method on a Result as T0006, not T0012 ('no methods')", () => {
+    it("reports another method on a Result as T0012, not T0011 ('no methods')", () => {
       const codes = errorCodes(`${E}fix r: Int orfail E = Success{ value: 1 }; r.length();`);
-      assert.ok(codes.includes('T0006'), codes.join(', '));
-      assert.ok(!codes.includes('T0012'), codes.join(', '));
+      assert.ok(codes.includes('T0012'), codes.join(', '));
+      assert.ok(!codes.includes('T0011'), codes.join(', '));
     });
 
-    it('reports another method on an Optional as T0006', () => {
-      assert.ok(errorCodes('"hi".first().length();').includes('T0006'));
+    it('reports another method on an Optional as T0012', () => {
+      assert.ok(errorCodes('"hi".first().length();').includes('T0012'));
     });
   });
 });

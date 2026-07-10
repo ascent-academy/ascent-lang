@@ -18,10 +18,10 @@ import { executeProgram } from '../src/interpreter.js';
 //     by newlines (e.g. Bool is 'True'/'False', Float always shows a '.',
 //     String has no surrounding quotes).
 //
-//   # expect: errors = T0003, T0009
+//   # expect: errors = T0003, T0008
 //     parse()'s diagnostic codes, in the exact order they're reported.
 //
-//   # expect: runtime-error = R0007
+//   # expect: runtime-error = R0006
 //     Typechecks cleanly, but crashes at run time with this code.
 const SNIPPETS_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'snippets');
 

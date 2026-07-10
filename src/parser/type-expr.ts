@@ -12,13 +12,13 @@ import type { TokenStream } from './token-stream.js';
 function parseFnType(ts: TokenStream): TypeExpr | null {
   const fnTok = ts.advance(); // consume 'Fn'
 
-  const open = ts.expect('LPAREN', 'S0006');
+  const open = ts.expect('LPAREN', 'S0010');
   if (open === null) return null;
 
   const parsed = ts.parseSeparated(() => parseTypeExpr(ts), 'COMMA', 'RPAREN', 'S0001', false, open.span);
   if (parsed === null) return null;
 
-  if (ts.expect('ARROW', 'S0033') === null) return null;
+  if (ts.expect('ARROW', 'S0025') === null) return null;
 
   const result = parseTypeExpr(ts);
   if (result === null) return null;
@@ -55,7 +55,7 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
     ts.advance(); // consume 'Done'
     base = { kind: 'TypeName', name: 'Done', span: tok.span };
   } else if (tok.kind !== 'TYPE_NAME') {
-    ts.report('S0010', tok.span);
+    ts.report('S0012', tok.span);
     return null;
   } else if (tok.value === 'Fn') {
     // 'Fn(...) -> R' — a function type. Like 'List', it lexes as a plain
@@ -65,12 +65,12 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
     base = fnType;
   } else if (tok.value === 'List') {
     ts.advance(); // consume 'List'
-    if (ts.expect('LT', 'S0010') === null) return null;
+    if (ts.expect('LT', 'S0012') === null) return null;
 
     const elem = parseTypeExpr(ts);
     if (elem === null) return null;
 
-    const gt = ts.expect('GT', 'S0010');
+    const gt = ts.expect('GT', 'S0012');
     if (gt === null) return null;
 
     base = { kind: 'ListType', elem, span: { start: tok.span.start, end: gt.span.end } };
@@ -78,12 +78,12 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
     // 'Task<T>' — the inert result of an async call (whitepaper §8). Same
     // angle-bracket shape as 'List<T>'; the element is the awaited result type.
     ts.advance(); // consume 'Task'
-    if (ts.expect('LT', 'S0010') === null) return null;
+    if (ts.expect('LT', 'S0012') === null) return null;
 
     const elem = parseTypeExpr(ts);
     if (elem === null) return null;
 
-    const gt = ts.expect('GT', 'S0010');
+    const gt = ts.expect('GT', 'S0012');
     if (gt === null) return null;
 
     base = { kind: 'TaskType', elem, span: { start: tok.span.start, end: gt.span.end } };
@@ -98,7 +98,7 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
   // A trailing '?' wraps whatever came before it — 'String?', 'List<Int>?'. A
   // repeated '?' ('String??') or a '?' on an already-optional group ('(String?)?')
   // stacks into nested OptionalType nodes here; formation (src/check/formation.ts)
-  // then reports the redundant '?' (T0061) and collapses it, since Optional never
+  // then reports the redundant '?' (T0047) and collapses it, since Optional never
   // nests (§4/§7). Keeping the nested nodes is what lets formation *see* the
   // redundancy — collapsing it in the parser would hide the mistake. Adjacent
   // '??' lexes as one QUESTION_QUESTION (the value-level coalesce operator), but
@@ -139,12 +139,12 @@ export function parseTypeExpr(ts: TokenStream): TypeExpr | null {
 export function parseParam(ts: TokenStream): ProgramArg | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
-    ts.report('S0003', nameTok.span);
+    ts.report('S0007', nameTok.span);
     return null;
   }
   ts.advance(); // consume name
 
-  if (ts.expect('COLON', 'S0009') === null) return null;
+  if (ts.expect('COLON', 'S0011') === null) return null;
 
   // A program input admits only the four scalars (whitepaper §11 — a structured
   // value has no single input widget). Now that every UpperCamel name lexes as a
@@ -153,7 +153,7 @@ export function parseParam(ts: TokenStream): ProgramArg | null {
   const typeTok = ts.peek();
   const ARG_SCALARS = ['Int', 'Float', 'Bool', 'String'];
   if (typeTok.kind !== 'TYPE_NAME' || !ARG_SCALARS.includes(typeTok.value)) {
-    ts.report('S0010', typeTok.span);
+    ts.report('S0012', typeTok.span);
     return null;
   }
   ts.advance(); // consume type name
@@ -168,12 +168,12 @@ export function parseParam(ts: TokenStream): ProgramArg | null {
 export function parseFnParam(ts: TokenStream): FnParam | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
-    ts.report('S0003', nameTok.span);
+    ts.report('S0007', nameTok.span);
     return null;
   }
   ts.advance(); // consume name
 
-  if (ts.expect('COLON', 'S0009') === null) return null;
+  if (ts.expect('COLON', 'S0011') === null) return null;
 
   const type = parseTypeExpr(ts);
   if (type === null) return null;

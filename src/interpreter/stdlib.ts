@@ -70,14 +70,14 @@ const MATH_IMPLS: Record<string, ModuleFnImpl> = {
 const ASSERT_IMPLS: Record<string, ModuleFnImpl> = {
   assert: (args, ctx) => {
     if (!(args[0]! as Extract<RuntimeValue, { type: 'Bool' }>).value) {
-      throw new RuntimeError({ code: 'R0012', span: ctx.span });
+      throw new RuntimeError({ code: 'R0011', span: ctx.span });
     }
     return DONE;
   },
   assertEqual: (args, ctx) => {
     if (!valuesEqual(args[0]!, args[1]!)) {
       throw new RuntimeError({
-        code: 'R0013', span: ctx.span,
+        code: 'R0012', span: ctx.span,
         data: { left: valueToString(args[0]!), right: valueToString(args[1]!) },
       });
     }

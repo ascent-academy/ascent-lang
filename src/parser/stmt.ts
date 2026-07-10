@@ -14,14 +14,14 @@ import { parseTypeExpr } from './type-expr.js';
 // this consumes its own.
 export function parseBlock(ts: TokenStream, openTok?: Token): Block | null {
   openTok ??= ts.advance(); // consume '{' unless already consumed
-  const parsed = ts.parseSeparated(() => parseStmt(ts), 'SEMICOLON', 'RBRACE', 'S0005', true, openTok.span);
+  const parsed = ts.parseSeparated(() => parseStmt(ts), 'SEMICOLON', 'RBRACE', 'S0002', true, openTok.span);
   if (parsed === null) return null;
 
   // Imports are file-level only (whitepaper §10) — they bring names in for the
   // whole file and can't be scoped inside any body: a function, a loop, an 'if',
   // a block expression, or the 'program' body (all of which come through here).
   for (const stmt of parsed.items) {
-    if (stmt.kind === 'import') ts.report('S0044', stmt.span);
+    if (stmt.kind === 'import') ts.report('S0042', stmt.span);
   }
 
   return { kind: 'block', stmts: parsed.items, span: { start: openTok.span.start, end: parsed.close.span.end } };
@@ -31,7 +31,7 @@ export function parseBlock(ts: TokenStream, openTok?: Token): Block | null {
 // The body braces already delimit the construct, but the test stays
 // parenthesized to match the C-family/TS surface (§5).
 function parseCond(ts: TokenStream): Expr | null {
-  const open = ts.expect('LPAREN', 'S0006');
+  const open = ts.expect('LPAREN', 'S0010');
   if (open === null) return null;
 
   const cond = parseExpr(ts);
@@ -47,7 +47,7 @@ function parseCond(ts: TokenStream): Expr | null {
 // A mandatory body block — every 'if'/'while' branch needs one, even
 // single-statement (§2: no dangling-else, no goto-fail class of bug).
 function parseRequiredBlock(ts: TokenStream): Block | null {
-  const openTok = ts.expect('LBRACE', 'S0007');
+  const openTok = ts.expect('LBRACE', 'S0009');
   if (openTok === null) return null;
   return parseBlock(ts, openTok);
 }
@@ -103,13 +103,13 @@ export function parseMatch(ts: TokenStream): Match | null {
     return null;
   }
 
-  const open = ts.expect('LBRACE', 'S0024');
+  const open = ts.expect('LBRACE', 'S0034');
   if (open === null) return null;
 
   // Arms are separated by commas (like a record's fields or a list's items) —
   // not semicolons — with a trailing comma allowed (design.md §5). A ';' inside
   // an arm still terminates statements within a '{ … }' block body as usual.
-  const parsed = ts.parseSeparated(() => parseMatchArm(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  const parsed = ts.parseSeparated(() => parseMatchArm(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
   if (parsed === null) return null;
 
   return {
@@ -129,7 +129,7 @@ function parseMatchArm(ts: TokenStream): MatchArm | null {
     return null;
   }
 
-  if (ts.expect('ARROW', 'S0026') === null) return null;
+  if (ts.expect('ARROW', 'S0036') === null) return null;
 
   const body = parseExpr(ts);
   if (body === null) {
@@ -172,17 +172,17 @@ function parsePattern(ts: TokenStream): Pattern | null {
 // its absence makes a bare tag that binds nothing (an enum case, or a fielded
 // variant matched for its tag alone). Reuses parseFieldPattern, the same field
 // syntax as a destructuring binding. Empty braces bind nothing, so they're the
-// banned redundant spelling (S0028) — write the bare tag instead.
+// banned redundant spelling (S0023) — write the bare tag instead.
 function parseVariantPattern(ts: TokenStream, tagTok: Token): Pattern | null {
   if (ts.peek().kind !== 'LBRACE') {
     return { kind: 'variantPattern', tag: tagTok.value, tagSpan: tagTok.span, fields: [], span: tagTok.span };
   }
   const open = ts.advance(); // consume '{'
-  const parsed = ts.parseSeparated(() => parseFieldPattern(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  const parsed = ts.parseSeparated(() => parseFieldPattern(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
   if (parsed === null) return null;
   const span = { start: tagTok.span.start, end: parsed.close.span.end };
   if (parsed.items.length === 0) {
-    ts.report('S0028', span);
+    ts.report('S0023', span);
   }
   return { kind: 'variantPattern', tag: tagTok.value, tagSpan: tagTok.span, fields: parsed.items, span };
 }
@@ -190,7 +190,7 @@ function parseVariantPattern(ts: TokenStream, tagTok: Token): Pattern | null {
 // A literal pattern is a constant to compare the subject against: an Int, Float,
 // Bool, or plain String literal. A leading '-' forms a negative number. An
 // interpolated string ('${…}', which lexes as a leading STR_PART) isn't a
-// constant, so it can't be a pattern — it falls through to the S0025 report.
+// constant, so it can't be a pattern — it falls through to the S0035 report.
 function parseLiteralPattern(ts: TokenStream): LiteralPattern | null {
   const tok = ts.peek();
 
@@ -206,7 +206,7 @@ function parseLiteralPattern(ts: TokenStream): LiteralPattern | null {
       return { kind: 'litPattern', valueType: 'Float', value: -parseFloat(num.value), span: { start: tok.span.start, end: num.span.end } };
     }
     // A '-' with no number after it isn't a pattern.
-    ts.report('S0025', num.span);
+    ts.report('S0035', num.span);
     return null;
   }
 
@@ -229,7 +229,7 @@ function parseLiteralPattern(ts: TokenStream): LiteralPattern | null {
     return { kind: 'litPattern', valueType: 'String', value: tok.value, span: tok.span };
   }
 
-  ts.report('S0025', tok.span);
+  ts.report('S0035', tok.span);
   return null;
 }
 
@@ -262,10 +262,10 @@ function parseFor(ts: TokenStream): Statement | null {
   // The loop variable is a BindTarget — a plain name or a destructuring pattern
   // (whitepaper §5), the same as a fix/mut binding — so 'for Point{ x, y } in ps'
   // pulls each element's fields apart per iteration.
-  const target = parseBindTarget(ts, 'S0016');
+  const target = parseBindTarget(ts, 'S0015');
   if (target === null) return null;
 
-  if (ts.expect('KW_IN', 'S0017') === null) return null;
+  if (ts.expect('KW_IN', 'S0016') === null) return null;
 
   const iterable = parseExpr(ts);
   if (iterable === null) {
@@ -295,7 +295,7 @@ function parseFor(ts: TokenStream): Statement | null {
 function parseFieldPattern(ts: TokenStream): FieldPattern | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
-    ts.report('S0021', nameTok.span);
+    ts.report('S0020', nameTok.span);
     return null;
   }
   ts.advance(); // consume field name
@@ -305,7 +305,7 @@ function parseFieldPattern(ts: TokenStream): FieldPattern | null {
     ts.advance(); // consume ':'
     const renamed = ts.peek();
     if (renamed.kind !== 'SLOT') {
-      ts.report('S0003', renamed.span);
+      ts.report('S0007', renamed.span);
       return null;
     }
     ts.advance(); // consume the renamed local
@@ -323,16 +323,16 @@ function parseFieldPattern(ts: TokenStream): FieldPattern | null {
 // destructuring pattern (whitepaper §5). The tag is already consumed by
 // parseBindTarget and a '{' confirmed on lookahead. Whether the tag really
 // names an *irrefutable* single-variant record (and not a refutable union case)
-// is a checker question (T0033); the parser only records the shape. Empty braces
-// bind nothing, so they're the same one-spelling ban as everywhere else (S0028).
+// is a checker question (T0034); the parser only records the shape. Empty braces
+// bind nothing, so they're the same one-spelling ban as everywhere else (S0023).
 function parseRecordPattern(ts: TokenStream, typeNameTok: Token): BindTarget | null {
-  const open = ts.expect('LBRACE', 'S0020');
+  const open = ts.expect('LBRACE', 'S0019');
   if (open === null) return null;
-  const parsed = ts.parseSeparated(() => parseFieldPattern(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  const parsed = ts.parseSeparated(() => parseFieldPattern(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
   if (parsed === null) return null;
   const span = { start: typeNameTok.span.start, end: parsed.close.span.end };
   if (parsed.items.length === 0) {
-    ts.report('S0028', span);
+    ts.report('S0023', span);
   }
   return { kind: 'record', typeName: typeNameTok.value, typeNameSpan: typeNameTok.span, fields: parsed.items, span };
 }
@@ -341,8 +341,8 @@ function parseRecordPattern(ts: TokenStream, typeNameTok: Token): BindTarget | n
 // destructures the bound value (whitepaper §5). Shared by a 'fix'/'mut'
 // declaration and a 'for' loop's variable — a TYPE_NAME here always introduces a
 // pattern (there is no other meaning for one in binding position), so a missing
-// '{' after it is an S0020, not a fall-through. `missingCode` is the error for a
-// token that's neither a name nor a pattern — S0003 after fix/mut, S0016 in a
+// '{' after it is an S0019, not a fall-through. `missingCode` is the error for a
+// token that's neither a name nor a pattern — S0007 after fix/mut, S0015 in a
 // 'for'.
 function parseBindTarget(ts: TokenStream, missingCode: string): BindTarget | null {
   const tok = ts.peek();
@@ -363,7 +363,7 @@ function parseBindTarget(ts: TokenStream, missingCode: string): BindTarget | nul
 function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
   const kwTok = ts.advance(); // consume 'fix' or 'mut'
 
-  const target = parseBindTarget(ts, 'S0003');
+  const target = parseBindTarget(ts, 'S0007');
   if (target === null) return null;
 
   // Only a plain-name binding takes a ':' annotation — a record pattern already
@@ -375,7 +375,7 @@ function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
     if (typeAnnotation === null) return null;
   }
 
-  if (ts.expect('EQUALS', 'S0004') === null) return null;
+  if (ts.expect('EQUALS', 'S0008') === null) return null;
 
   const init = parseExpr(ts);
   if (init === null) {
@@ -397,12 +397,12 @@ function parseDecl(ts: TokenStream, kind: 'fix' | 'mut'): Statement | null {
 function parseFieldDecl(ts: TokenStream): FieldDecl | null {
   const nameTok = ts.peek();
   if (nameTok.kind !== 'SLOT') {
-    ts.report('S0021', nameTok.span);
+    ts.report('S0020', nameTok.span);
     return null;
   }
   ts.advance(); // consume field name
 
-  if (ts.expect('COLON', 'S0022') === null) return null;
+  if (ts.expect('COLON', 'S0021') === null) return null;
 
   const type = parseTypeExpr(ts);
   if (type === null) return null;
@@ -413,16 +413,16 @@ function parseFieldDecl(ts: TokenStream): FieldDecl | null {
 // The '{ field: Type, … }' body shared by both the record-sugar head and every
 // fielded union variant: the fields between '{' and '}'. The opening '{' is
 // already confirmed on lookahead by the caller. Empty braces are rejected
-// (S0028) — a variant with no fields is written without braces at all (its
+// (S0023) — a variant with no fields is written without braces at all (its
 // braceless enum form) — but the fields (empty) are still returned so parsing
 // carries on. Returns the fields and the '}' token, or null if malformed.
 function parseFields(ts: TokenStream): { fields: FieldDecl[]; close: Token } | null {
-  const open = ts.expect('LBRACE', 'S0020');
+  const open = ts.expect('LBRACE', 'S0019');
   if (open === null) return null;
-  const parsed = ts.parseSeparated(() => parseFieldDecl(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+  const parsed = ts.parseSeparated(() => parseFieldDecl(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
   if (parsed === null) return null;
   if (parsed.items.length === 0) {
-    ts.report('S0028', { start: open.span.start, end: parsed.close.span.end });
+    ts.report('S0023', { start: open.span.start, end: parsed.close.span.end });
   }
   return { fields: parsed.items, close: parsed.close };
 }
@@ -434,7 +434,7 @@ function parseFields(ts: TokenStream): { fields: FieldDecl[]; close: Token } | n
 function parseVariantDecl(ts: TokenStream): VariantDecl | null {
   const tagTok = ts.peek();
   if (tagTok.kind !== 'TYPE_NAME') {
-    ts.report('S0027', tagTok.span);
+    ts.report('S0022', tagTok.span);
     return null;
   }
   ts.advance(); // consume variant tag
@@ -460,12 +460,12 @@ function parseTypeDecl(ts: TokenStream): Statement | null {
 
   const nameTok = ts.peek();
   if (nameTok.kind !== 'TYPE_NAME') {
-    ts.report('S0018', nameTok.span);
+    ts.report('S0017', nameTok.span);
     return null;
   }
   ts.advance(); // consume type name
 
-  if (ts.expect('EQUALS', 'S0019') === null) return null;
+  if (ts.expect('EQUALS', 'S0018') === null) return null;
 
   const variants: VariantDecl[] = [];
   if (ts.peek().kind === 'LBRACE') {
@@ -567,7 +567,7 @@ export function parseStmt(ts: TokenStream): Statement | null {
 function parseImportName(ts: TokenStream): ImportName | null {
   const tok = ts.peek();
   if (tok.kind !== 'SLOT') {
-    ts.report('S0003', tok.span);
+    ts.report('S0007', tok.span);
     return null;
   }
   ts.advance();
@@ -586,22 +586,22 @@ function parseImport(ts: TokenStream): Statement | null {
   let clause: ImportClause;
   if (ts.peek().kind === 'LBRACE') {
     const open = ts.advance(); // consume '{'
-    const parsed = ts.parseSeparated(() => parseImportName(ts), 'COMMA', 'RBRACE', 'S0005', false, open.span);
+    const parsed = ts.parseSeparated(() => parseImportName(ts), 'COMMA', 'RBRACE', 'S0002', false, open.span);
     if (parsed === null) return null;
     clause = { kind: 'named', names: parsed.items };
   } else if (ts.peek().kind === 'SLOT') {
     const nameTok = ts.advance();
     clause = { kind: 'namespace', binding: nameTok.value, bindingSpan: nameTok.span };
   } else {
-    ts.report('S0041', ts.peek().span);
+    ts.report('S0039', ts.peek().span);
     return null;
   }
 
-  if (ts.expect('KW_FROM', 'S0042') === null) return null;
+  if (ts.expect('KW_FROM', 'S0040') === null) return null;
 
   const spec = ts.peek();
   if (spec.kind !== 'STR_PART_END') {
-    ts.report('S0043', spec.span);
+    ts.report('S0041', spec.span);
     return null;
   }
   ts.advance(); // consume the module specifier

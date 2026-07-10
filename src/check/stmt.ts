@@ -30,12 +30,12 @@ const droppedValue = (stmt: TypedStatement): TypedExpr | null => {
   return stmt.expr;
 };
 
-// Report the drop, if any: T0025 when a *following statement* discards it,
-// T0026 when a *loop* discards it each pass. The fix for both is the same —
+// Report the drop, if any: T0057 when a *following statement* discards it,
+// T0058 when a *loop* discards it each pass. The fix for both is the same —
 // consume the value, or discard it on purpose with 'void'.
 export const reportDroppedValue = (
   stmt: TypedStatement,
-  code: 'T0025' | 'T0026',
+  code: 'T0057' | 'T0058',
   diagnostics: Diagnostics,
 ): void => {
   const dropped = droppedValue(stmt);
@@ -45,8 +45,8 @@ export const reportDroppedValue = (
 };
 
 // `loopBody` marks a fully Done-required block: a 'for'/'while' body, whose
-// *last* statement is discarded by the loop too (T0026), not just its non-final
-// ones (T0025). Everywhere else the last statement is a value position — its
+// *last* statement is discarded by the loop too (T0058), not just its non-final
+// ones (T0057). Everywhere else the last statement is a value position — its
 // value flows out as the block's value — so only the non-final ones are checked.
 export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics, loopBody = false): TypedBlock => {
   const inner = env.child();
@@ -64,9 +64,9 @@ export const inferBlock = (block: Block, env: TypeEnv, diagnostics: Diagnostics,
     typedStmts.push(typedStmt);
     const isLast = i === block.stmts.length - 1;
     if (!isLast) {
-      reportDroppedValue(typedStmt, 'T0025', diagnostics);
+      reportDroppedValue(typedStmt, 'T0057', diagnostics);
     } else if (loopBody) {
-      reportDroppedValue(typedStmt, 'T0026', diagnostics);
+      reportDroppedValue(typedStmt, 'T0058', diagnostics);
     }
     const stmtType = typedStmt.kind === 'expr' ? typedStmt.expr.type : DONE_TYPE;
     if (!diverged) blockType = stmtType;
@@ -81,9 +81,9 @@ export const inferIf = (expr: If, env: TypeEnv, diagnostics: Diagnostics): Typed
   // An Invalid condition already carries its own reported failure — it
   // doesn't decide *what type* the 'if' produces (that's the branches'
   // job), so only the Bool check gets suppressed here, not the branch join
-  // below (T0004 and T0005 inspect different things and stay independent).
+  // below (T0009 and T0010 inspect different things and stay independent).
   if (!isInvalidType(typedCond.type) && typedCond.type.kind !== 'Bool') {
-    diagnostics.error({ code: 'T0004', span: expr.cond.span, data: { actual: typeToString(typedCond.type) } });
+    diagnostics.error({ code: 'T0009', span: expr.cond.span, data: { actual: typeToString(typedCond.type) } });
   }
 
   const typedThen = inferBlock(expr.then, env, diagnostics);
@@ -99,7 +99,7 @@ export const inferIf = (expr: If, env: TypeEnv, diagnostics: Diagnostics): Typed
   const ct = leastCommonType(typedThen.type, typedElse.type);
   if (ct === null) {
     diagnostics.error({
-      code: 'T0005', span: expr.span,
+      code: 'T0010', span: expr.span,
       data: { then: typeToString(typedThen.type), else: typeToString(typedElse.type) },
       related: [
         { key: 'then', span: typedThen.span },
@@ -124,7 +124,7 @@ const literalPatternType = (p: LiteralPattern): AscentType => {
 };
 
 // A stable key identifying a literal pattern's constant, so a second arm with
-// the same constant is flagged unreachable (T0031). valueType is part of the
+// the same constant is flagged unreachable (T0033). valueType is part of the
 // key, so '0' (Int) and '0.0' (Float) never collide — stage 1 doesn't chase
 // the cross-type numeric equality ('0 == 0.0') that '==' itself honours.
 const literalPatternKey = (p: LiteralPattern): string => {
@@ -139,13 +139,13 @@ const literalPatternKey = (p: LiteralPattern): string => {
 // A 'match' is an expression (whitepaper §5): it synthesizes the subject, then
 // each arm, and its type is the join of the reachable arms' bodies (every arm
 // must agree, since the whole 'match' becomes one value). The checker rules that
-// ride along: a pattern must be comparable to the subject (T0028 — a literal of
+// ride along: a pattern must be comparable to the subject (T0029 — a literal of
 // a compatible scalar type, or a variant of the subject's own union, both being
 // "a common type exists"); a variant pattern binds a subset of its variant's
-// fields into the arm's body (T0019/T0020 on an unknown or repeated field);
+// fields into the arm's body (T0023/T0024 on an unknown or repeated field);
 // the arms must be exhaustive (list every variant of a union subject, or supply
-// an 'else' — a missing variant is T0034, a non-union subject with no 'else' is
-// T0029); and no arm may be unreachable (T0031 — after an 'else', or a repeat of
+// an 'else' — a missing variant is T0031, a non-union subject with no 'else' is
+// T0030); and no arm may be unreachable (T0033 — after an 'else', or a repeat of
 // an earlier literal/variant).
 export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics): TypedMatch => {
   const typedSubject = synth(expr.subject, env, diagnostics);
@@ -200,7 +200,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
 
   // The reachable arms' body types, joined into the match's own type below. An
   // unreachable arm still gets synth'd (so errors inside its body surface) but
-  // is left out of the join — it already carries its own T0031, and folding a
+  // is left out of the join — it already carries its own T0033, and folding a
   // shadowed arm in would only add noise.
   const bodyTypes: { type: AscentType; span: Span }[] = [];
 
@@ -219,7 +219,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     } else if (pat.kind === 'variantPattern' && (pat.tag === 'Success' || pat.tag === 'Failure')) {
       // The two built-in Result cases (whitepaper §9). 'Success{ value }' binds
       // 'value' at the subject's ok type, 'Failure{ error }' binds 'error' at its
-      // err type. On a non-Result subject the pattern can't fit (T0028 below); its
+      // err type. On a non-Result subject the pattern can't fit (T0029 below); its
       // fields still bind Invalid so the body doesn't cascade.
       armEnv = env.child();
       key = `variant:${pat.tag}`;
@@ -230,7 +230,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
         : INVALID_TYPE;
       bindPatternFields(pat.fields, { tag: pat.tag, fields: [{ name: fieldName, type: fieldType, span: pat.tagSpan }] }, armEnv, 'fix', pat.tag, diagnostics);
       if (isResult) {
-        // Matches when the subject is that same Result — the generic T0028 check
+        // Matches when the subject is that same Result — the generic T0029 check
         // below compares them and agrees.
         patternType = subjectType;
       } else if (!isInvalidType(subjectType)) {
@@ -239,7 +239,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
         // 'Never orfail Never' of the stand-in Result type).
         patternType = null;
         diagnostics.error({
-          code: 'T0028', span: pat.span,
+          code: 'T0029', span: pat.span,
           data: { expected: typeToString(subjectType), actual: `a Result ('${pat.tag}')` },
           related: [{ key: 'subject', span: expr.subject.span }],
         });
@@ -257,12 +257,12 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
         patternType = INVALID_TYPE;
       } else {
         // The pattern's type is the whole union the tag belongs to — so matching
-        // 'Circle' against a 'Shape' agrees, but against a 'Color' is T0028.
+        // 'Circle' against a 'Shape' agrees, but against a 'Color' is T0029.
         bindPatternFields(pat.fields, ctor.variant, armEnv, 'fix', pat.tag, diagnostics);
         patternType = namedType(ctor.info.name);
       }
     } else if (pat.kind === 'nonePattern') {
-      // 'None' compares as the None type, so the ordinary T0028 check accepts it
+      // 'None' compares as the None type, so the ordinary T0029 check accepts it
       // on a T? subject (None widens into T?) and rejects it on any other.
       patternType = NONE_TYPE;
     } else if (pat.kind === 'bindingPattern') {
@@ -285,7 +285,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     // dead — this one check also enforces "at most one catch-all" (a second is
     // just an arm after the first).
     if (catchAllSpan !== null) {
-      diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: catchAllSpan }] });
+      diagnostics.error({ code: 'T0033', span: arm.span, related: [{ key: 'shadow', span: catchAllSpan }] });
       continue;
     }
 
@@ -297,7 +297,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       // `related` span: there's no single shadowing arm — the arms *together*
       // cover everything.
       if (residualEmpty()) {
-        diagnostics.error({ code: 'T0031', span: arm.span });
+        diagnostics.error({ code: 'T0033', span: arm.span });
       } else {
         bodyTypes.push({ type: typedBody.type, span: arm.span });
       }
@@ -309,14 +309,14 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     // what it covers.
     if (pat.kind === 'nonePattern') {
       if (noneSpan !== null) {
-        diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: noneSpan }] });
+        diagnostics.error({ code: 'T0033', span: arm.span, related: [{ key: 'shadow', span: noneSpan }] });
         continue;
       }
       noneSpan = arm.span;
     } else {
       const firstSpan = seen.get(key!);
       if (firstSpan !== undefined) {
-        diagnostics.error({ code: 'T0031', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
+        diagnostics.error({ code: 'T0033', span: arm.span, related: [{ key: 'shadow', span: firstSpan }] });
         continue;
       }
       seen.set(key!, arm.span);
@@ -327,7 +327,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     // common type exists). Invalid on either side is absorbed quietly.
     if (!isInvalidType(subjectType) && patternType !== null && leastCommonType(subjectType, patternType) === null) {
       diagnostics.error({
-        code: 'T0028', span: pat.span,
+        code: 'T0029', span: pat.span,
         data: { expected: typeToString(subjectType), actual: typeToString(patternType) },
         related: [{ key: 'subject', span: expr.subject.span }],
       });
@@ -338,9 +338,9 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
 
   // Exhaustiveness (whitepaper §5): with no catch-all, the subject's every case
   // must be listed. An infinite domain (Int/Float/String/…) can't be, so it needs
-  // a catch-all outright (T0029). A finite one is covered by listing its cases —
-  // every variant of a union or Bool's True/False (T0034). An Optional adds the
-  // None case on top of its element's domain (T0042): a 'Bool?' is exhausted by
+  // a catch-all outright (T0030). A finite one is covered by listing its cases —
+  // every variant of a union or Bool's True/False (T0031). An Optional adds the
+  // None case on top of its element's domain (T0046): a 'Bool?' is exhausted by
   // True/False/None, while an 'Int?' still needs a catch-all for its infinite
   // present side. A catch-all satisfies everything; an Invalid subject is quiet.
   if (catchAllSpan === null) {
@@ -351,15 +351,15 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       if (d === null) missing.push('a value');
       else missing.push(...d.missing);
       if (missing.length > 0) {
-        diagnostics.error({ code: 'T0042', span: expr.span, data: { type: typeToString(subjectType), missing: missing.join(' and ') } });
+        diagnostics.error({ code: 'T0046', span: expr.span, data: { type: typeToString(subjectType), missing: missing.join(' and ') } });
       }
     } else {
       const d = domainOf(subjectType);
       if (d === null) {
-        if (!isInvalidType(subjectType)) diagnostics.error({ code: 'T0029', span: expr.span });
+        if (!isInvalidType(subjectType)) diagnostics.error({ code: 'T0030', span: expr.span });
       } else if (d.missing.length > 0) {
         diagnostics.error({
-          code: 'T0034', span: expr.span,
+          code: 'T0031', span: expr.span,
           data: { type: d.label, variants: d.all.join(', '), missing: d.missing.join(', ') },
         });
       }
@@ -367,7 +367,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
   }
 
   // Join the reachable arms pairwise, like a list literal's elements. On the
-  // first pair with no common type, report T0030 and settle the whole match at
+  // first pair with no common type, report T0032 and settle the whole match at
   // Invalid so the failure stops here instead of cascading. leastCommonType is
   // Invalid-aware, so an arm whose own body failed carries Invalid through
   // without a second diagnostic.
@@ -378,7 +378,7 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       const ct = leastCommonType(type, arm.type);
       if (ct === null) {
         diagnostics.error({
-          code: 'T0030', span: expr.span,
+          code: 'T0032', span: expr.span,
           data: { first: typeToString(type), other: typeToString(arm.type) },
           related: [{ key: 'arm', span: arm.span }],
         });
@@ -395,8 +395,8 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
 // Bind a record/variant pattern's named fields into `env` as fixed locals,
 // resolving each against `variant`'s declared fields (whitepaper §5). Shared by
 // fix/mut destructuring and match variant patterns — the same field syntax in
-// both. A field the variant doesn't declare is T0019 (bound Invalid, so later
-// uses stay quiet instead of cascading); a field named twice is T0020 (the
+// both. A field the variant doesn't declare is T0023 (bound Invalid, so later
+// uses stay quiet instead of cascading); a field named twice is T0024 (the
 // repeat is dropped). `variant` is null when the tag couldn't be resolved —
 // then every field binds Invalid. `origin` is 'fix'/'mut' so a bound local
 // carries the right reassignment rule (match arms bind as 'fix').
@@ -408,7 +408,7 @@ const bindPatternFields = (
   const seen = new Map<string, Span>();
   for (const f of fields) {
     if (seen.has(f.field)) {
-      diagnostics.error({ code: 'T0020', span: f.fieldSpan, data: { field: f.field, type: typeName } });
+      diagnostics.error({ code: 'T0024', span: f.fieldSpan, data: { field: f.field, type: typeName } });
       continue;
     }
     seen.set(f.field, f.fieldSpan);
@@ -417,7 +417,7 @@ const bindPatternFields = (
     if (variant !== null) {
       const decl = variant.fields.find(d => d.name === f.field);
       if (decl === undefined) {
-        diagnostics.error({ code: 'T0019', span: f.fieldSpan, data: { field: f.field, type: typeName } });
+        diagnostics.error({ code: 'T0023', span: f.fieldSpan, data: { field: f.field, type: typeName } });
       } else {
         fieldType = decl.type;
       }
@@ -431,7 +431,7 @@ const bindPatternFields = (
 // Resolve a record destructuring pattern (whitepaper §5) and bind its fields
 // into `env`. The tag must name an *irrefutable* single-variant record — a value
 // of it is always that one shape, so the destructuring can't fail. A refutable
-// tag (a case of a multi-variant union) might not match, so it's rejected (T0033)
+// tag (a case of a multi-variant union) might not match, so it's rejected (T0034)
 // and belongs in a 'match' instead; an unknown tag is N0005, a built-in N0012.
 // Returns `recordType` (the type the bound value must have — a real Named type
 // only when the destructuring is sound, else Invalid) plus the typed fields.
@@ -447,7 +447,7 @@ const resolveRecordTarget = (
   // Result could be either — so, like a union variant, they can't be pulled
   // apart in a 'fix'/'mut' binding; 'match' handles both cases (whitepaper §9).
   if (target.typeName === 'Success' || target.typeName === 'Failure') {
-    diagnostics.error({ code: 'T0033', span: target.typeNameSpan, data: { type: 'Result', variants: 'Success, Failure' } });
+    diagnostics.error({ code: 'T0034', span: target.typeNameSpan, data: { type: 'Result', variants: 'Success, Failure' } });
     const typedFields = bindPatternFields(target.fields, null, env, origin, target.typeName, diagnostics);
     return { recordType: INVALID_TYPE, typedFields };
   }
@@ -466,7 +466,7 @@ const resolveRecordTarget = (
       // A union case: it might not match, so it can't be destructured in a
       // binding — 'match' handles each case instead.
       diagnostics.error({
-        code: 'T0033', span: target.typeNameSpan,
+        code: 'T0034', span: target.typeNameSpan,
         data: { type: ctor.info.name, variants: ctor.info.variants.map(v => v.tag).join(', ') },
       });
       variant = ctor.variant;
@@ -477,7 +477,7 @@ const resolveRecordTarget = (
       // The union's *type name* written as a pattern — refutable for the same
       // reason: a value of it could be any of its variants.
       diagnostics.error({
-        code: 'T0033', span: target.typeNameSpan,
+        code: 'T0034', span: target.typeNameSpan,
         data: { type: asType.name, variants: asType.variants.map(v => v.tag).join(', ') },
       });
     } else if (BUILTIN_TYPE_NAMES.has(target.typeName)) {
@@ -487,7 +487,7 @@ const resolveRecordTarget = (
     }
   }
 
-  // Bind each named field to a local (T0019/T0020 on an unknown or repeated
+  // Bind each named field to a local (T0023/T0024 on an unknown or repeated
   // field), of its declared type when the variant is known.
   const typedFields = bindPatternFields(target.fields, variant, env, origin, target.typeName, diagnostics);
   return { recordType, typedFields };
@@ -569,13 +569,13 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
           // design.md §7's slot-inference wrinkle: a bare 'None' carries no
           // type information (there's nothing to widen it to) — so it needs
           // a written annotation too.
-          diagnostics.error({ code: 'T0015', span: stmt.init.span });
+          diagnostics.error({ code: 'T0002', span: stmt.init.span });
         } else if (typedInit.type.kind === 'Result' && containsNever(typedInit.type)) {
           // A bare 'Success{ … }' / 'Failure{ … }' pins only one side of the
           // Result — the other stays Never, with no later use to resolve it (a
           // 'Success' never reveals the error type, §7's no-cross-statement-flow
           // rule) — so the whole 'T orfail E' has to be written down.
-          diagnostics.error({ code: 'T0043', span: stmt.init.span });
+          diagnostics.error({ code: 'T0048', span: stmt.init.span });
         } else if (typedInit.type.kind === 'Never') {
           // A *bare* Never — the initializer diverges: an 'abort' / 'return', or
           // a block/if/match whose every path does — so it never produces a value
@@ -586,7 +586,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
           // as under-typed. (An *annotated* 'fix x: Int = abort "todo"' is still
           // allowed as a deliberate stub — the annotation branch above handles it,
           // since Never widens to Int.)
-          diagnostics.error({ code: 'T0060', span: stmt.init.span, data: { name } });
+          diagnostics.error({ code: 'T0004', span: stmt.init.span, data: { name } });
         } else if (containsNever(typedInit.type)) {
           // Same wrinkle for a bare '[]' (or anything built from one, like
           // '[].reverse()'): List<Never> would otherwise freeze the slot at
@@ -596,8 +596,8 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
           // widened value back once reassigned).
           diagnostics.error({ code: 'T0003', span: stmt.init.span });
         }
-        // A diverging init (T0060) has no usable slot type — Never would cascade
-        // into every later use of the slot (e.g. 'print(x)' → T0024). Adopt
+        // A diverging init (T0004) has no usable slot type — Never would cascade
+        // into every later use of the slot (e.g. 'print(x)' → T0019). Adopt
         // Invalid: the tombstone for the failure just reported, which absorbs in
         // both directions and stays quiet (§7). Every other inferred type —
         // including List<Never> for a bare '[]' — flows through unchanged.
@@ -729,7 +729,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
     case 'while': {
       const typedCond = synth(stmt.cond, env, diagnostics);
       if (!isInvalidType(typedCond.type) && typedCond.type.kind !== 'Bool') {
-        diagnostics.error({ code: 'T0004', span: stmt.cond.span, data: { actual: typeToString(typedCond.type) } });
+        diagnostics.error({ code: 'T0009', span: stmt.cond.span, data: { actual: typeToString(typedCond.type) } });
       }
       const typedBody = inferBlock(stmt.body, env, diagnostics, true);
       return { kind: 'while', cond: typedCond, body: typedBody, span: stmt.span };
@@ -740,7 +740,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       const it = typedIterable.type;
       // What each iteration binds `name` to is the iterable's `Item` — the
       // Iterable trait's associated type (whitepaper §5/§7): a List's element
-      // type, or Int for a Range. A type with no Item isn't iterable (T0017). An
+      // type, or Int for a Range. A type with no Item isn't iterable (T0021). An
       // already-Invalid iterable stays Invalid without a second error.
       let elemType: AscentType;
       if (isInvalidType(it)) {
@@ -748,7 +748,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       } else {
         const item = iterableElement(it);
         if (item === null) {
-          diagnostics.error({ code: 'T0017', span: stmt.iterable.span, data: { actual: typeToString(it) } });
+          diagnostics.error({ code: 'T0021', span: stmt.iterable.span, data: { actual: typeToString(it) } });
           elemType = INVALID_TYPE;
         } else {
           elemType = item;
@@ -766,7 +766,7 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         // (single-variant) record. The element type must be that record — a
         // 'for Car{ … } in people' where the elements are Person is T0001, the
         // same mismatch a 'fix Car{ … } = aPerson' would be. Refutable/unknown
-        // tags are handled inside resolveRecordTarget (T0033/N0005/N0012).
+        // tags are handled inside resolveRecordTarget (T0034/N0005/N0012).
         const { recordType, typedFields } = resolveRecordTarget(stmt.target, inner, 'fix', diagnostics);
         if (!isInvalidType(recordType) && !isInvalidType(elemType) && !isAssignableTo(elemType, recordType)) {
           diagnostics.error({
@@ -790,12 +790,12 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
 
     case 'void': {
       // 'void expr' discards a real value on purpose. A Done-typed operand has
-      // no value to discard (T0027) — an already-effectful 'print' or loop
+      // no value to discard (T0059) — an already-effectful 'print' or loop
       // needs no 'void'. Invalid/Never already carry their own story, so stay
       // quiet there. The statement itself always yields Done.
       const typedExpr = synth(stmt.expr, env, diagnostics);
       if (typedExpr.type.kind === 'Done') {
-        diagnostics.error({ code: 'T0027', span: stmt.expr.span });
+        diagnostics.error({ code: 'T0059', span: stmt.expr.span });
       }
       return { kind: 'void', expr: typedExpr, span: stmt.span };
     }

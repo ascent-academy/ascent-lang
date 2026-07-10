@@ -166,45 +166,45 @@ describe('Records (end-to-end)', () => {
   });
 
   describe('type errors', () => {
-    it('reports T0018 for a missing field', () => {
-      assert.deepEqual(errorCodes(`${PERSON} Person{ name: "A" };`), ['T0018']);
+    it('reports T0022 for a missing field', () => {
+      assert.deepEqual(errorCodes(`${PERSON} Person{ name: "A" };`), ['T0022']);
     });
 
-    it('reports T0019 for an unknown field', () => {
-      assert.deepEqual(errorCodes(`${PERSON} Person{ name: "A", age: 1, city: "X" };`), ['T0019']);
+    it('reports T0023 for an unknown field', () => {
+      assert.deepEqual(errorCodes(`${PERSON} Person{ name: "A", age: 1, city: "X" };`), ['T0023']);
     });
 
-    it('reports T0020 for the same field given twice', () => {
-      assert.deepEqual(errorCodes('type P = { x: Int }; P{ x: 1, x: 2 };'), ['T0020']);
+    it('reports T0024 for the same field given twice', () => {
+      assert.deepEqual(errorCodes('type P = { x: Int }; P{ x: 1, x: 2 };'), ['T0024']);
     });
 
-    it('reports T0021 for a field value of the wrong type', () => {
-      assert.deepEqual(errorCodes('type P = { x: Int }; P{ x: "no" };'), ['T0021']);
+    it('reports T0025 for a field value of the wrong type', () => {
+      assert.deepEqual(errorCodes('type P = { x: Int }; P{ x: "no" };'), ['T0025']);
     });
 
-    it('reports T0022 for field access on a non-record', () => {
-      assert.deepEqual(errorCodes('fix n = 5; n.foo;'), ['T0022']);
+    it('reports T0026 for field access on a non-record', () => {
+      assert.deepEqual(errorCodes('fix n = 5; n.foo;'), ['T0026']);
     });
 
-    it('reports T0023 for reading a field the record does not have', () => {
-      assert.deepEqual(errorCodes(`${PERSON} fix p = Person{ name: "A", age: 1 }; p.city;`), ['T0023']);
+    it('reports T0027 for reading a field the record does not have', () => {
+      assert.deepEqual(errorCodes(`${PERSON} fix p = Person{ name: "A", age: 1 }; p.city;`), ['T0027']);
     });
 
-    it('reports T0014 for a whole record in an interpolation hole', () => {
-      assert.deepEqual(errorCodes(`${PERSON} fix p = Person{ name: "A", age: 1 }; "\${p}";`), ['T0014']);
+    it('reports T0018 for a whole record in an interpolation hole', () => {
+      assert.deepEqual(errorCodes(`${PERSON} fix p = Person{ name: "A", age: 1 }; "\${p}";`), ['T0018']);
     });
   });
 
   describe('syntax errors', () => {
-    it('reports T0018 for a record built bare, without its fields', () => {
+    it('reports T0022 for a record built bare, without its fields', () => {
       // A bare UpperCamel name is a zero-field construction now (braceless enum
       // case), so 'P' — a record that declares fields — is a missing-field
-      // mistake, not the retired S0023 "needs braces".
-      assert.ok(errorCodes('type P = { x: Int }; fix p = P;').includes('T0018'));
+      // mistake, not a "needs braces" error.
+      assert.ok(errorCodes('type P = { x: Int }; fix p = P;').includes('T0022'));
     });
 
-    it('reports S0010 for a record type in a program input list', () => {
-      assert.ok(errorCodes('program (p: Person) { 1 }').includes('S0010'));
+    it('reports S0012 for a record type in a program input list', () => {
+      assert.ok(errorCodes('program (p: Person) { 1 }').includes('S0012'));
     });
   });
 });

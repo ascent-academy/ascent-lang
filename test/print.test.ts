@@ -83,20 +83,20 @@ describe('print (end-to-end)', () => {
   });
 
   describe('type errors', () => {
-    it('rejects a value with no text form — a List (T0024)', () => {
-      assert.deepEqual(errorCodes('print([1, 2]);'), ['T0024']);
+    it('rejects a value with no text form — a List (T0019)', () => {
+      assert.deepEqual(errorCodes('print([1, 2]);'), ['T0019']);
     });
 
-    it('rejects None, which has no text form (T0024)', () => {
-      assert.deepEqual(errorCodes('print(None);'), ['T0024']);
+    it('rejects None, which has no text form (T0019)', () => {
+      assert.deepEqual(errorCodes('print(None);'), ['T0019']);
     });
 
-    it('rejects a missing argument (T0007)', () => {
-      assert.deepEqual(errorCodes('print();'), ['T0007']);
+    it('rejects a missing argument (T0014)', () => {
+      assert.deepEqual(errorCodes('print();'), ['T0014']);
     });
 
-    it('rejects an extra argument (T0007)', () => {
-      assert.deepEqual(errorCodes('print("a", "b");'), ['T0007']);
+    it('rejects an extra argument (T0014)', () => {
+      assert.deepEqual(errorCodes('print("a", "b");'), ['T0014']);
     });
 
     it('no longer knows floor — it was replaced by print (T0013)', () => {

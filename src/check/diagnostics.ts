@@ -27,7 +27,7 @@ export class Diagnostics {
 
 export const requireArity = (expected: number, got: number, diagnostics: Diagnostics, span: Span): boolean => {
   if (got !== expected) {
-    diagnostics.error({ code: 'T0007', span, data: { expected: String(expected), got: String(got) } });
+    diagnostics.error({ code: 'T0014', span, data: { expected: String(expected), got: String(got) } });
     return false;
   }
   return true;
@@ -49,9 +49,9 @@ export const typeMismatch = (
   return INVALID_TYPE;
 };
 
-// An operator applied to operands it doesn't accept (T0009). `operands` is the
+// An operator applied to operands it doesn't accept (T0008). `operands` is the
 // joined list of type names — one for a unary '-', two for a binary operator.
 export const operandError = (diagnostics: Diagnostics, op: string, span: Span, ...operands: AscentType[]): AscentType => {
-  diagnostics.error({ code: 'T0009', span, data: { op, operands: operands.map(typeToString).join(' and ') } });
+  diagnostics.error({ code: 'T0008', span, data: { op, operands: operands.map(typeToString).join(' and ') } });
   return INVALID_TYPE;
 };

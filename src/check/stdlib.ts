@@ -28,19 +28,19 @@ export interface ModuleFnSig {
 const numeric1 = (result: AscentType): ModuleFnSig => ({
   arity: 1,
   resolve: (args, diagnostics, span) =>
-    isAssignableTo(args[0]!, FLOAT_TYPE) ? result : typeMismatch('T0008', diagnostics, span, FLOAT_TYPE, args[0]!),
+    isAssignableTo(args[0]!, FLOAT_TYPE) ? result : typeMismatch('T0015', diagnostics, span, FLOAT_TYPE, args[0]!),
 });
 
 // min/max: both arguments must be orderable (Comparable — Int/Float/String) and
 // share a common type — their join, which is also the result, so 'min(2, 3.5)'
 // is the Float 2.0. Two failure modes (no common type, or a common type that
-// isn't orderable, e.g. two Bools) collapse into the one T0062.
+// isn't orderable, e.g. two Bools) collapse into the one T0061.
 const minMaxSig: ModuleFnSig = {
   arity: 2,
   resolve: (args, diagnostics, span) => {
     const join = leastCommonType(args[0]!, args[1]!);
     if (join === null || !satisfies('Comparable', join)) {
-      diagnostics.error({ code: 'T0062', span, data: { left: typeToString(args[0]!), right: typeToString(args[1]!) } });
+      diagnostics.error({ code: 'T0061', span, data: { left: typeToString(args[0]!), right: typeToString(args[1]!) } });
       return INVALID_TYPE;
     }
     return join;
@@ -60,16 +60,16 @@ export const MODULE_SIGS: Record<string, Record<string, ModuleFnSig>> = {
     assert: {
       arity: 1,
       resolve: (args, diagnostics, span) =>
-        isAssignableTo(args[0]!, BOOL_TYPE) ? DONE_TYPE : typeMismatch('T0008', diagnostics, span, BOOL_TYPE, args[0]!),
+        isAssignableTo(args[0]!, BOOL_TYPE) ? DONE_TYPE : typeMismatch('T0015', diagnostics, span, BOOL_TYPE, args[0]!),
     },
     // assertEqual compares with '==', which needs only a common type (records
     // compare structurally too, not just scalars) — so it asks for a join, not
-    // Comparable. Mismatched, un-joinable types can never be equal (T0063).
+    // Comparable. Mismatched, un-joinable types can never be equal (T0062).
     assertEqual: {
       arity: 2,
       resolve: (args, diagnostics, span) => {
         if (leastCommonType(args[0]!, args[1]!) === null) {
-          diagnostics.error({ code: 'T0063', span, data: { left: typeToString(args[0]!), right: typeToString(args[1]!) } });
+          diagnostics.error({ code: 'T0062', span, data: { left: typeToString(args[0]!), right: typeToString(args[1]!) } });
           return INVALID_TYPE;
         }
         return DONE_TYPE;
@@ -78,7 +78,7 @@ export const MODULE_SIGS: Record<string, Record<string, ModuleFnSig>> = {
   },
 };
 
-// The one rule that checks a module call: arity first (T0007), then the export's
+// The one rule that checks a module call: arity first (T0014), then the export's
 // own resolver. Both lookups are guaranteed present — the checker's import
 // resolution already reported an unknown module (N0014) or export (N0015) — so a
 // miss here is an internal invariant violation, not a user error.

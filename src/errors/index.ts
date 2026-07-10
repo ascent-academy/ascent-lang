@@ -33,14 +33,6 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "L0003",
-    "name": "unterminated-string",
-    "category": "lexical",
-    "summary": "A String with no closing \".",
-    "message": "This String is missing its closing \".",
-    "explanation": "Every String begins and ends with a \". This one has an opening \" but the line ends before a matching \" appears."
-  },
-  {
-    "code": "L0004",
     "name": "missing-integer-part",
     "category": "lexical",
     "summary": "A decimal with no digit before the '.', like '.5'.",
@@ -56,23 +48,15 @@ export const ERRORS: ErrorEntry[] = [
     }
   },
   {
+    "code": "L0004",
+    "name": "unterminated-string",
+    "category": "lexical",
+    "summary": "A String with no closing \".",
+    "message": "This String is missing its closing \".",
+    "explanation": "Every String begins and ends with a \". This one has an opening \" but the line ends before a matching \" appears."
+  },
+  {
     "code": "L0005",
-    "name": "unterminated-block-comment",
-    "category": "lexical",
-    "summary": "A #[ block comment with no matching ]#.",
-    "message": "This comment is missing its closing ]#.",
-    "explanation": "A block comment begins with #[ and ends with ]#, and a #[ ... ]# comment can sit inside another one. This one has an opening #[ but the program ends before a matching ]# appears."
-  },
-  {
-    "code": "L0006",
-    "name": "unterminated-interpolation",
-    "category": "lexical",
-    "summary": "A ${ hole inside a String has no closing }.",
-    "message": "This ${ is missing its closing }.",
-    "explanation": "Inside a String, ${ starts a hole that puts a value into the text, and it needs a matching } to close it, like \"Hi ${name}\". This one has an opening ${ but the program ends before a matching } appears."
-  },
-  {
-    "code": "L0007",
     "name": "unterminated-multiline-string",
     "category": "lexical",
     "summary": "A multiline String (\"\"\") with no closing \"\"\".",
@@ -80,12 +64,28 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A multiline String begins and ends with \"\"\". This one has an opening \"\"\" but the program ends before a matching \"\"\" appears."
   },
   {
-    "code": "L0008",
+    "code": "L0006",
     "name": "insufficient-indentation",
     "category": "lexical",
     "summary": "A line in a multiline String has less indentation than its closing \"\"\".",
     "message": "This line doesn't have enough indentation to match the closing \"\"\".",
     "explanation": "In a multiline String, the closing \"\"\" sets how much leading space is shared by every line, and that much is removed from each one. This line starts further left than the closing \"\"\", so there isn't enough shared space to remove."
+  },
+  {
+    "code": "L0007",
+    "name": "unterminated-interpolation",
+    "category": "lexical",
+    "summary": "A ${ hole inside a String has no closing }.",
+    "message": "This ${ is missing its closing }.",
+    "explanation": "Inside a String, ${ starts a hole that puts a value into the text, and it needs a matching } to close it, like \"Hi ${name}\". This one has an opening ${ but the program ends before a matching } appears."
+  },
+  {
+    "code": "L0008",
+    "name": "unterminated-block-comment",
+    "category": "lexical",
+    "summary": "A #[ block comment with no matching ]#.",
+    "message": "This comment is missing its closing ]#.",
+    "explanation": "A block comment begins with #[ and ends with ]#, and a #[ ... ]# comment can sit inside another one. This one has an opening #[ but the program ends before a matching ]# appears."
   },
   {
     "code": "N0001",
@@ -287,15 +287,6 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "R0006",
-    "name": "empty-string-access",
-    "category": "runtime",
-    "summary": "'.first()' or '.last()' was called on a String with no characters.",
-    "message": "'.{method}()' has nothing to return: this String is empty.",
-    "explanation": "'.first()' returns a String's first character and '.last()' its last, but an empty String (\"\") has neither. Check the String's '.length()' before calling '.{method}()' if it might be empty.",
-    "retired": true
-  },
-  {
-    "code": "R0007",
     "name": "string-slice-out-of-bounds",
     "category": "runtime",
     "summary": "'.slice(start..end)' had a start or end outside the String's valid range.",
@@ -303,7 +294,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'.slice(start..end)' counts characters from 0 and the end is exclusive, so a String with {length} character(s) only accepts a start and end between 0 and {length}, with start no greater than end. '{start}' and '{end}' don't fit that rule here."
   },
   {
-    "code": "R0008",
+    "code": "R0007",
     "name": "negative-repeat-count",
     "category": "runtime",
     "summary": "'.repeat(n)' was called with a negative n.",
@@ -311,7 +302,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'.repeat(n)' builds a new String out of n copies of this one, so n has to be 0 or more — there's no such thing as repeating something a negative number of times. Use 0 if you want an empty String back."
   },
   {
-    "code": "R0009",
+    "code": "R0008",
     "name": "abort",
     "category": "runtime",
     "summary": "'abort' deliberately stopped the program at a point marked unreachable.",
@@ -319,7 +310,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'abort' stops the program on purpose, at a spot the code treats as impossible to reach — a branch ruled out earlier, or an invariant that has been broken. The reason above is the one written at that 'abort'. If this spot can really be reached, handle that case instead of aborting."
   },
   {
-    "code": "R0010",
+    "code": "R0009",
     "name": "orabort-on-failure",
     "category": "runtime",
     "summary": "'.orAbort()' was called on a Result that turned out to be a Failure.",
@@ -327,7 +318,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'.orAbort()' hands back the value inside a Success, but this Result was a Failure, so there is no value to unwrap. It stops the program and reports the Failure's error rather than carry on with something missing. Handle the Failure with 'match' or 'try' if it can really happen, and keep '.orAbort()' only where a Failure would be a bug."
   },
   {
-    "code": "R0011",
+    "code": "R0010",
     "name": "orabort-on-none",
     "category": "runtime",
     "summary": "'.orAbort()' was called on an Optional that turned out to be None.",
@@ -335,7 +326,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'.orAbort()' hands back the value inside an Optional when it is present, but this one was None, so there is nothing to unwrap. It asserts the value is there, so a None stops the program. Handle the None with 'match' or '??' if it can really happen, and keep '.orAbort()' only where a None would be a bug."
   },
   {
-    "code": "R0012",
+    "code": "R0011",
     "name": "assertion-failed",
     "category": "runtime",
     "summary": "'assert' was given a condition that turned out to be False.",
@@ -343,7 +334,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'assert(condition)' checks that something you expect to be true really is. This condition came out False at run time, so the program stops here rather than carry on past a broken expectation. Find why it wasn't true, or handle that case instead of asserting."
   },
   {
-    "code": "R0013",
+    "code": "R0012",
     "name": "assert-equal-failed",
     "category": "runtime",
     "summary": "'assertEqual' was given two values that turned out not to be equal.",
@@ -366,30 +357,6 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "S0002",
-    "name": "expected-expression",
-    "category": "syntactic",
-    "summary": "A value was expected here, but there wasn't one.",
-    "message": "I expected a value here.",
-    "explanation": "This spot needs a value — a number, a String, a name, or something built from them like 'a + b'. Places that need one include just after '=', just after an operator like '+', and inside '( )'."
-  },
-  {
-    "code": "S0003",
-    "name": "expected-slot-name",
-    "category": "syntactic",
-    "summary": "A name was expected after 'fix' or 'mut', as a program input, or as a function parameter.",
-    "message": "I expected a name here.",
-    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), as the name of a program input ('program (age: Int) { … }'), or as a function parameter ('fn(x: Int): Int { … }'). A name starts with a lowercase letter."
-  },
-  {
-    "code": "S0004",
-    "name": "expected-equals",
-    "category": "syntactic",
-    "summary": "An '=' was expected after the name in a 'fix' or 'mut' declaration.",
-    "message": "I expected an '=' here.",
-    "explanation": "'fix' and 'mut' give a name its starting value, so the name is followed by '=' and the value, like 'fix count = 0'. (A type can go in between, as in 'fix count: Int = 0'.)"
-  },
-  {
-    "code": "S0005",
     "name": "unclosed-brace",
     "category": "syntactic",
     "summary": "An opening '{' has no matching '}'.",
@@ -403,63 +370,7 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "S0006",
-    "name": "expected-test-paren",
-    "category": "syntactic",
-    "summary": "A '(' was expected to open a condition, a 'program' input list, or a function's parameters.",
-    "message": "I expected a '(' here.",
-    "explanation": "An 'if' or 'while' condition, the inputs listed after 'program', and a function's parameters all go inside '( )' — like 'if (age >= 18) { … }', 'program (age: Int) { … }', or 'fn(x: Int): Int { … }'. This is where that opening '(' should be."
-  },
-  {
-    "code": "S0007",
-    "name": "expected-block",
-    "category": "syntactic",
-    "summary": "A block ('{ … }') was expected here.",
-    "message": "I expected a '{' here.",
-    "explanation": "The body of an 'if', 'else', 'while', or 'program' is always a block between '{' and '}', even when it holds a single line, as in 'if (ok) { … }' or 'program (age: Int) { … }'."
-  },
-  {
-    "code": "S0008",
-    "name": "chained-comparison",
-    "category": "syntactic",
-    "summary": "Comparisons can't be chained — 'a < b < c' isn't allowed.",
-    "message": "I can't chain two comparisons like this.",
-    "explanation": "A comparison such as '<' or '==' looks at two values and gives back True or False. Chaining a third one, as in 'a < b < c', would then compare that True or False against another value, which has no clear meaning — so compare two values at a time."
-  },
-  {
-    "code": "S0009",
-    "name": "expected-colon",
-    "category": "syntactic",
-    "summary": "A ':' was expected between a program input's or function parameter's name and its type.",
-    "message": "I expected a ':' here.",
-    "explanation": "A program input and a function parameter are each written as a name, then ':', then its type — like 'program (age: Int) { … }' or 'fn(x: Int): Int { … }'. This is where the ':' should be."
-  },
-  {
-    "code": "S0010",
-    "name": "expected-type",
-    "category": "syntactic",
-    "summary": "A type name was expected here.",
-    "message": "I expected a type name here.",
-    "explanation": "A type name says what kind of value this is. The built-in types are Int, Float, Bool, and String, plus 'List<…>' for a list, as in 'List<Int>'."
-  },
-  {
-    "code": "S0011",
-    "name": "expected-semicolon",
-    "category": "syntactic",
-    "summary": "A ';' was expected to end the statement.",
-    "message": "I expected a ';' here.",
-    "explanation": "Every statement in Ascent ends with a ';'. It looks like the statement before this point was never finished with one."
-  },
-  {
-    "code": "S0012",
-    "name": "expected-method-name",
-    "category": "syntactic",
-    "summary": "A method name was expected after '.'.",
-    "message": "I expected a method name here.",
-    "explanation": "A '.' calls a method on a value, so it's followed by the method's name and '( )', like 'items.length()'. A method name starts with a lowercase letter."
-  },
-  {
-    "code": "S0013",
+    "code": "S0003",
     "name": "unclosed-bracket",
     "category": "syntactic",
     "summary": "An opening '[' has no matching ']'.",
@@ -473,15 +384,87 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "S0014",
-    "name": "expected-call-paren",
+    "code": "S0004",
+    "name": "expected-expression",
     "category": "syntactic",
-    "summary": "A method call needs '( )' after the method name.",
-    "message": "I expected a '(' here.",
-    "explanation": "A '.' calls a method, and a call always has '( )' after the name — even when the method takes no inputs, as in 'items.length()'. This is where that opening '(' should be."
+    "summary": "A value was expected here, but there wasn't one.",
+    "message": "I expected a value here.",
+    "explanation": "This spot needs a value — a number, a String, a name, or something built from them like 'a + b'. Places that need one include just after '=', just after an operator like '+', and inside '( )'."
   },
   {
-    "code": "S0015",
+    "code": "S0005",
+    "name": "chained-comparison",
+    "category": "syntactic",
+    "summary": "Comparisons can't be chained — 'a < b < c' isn't allowed.",
+    "message": "I can't chain two comparisons like this.",
+    "explanation": "A comparison such as '<' or '==' looks at two values and gives back True or False. Chaining a third one, as in 'a < b < c', would then compare that True or False against another value, which has no clear meaning — so compare two values at a time."
+  },
+  {
+    "code": "S0006",
+    "name": "expected-semicolon",
+    "category": "syntactic",
+    "summary": "A ';' was expected to end the statement.",
+    "message": "I expected a ';' here.",
+    "explanation": "Every statement in Ascent ends with a ';'. It looks like the statement before this point was never finished with one."
+  },
+  {
+    "code": "S0007",
+    "name": "expected-slot-name",
+    "category": "syntactic",
+    "summary": "A name was expected after 'fix' or 'mut', as a program input, or as a function parameter.",
+    "message": "I expected a name here.",
+    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), as the name of a program input ('program (age: Int) { … }'), or as a function parameter ('fn(x: Int): Int { … }'). A name starts with a lowercase letter."
+  },
+  {
+    "code": "S0008",
+    "name": "expected-equals",
+    "category": "syntactic",
+    "summary": "An '=' was expected after the name in a 'fix' or 'mut' declaration.",
+    "message": "I expected an '=' here.",
+    "explanation": "'fix' and 'mut' give a name its starting value, so the name is followed by '=' and the value, like 'fix count = 0'. (A type can go in between, as in 'fix count: Int = 0'.)"
+  },
+  {
+    "code": "S0009",
+    "name": "expected-block",
+    "category": "syntactic",
+    "summary": "A block ('{ … }') was expected here.",
+    "message": "I expected a '{' here.",
+    "explanation": "The body of an 'if', 'else', 'while', or 'program' is always a block between '{' and '}', even when it holds a single line, as in 'if (ok) { … }' or 'program (age: Int) { … }'."
+  },
+  {
+    "code": "S0010",
+    "name": "expected-test-paren",
+    "category": "syntactic",
+    "summary": "A '(' was expected to open a condition, a 'program' input list, or a function's parameters.",
+    "message": "I expected a '(' here.",
+    "explanation": "An 'if' or 'while' condition, the inputs listed after 'program', and a function's parameters all go inside '( )' — like 'if (age >= 18) { … }', 'program (age: Int) { … }', or 'fn(x: Int): Int { … }'. This is where that opening '(' should be."
+  },
+  {
+    "code": "S0011",
+    "name": "expected-colon",
+    "category": "syntactic",
+    "summary": "A ':' was expected between a program input's or function parameter's name and its type.",
+    "message": "I expected a ':' here.",
+    "explanation": "A program input and a function parameter are each written as a name, then ':', then its type — like 'program (age: Int) { … }' or 'fn(x: Int): Int { … }'. This is where the ':' should be."
+  },
+  {
+    "code": "S0012",
+    "name": "expected-type",
+    "category": "syntactic",
+    "summary": "A type name was expected here.",
+    "message": "I expected a type name here.",
+    "explanation": "A type name says what kind of value this is. The built-in types are Int, Float, Bool, and String, plus 'List<…>' for a list, as in 'List<Int>'."
+  },
+  {
+    "code": "S0013",
+    "name": "expected-method-name",
+    "category": "syntactic",
+    "summary": "A method name was expected after '.'.",
+    "message": "I expected a method name here.",
+    "explanation": "A '.' calls a method on a value, so it's followed by the method's name and '( )', like 'items.length()'. A method name starts with a lowercase letter."
+  },
+  {
+    "code": "S0014",
     "name": "extra-interpolation-content",
     "category": "syntactic",
     "summary": "A '${ }' hole in a String holds more than one value.",
@@ -489,7 +472,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A '${ }' hole inside a String holds exactly one value, like '${name}' or '${price.toString()}'. This one has extra content after a complete value, so it isn't clear what to do with it."
   },
   {
-    "code": "S0016",
+    "code": "S0015",
     "name": "expected-loop-name",
     "category": "syntactic",
     "summary": "A loop variable name was expected after 'for'.",
@@ -497,7 +480,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'for' loop names each item as it goes, like 'for item in items' or 'for i in 0..n'. The name comes right after 'for', and it starts with a lowercase letter. It can also destructure each item into its fields with a pattern, like 'for Point{ x, y } in points'."
   },
   {
-    "code": "S0017",
+    "code": "S0016",
     "name": "expected-in",
     "category": "syntactic",
     "summary": "'in' was expected after the loop variable in a 'for' loop.",
@@ -505,7 +488,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'for' loop is written 'for name in values', so 'in' comes after the loop variable and before what's being looped over, as in 'for i in 0..n'."
   },
   {
-    "code": "S0018",
+    "code": "S0017",
     "name": "expected-type-name",
     "category": "syntactic",
     "summary": "A type name was expected after 'type'.",
@@ -513,7 +496,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'type' declaration gives a new type its name, like 'type Person = { … }'. The name comes right after 'type', and it starts with an uppercase letter."
   },
   {
-    "code": "S0019",
+    "code": "S0018",
     "name": "expected-type-equals",
     "category": "syntactic",
     "summary": "An '=' was expected after the name in a 'type' declaration.",
@@ -521,7 +504,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'type' declaration is written 'type Name = { … }', so '=' comes after the name and before the fields, as in 'type Person = { name: String }'."
   },
   {
-    "code": "S0020",
+    "code": "S0019",
     "name": "expected-record-brace",
     "category": "syntactic",
     "summary": "A '{' was expected to open a record's fields.",
@@ -529,7 +512,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A record type lists its fields between '{' and '}', like 'type Person = { name: String, age: Int }'. This is where that opening '{' should be."
   },
   {
-    "code": "S0021",
+    "code": "S0020",
     "name": "expected-field-name",
     "category": "syntactic",
     "summary": "A field name was expected here.",
@@ -537,7 +520,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A record's fields are each written as a name, like the 'name' and 'age' in 'Person{ name: \\\"Ann\\\", age: 30 }'. A field name starts with a lowercase letter."
   },
   {
-    "code": "S0022",
+    "code": "S0021",
     "name": "expected-field-colon",
     "category": "syntactic",
     "summary": "A ':' was expected after a field name.",
@@ -545,40 +528,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "Each field is written as a name, then ':', then its type or value — like 'name: String' when declaring a type, or 'name: \\\"Ann\\\"' when building one. This is where the ':' should be."
   },
   {
-    "code": "S0023",
-    "name": "type-name-needs-braces",
-    "category": "syntactic",
-    "summary": "A type name was used as a value without '{ … }'.",
-    "message": "'{found}' names a type, so it needs '{ … }' to build a value.",
-    "explanation": "A name that starts with an uppercase letter is a type. To make a value of it, follow it with its fields in braces, like 'Person{ name: \\\"Ann\\\", age: 30 }'. On its own, '{found}' isn't a value yet.",
-    "retired": true
-  },
-  {
-    "code": "S0024",
-    "name": "expected-match-brace",
-    "category": "syntactic",
-    "summary": "A '{' was expected to open a 'match'’s arms.",
-    "message": "I expected a '{' here.",
-    "explanation": "A 'match' lists its arms between '{' and '}', each written as a pattern, then '->', then a result — like 'match n { 0 -> \"none\", else -> \"some\" }'. This is where that opening '{' should be."
-  },
-  {
-    "code": "S0025",
-    "name": "expected-pattern",
-    "category": "syntactic",
-    "summary": "A pattern was expected at the start of a 'match' arm.",
-    "message": "I expected a pattern here.",
-    "explanation": "Each arm of a 'match' starts with a pattern — a plain value to compare against, like '0', '\"hi\"', or 'True'; a variant like 'Circle{ radius }'; 'None' or a name like 'value' for the two cases of an optional; or the word 'else' for the catch-all arm. This is where that pattern should be."
-  },
-  {
-    "code": "S0026",
-    "name": "expected-arrow",
-    "category": "syntactic",
-    "summary": "A '->' was expected after a 'match' arm's pattern.",
-    "message": "I expected a '->' here.",
-    "explanation": "Each arm of a 'match' is written as a pattern, then '->', then the result to use when it matches — like '0 -> \"none\"'. This is where the '->' should be."
-  },
-  {
-    "code": "S0027",
+    "code": "S0022",
     "name": "expected-variant",
     "category": "syntactic",
     "summary": "A variant name was expected in a 'type' declaration.",
@@ -586,7 +536,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "After the '=' of a 'type', each case is a variant — a name that starts with an uppercase letter, followed by its fields in braces, like the 'Circle' in 'type Shape = Circle{ radius: Float } | Square{ side: Float }'. Variants are separated by '|'. This is where a variant name should be."
   },
   {
-    "code": "S0028",
+    "code": "S0023",
     "name": "empty-braces",
     "category": "syntactic",
     "summary": "Empty braces '{}' were written where a name with no fields belongs.",
@@ -594,12 +544,52 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A variant with no fields is written as just its name, like 'Red' in 'type Light = Red | Green', and it's built the same way — 'fix c = Red'. Empty braces would be a second spelling for that same no-fields case, so they're not allowed. Drop the '{}', or add the fields it should hold."
   },
   {
-    "code": "S0029",
+    "code": "S0024",
+    "name": "expected-return-type",
+    "category": "syntactic",
+    "summary": "A function's parameters weren't followed by ':' and a return type.",
+    "message": "I expected ':' and a return type here.",
+    "explanation": "A function states its return type right after its parameters, like 'fn(x: Int): Int { … }' — a ':' and then the type the function gives back, the same ':' its parameters use. Every function says what it returns; one that returns nothing returns 'Done'. Add ': Type' after the ')'."
+  },
+  {
+    "code": "S0025",
+    "name": "expected-fn-type-arrow",
+    "category": "syntactic",
+    "summary": "A function type's parameter list wasn't followed by '->' and a result type.",
+    "message": "I expected '->' and a result type here.",
+    "explanation": "A function *type* is written with its parameter types in '( )', then '->', then the type it produces — like 'Fn(Int) -> String'. (A function *value* instead uses a ':' before its return type: 'fn(x: Int): String { … }'.) This is where the '->' should be."
+  },
+  {
+    "code": "S0026",
+    "name": "expected-fn-body",
+    "category": "syntactic",
+    "summary": "A function's return type wasn't followed by a body.",
+    "message": "I expected a '{' or '=>' here.",
+    "explanation": "A function's body comes right after its return type, in one of two shapes: a '{ … }' block when it runs several statements ('fn(x: Int): Int { fix y = x + 1; y * 2 }'), or '=> ' and a single expression for the short case ('fn(x: Int): Int => x + 1'). This is where that '{' or '=>' should be."
+  },
+  {
+    "code": "S0027",
+    "name": "redundant-arrow-block",
+    "category": "syntactic",
+    "summary": "A '=>' function body was followed by a '{ … }' block.",
+    "message": "A '=>' body is a single expression, not a block.",
+    "explanation": "The '=>' body form is for one expression, written straight after the arrow — 'fn(x: Int): Int => x + 1'. A '{ … }' block is the other form and stands on its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for both at once. Drop the '=>' to keep the block, or drop the braces to keep the single expression."
+  },
+  {
+    "code": "S0028",
     "name": "empty-program-inputs",
     "category": "syntactic",
     "summary": "A 'program (…)' was written with no inputs between its '( )'.",
     "message": "A 'program' needs at least one input here.",
     "explanation": "The 'program (…) { … }' form is for a program that takes named inputs, so it lists at least one, like 'program (age: Int) { … }'. A program that takes no inputs doesn't use 'program' at all — it's just a sequence of statements on their own. Add an input like 'name: Type', or drop the 'program (…) { … }' wrapper and leave the statements bare."
+  },
+  {
+    "code": "S0029",
+    "name": "empty-program-body",
+    "category": "syntactic",
+    "summary": "A 'program' block has no statements.",
+    "message": "A 'program' block needs at least one statement.",
+    "explanation": "The 'program (…) { … }' block is where a program does its work, so it needs at least one statement between its braces. An empty '{ }' runs nothing and uses none of the inputs it declares. Add the statements the program should run."
   },
   {
     "code": "S0030",
@@ -611,46 +601,6 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "S0031",
-    "name": "expected-return-type",
-    "category": "syntactic",
-    "summary": "A function's parameters weren't followed by ':' and a return type.",
-    "message": "I expected ':' and a return type here.",
-    "explanation": "A function states its return type right after its parameters, like 'fn(x: Int): Int { … }' — a ':' and then the type the function gives back, the same ':' its parameters use. Every function says what it returns; one that returns nothing returns 'Done'. Add ': Type' after the ')'."
-  },
-  {
-    "code": "S0032",
-    "name": "empty-program-body",
-    "category": "syntactic",
-    "summary": "A 'program' block has no statements.",
-    "message": "A 'program' block needs at least one statement.",
-    "explanation": "The 'program (…) { … }' block is where a program does its work, so it needs at least one statement between its braces. An empty '{ }' runs nothing and uses none of the inputs it declares. Add the statements the program should run."
-  },
-  {
-    "code": "S0033",
-    "name": "expected-fn-type-arrow",
-    "category": "syntactic",
-    "summary": "A function type's parameter list wasn't followed by '->' and a result type.",
-    "message": "I expected '->' and a result type here.",
-    "explanation": "A function *type* is written with its parameter types in '( )', then '->', then the type it produces — like 'Fn(Int) -> String'. (A function *value* instead uses a ':' before its return type: 'fn(x: Int): String { … }'.) This is where the '->' should be."
-  },
-  {
-    "code": "S0034",
-    "name": "expected-fn-body",
-    "category": "syntactic",
-    "summary": "A function's return type wasn't followed by a body.",
-    "message": "I expected a '{' or '=>' here.",
-    "explanation": "A function's body comes right after its return type, in one of two shapes: a '{ … }' block when it runs several statements ('fn(x: Int): Int { fix y = x + 1; y * 2 }'), or '=> ' and a single expression for the short case ('fn(x: Int): Int => x + 1'). This is where that '{' or '=>' should be."
-  },
-  {
-    "code": "S0035",
-    "name": "redundant-arrow-block",
-    "category": "syntactic",
-    "summary": "A '=>' function body was followed by a '{ … }' block.",
-    "message": "A '=>' body is a single expression, not a block.",
-    "explanation": "The '=>' body form is for one expression, written straight after the arrow — 'fn(x: Int): Int => x + 1'. A '{ … }' block is the other form and stands on its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for both at once. Drop the '=>' to keep the block, or drop the braces to keep the single expression."
-  },
-  {
-    "code": "S0036",
     "name": "expected-update-field",
     "category": "syntactic",
     "summary": "A field name or an '[index]' was expected in a 'with' update.",
@@ -658,7 +608,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'with' update names the place to change, then '=', then its new value — a field name for a record ('user with name = \\\"new\\\"'), or an '[index]' in brackets for a list ('xs with [0] = 9'). Several changes go in braces: 'user with { name = \\\"new\\\", age = 31 }'. This is where that field name or '[index]' should be."
   },
   {
-    "code": "S0037",
+    "code": "S0032",
     "name": "expected-update-equals",
     "category": "syntactic",
     "summary": "An '=' was expected after a field name in a 'with' update.",
@@ -666,7 +616,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'with' update assigns a field's new value with '=', like 'user with name = \\\"new\\\"'. (Building a value instead uses ':', like 'User{ name: \\\"new\\\" }' — '=' changes a copy, ':' builds.) This is where the '=' should be."
   },
   {
-    "code": "S0038",
+    "code": "S0033",
     "name": "empty-update-braces",
     "category": "syntactic",
     "summary": "A 'with' update was written with empty braces '{ }'.",
@@ -674,15 +624,31 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'with' update changes one or more fields of a record, like 'user with { name = \\\"new\\\", age = 31 }'. Empty braces '{ }' change nothing, so there is no update to make. Name at least one field to change, or drop the 'with' entirely."
   },
   {
-    "code": "S0039",
-    "name": "async-call-missing-args",
+    "code": "S0034",
+    "name": "expected-match-brace",
     "category": "syntactic",
-    "summary": "An async-call mark '!' is not followed by an argument list.",
-    "message": "The '!' async-call mark must be followed by '(…)'.",
-    "explanation": "'!' prepares a task by calling an async function, like 'fetchUser!(id)', so it needs an argument list '(…)' right after it. (Inequality is written '!=', and negation is the word 'not' — a bare '!' is only the async-call mark.)"
+    "summary": "A '{' was expected to open a 'match'’s arms.",
+    "message": "I expected a '{' here.",
+    "explanation": "A 'match' lists its arms between '{' and '}', each written as a pattern, then '->', then a result — like 'match n { 0 -> \"none\", else -> \"some\" }'. This is where that opening '{' should be."
   },
   {
-    "code": "S0040",
+    "code": "S0035",
+    "name": "expected-pattern",
+    "category": "syntactic",
+    "summary": "A pattern was expected at the start of a 'match' arm.",
+    "message": "I expected a pattern here.",
+    "explanation": "Each arm of a 'match' starts with a pattern — a plain value to compare against, like '0', '\"hi\"', or 'True'; a variant like 'Circle{ radius }'; 'None' or a name like 'value' for the two cases of an optional; or the word 'else' for the catch-all arm. This is where that pattern should be."
+  },
+  {
+    "code": "S0036",
+    "name": "expected-arrow",
+    "category": "syntactic",
+    "summary": "A '->' was expected after a 'match' arm's pattern.",
+    "message": "I expected a '->' here.",
+    "explanation": "Each arm of a 'match' is written as a pattern, then '->', then the result to use when it matches — like '0 -> \"none\"'. This is where the '->' should be."
+  },
+  {
+    "code": "S0037",
     "name": "async-without-fn",
     "category": "syntactic",
     "summary": "'async' is not followed by 'fn'.",
@@ -690,7 +656,15 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'async' marks a function as asynchronous, so it comes right before 'fn', like 'async fn(id: Int): User { … }'. There is nothing else it can attach to."
   },
   {
-    "code": "S0041",
+    "code": "S0038",
+    "name": "async-call-missing-args",
+    "category": "syntactic",
+    "summary": "An async-call mark '!' is not followed by an argument list.",
+    "message": "The '!' async-call mark must be followed by '(…)'.",
+    "explanation": "'!' prepares a task by calling an async function, like 'fetchUser!(id)', so it needs an argument list '(…)' right after it. (Inequality is written '!=', and negation is the word 'not' — a bare '!' is only the async-call mark.)"
+  },
+  {
+    "code": "S0039",
     "name": "import-expected-clause",
     "category": "syntactic",
     "summary": "'import' is not followed by '{ names }' or a module name.",
@@ -698,7 +672,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "An import comes in two shapes: 'import { min, max } from \"math\";' brings specific names in to use bare, and 'import math from \"math\";' brings the whole module in, used as 'math.min(…)'. So right after 'import' there is either a '{' or a module name."
   },
   {
-    "code": "S0042",
+    "code": "S0040",
     "name": "import-expected-from",
     "category": "syntactic",
     "summary": "An import's names are not followed by 'from'.",
@@ -706,7 +680,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "An import names what to bring in, then 'from', then which module — like 'import { min } from \"math\";'. The 'from' and the module name were missing after the names."
   },
   {
-    "code": "S0043",
+    "code": "S0041",
     "name": "import-expected-module",
     "category": "syntactic",
     "summary": "'from' is not followed by a plain quoted module name.",
@@ -714,7 +688,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "After 'from' comes the module to import from, written in double quotes, like 'from \"math\"'. In this release the module name is a fixed word (a built-in library such as \"math\" or \"assert\") with no '${…}' inside it."
   },
   {
-    "code": "S0044",
+    "code": "S0042",
     "name": "import-inside-body",
     "category": "syntactic",
     "summary": "An import appears inside a block or body instead of at the top of the file.",
@@ -722,7 +696,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "An import brings names in for the whole file, so it lives at the top level, never scoped inside a function, a loop, an 'if', or a 'program' body. Move this import up to the start of the file, above everything else."
   },
   {
-    "code": "S0045",
+    "code": "S0043",
     "name": "import-not-leading",
     "category": "syntactic",
     "summary": "An import appears after other code instead of at the very top of the file.",
@@ -749,6 +723,30 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "T0002",
+    "name": "none-needs-annotation",
+    "category": "type",
+    "summary": "A slot's only starting value is None, so its type has to be written down.",
+    "message": "This slot needs a type.",
+    "explanation": "'None' on its own doesn't say what kind of value the slot will hold — so, just like an empty list '[]', its type has to be written down — for example 'fix nick: String? = None'."
+  },
+  {
+    "code": "T0003",
+    "name": "empty-list-needs-annotation",
+    "category": "type",
+    "summary": "An empty list has no items to show its type, and none was written down.",
+    "message": "This empty list needs a type.",
+    "explanation": "An empty list '[]' has no items to show what it holds, so its type has to be written down — for example 'fix xs: List<Int> = []'."
+  },
+  {
+    "code": "T0004",
+    "name": "diverging-slot-init",
+    "category": "type",
+    "summary": "A slot is given a value that never actually arrives, because the right-hand side always leaves first.",
+    "message": "'{name}' never gets a value: the code on the right always leaves first.",
+    "explanation": "The right-hand side here never produces a value — it always leaves first, through an 'abort' or a 'return' — so '{name}' can never be given anything, and this line can't run. Remove it, or change the right-hand side so it produces a value."
+  },
+  {
+    "code": "T0005",
     "name": "incompatible-list-elements",
     "category": "type",
     "summary": "A list mixes items of types that have no common type.",
@@ -762,15 +760,31 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0003",
-    "name": "empty-list-needs-annotation",
+    "code": "T0006",
+    "name": "index-requires-list",
     "category": "type",
-    "summary": "An empty list has no items to show its type, and none was written down.",
-    "message": "This empty list needs a type.",
-    "explanation": "An empty list '[]' has no items to show what it holds, so its type has to be written down — for example 'fix xs: List<Int> = []'."
+    "summary": "The '[ ]' index was used on something that isn't a list.",
+    "message": "I can't use '[ ]' here — this has type {actual}, not a list.",
+    "explanation": "Reading an item with '[ ]', like 'items[0]', works only on a list. This value has type {actual}, which isn't a list."
   },
   {
-    "code": "T0004",
+    "code": "T0007",
+    "name": "index-not-int",
+    "category": "type",
+    "summary": "A list index isn't an Int.",
+    "message": "A list index has to be an Int, but this has type {actual}.",
+    "explanation": "Inside 'items[…]', the value in the brackets picks an item by its position, counting from 0, so it has to be a whole number (Int). This one has type {actual}."
+  },
+  {
+    "code": "T0008",
+    "name": "operator-type-error",
+    "category": "type",
+    "summary": "An operator was used on types it doesn't accept.",
+    "message": "I can't use '{op}' on {operands}.",
+    "explanation": "Operators only work on certain types: '+', '-', '*', '/', and '**' need numbers (Int or Float); 'div' and 'mod' need whole numbers (Int); 'and', 'or', and 'not' need True/False values (Bool); and a comparison needs two values of the same kind. '{op}' doesn't work on {operands}."
+  },
+  {
+    "code": "T0009",
     "name": "condition-not-bool",
     "category": "type",
     "summary": "The condition of an 'if' or 'while' isn't a True/False value.",
@@ -778,7 +792,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "An 'if' or 'while' chooses what to do from a True/False value, so its condition has to be one — a comparison like 'x > 0', or another Bool. This one has type {actual}."
   },
   {
-    "code": "T0005",
+    "code": "T0010",
     "name": "if-branch-mismatch",
     "category": "type",
     "summary": "The two branches of an 'if' produce different types.",
@@ -796,60 +810,20 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0006",
-    "name": "no-such-method",
-    "category": "type",
-    "summary": "A method with this name doesn't exist on the value's type.",
-    "message": "{type} has no method called '{method}'.",
-    "explanation": "The methods you can call depend on the value's type. For example, an Int has 'toString()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)', 'reverse()', and more. Check the spelling of '{method}'."
-  },
-  {
-    "code": "T0007",
-    "name": "wrong-arg-count",
-    "category": "type",
-    "summary": "A method or function call was given the wrong number of inputs.",
-    "message": "This call has the wrong number of inputs.",
-    "explanation": "It needs {expected}, but was given {got}. Each input goes inside the '( )', separated by commas."
-  },
-  {
-    "code": "T0008",
-    "name": "wrong-arg-type",
-    "category": "type",
-    "summary": "An input to a method or function has a type that isn't accepted here.",
-    "message": "This input has type {actual}, but {expected} was expected.",
-    "explanation": "Each method or function accepts inputs of certain types. Here {expected} was expected, but the input given is {actual}."
-  },
-  {
-    "code": "T0009",
-    "name": "operator-type-error",
-    "category": "type",
-    "summary": "An operator was used on types it doesn't accept.",
-    "message": "I can't use '{op}' on {operands}.",
-    "explanation": "Operators only work on certain types: '+', '-', '*', '/', and '**' need numbers (Int or Float); 'div' and 'mod' need whole numbers (Int); 'and', 'or', and 'not' need True/False values (Bool); and a comparison needs two values of the same kind. '{op}' doesn't work on {operands}."
-  },
-  {
-    "code": "T0010",
-    "name": "index-requires-list",
-    "category": "type",
-    "summary": "The '[ ]' index was used on something that isn't a list.",
-    "message": "I can't use '[ ]' here — this has type {actual}, not a list.",
-    "explanation": "Reading an item with '[ ]', like 'items[0]', works only on a list. This value has type {actual}, which isn't a list."
-  },
-  {
     "code": "T0011",
-    "name": "index-not-int",
-    "category": "type",
-    "summary": "A list index isn't an Int.",
-    "message": "A list index has to be an Int, but this has type {actual}.",
-    "explanation": "Inside 'items[…]', the value in the brackets picks an item by its position, counting from 0, so it has to be a whole number (Int). This one has type {actual}."
-  },
-  {
-    "code": "T0012",
     "name": "no-methods",
     "category": "type",
     "summary": "The value's type has no methods at all.",
     "message": "Values of type {type} don't have any methods.",
     "explanation": "Only some types have methods you can call with '.': Int, Float, String, List, and Range. A {type} has none, so 'value.something()' can't be used on it."
+  },
+  {
+    "code": "T0012",
+    "name": "no-such-method",
+    "category": "type",
+    "summary": "A method with this name doesn't exist on the value's type.",
+    "message": "{type} has no method called '{method}'.",
+    "explanation": "The methods you can call depend on the value's type. For example, an Int has 'toString()', 'toFloat()', and 'abs()'; a list has 'length()', 'append(…)', 'reverse()', and more. Check the spelling of '{method}'."
   },
   {
     "code": "T0013",
@@ -861,6 +835,38 @@ export const ERRORS: ErrorEntry[] = [
   },
   {
     "code": "T0014",
+    "name": "wrong-arg-count",
+    "category": "type",
+    "summary": "A method or function call was given the wrong number of inputs.",
+    "message": "This call has the wrong number of inputs.",
+    "explanation": "It needs {expected}, but was given {got}. Each input goes inside the '( )', separated by commas."
+  },
+  {
+    "code": "T0015",
+    "name": "wrong-arg-type",
+    "category": "type",
+    "summary": "An input to a method or function has a type that isn't accepted here.",
+    "message": "This input has type {actual}, but {expected} was expected.",
+    "explanation": "Each method or function accepts inputs of certain types. Here {expected} was expected, but the input given is {actual}."
+  },
+  {
+    "code": "T0016",
+    "name": "not-callable",
+    "category": "type",
+    "summary": "A name that isn't a function is being called.",
+    "message": "'{name}' is a {type}, not a function, so it can't be called.",
+    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…): … { … }'."
+  },
+  {
+    "code": "T0017",
+    "name": "not-callable-value",
+    "category": "type",
+    "summary": "A value that isn't a function is being called.",
+    "message": "This is a {type}, not a function, so it can't be called.",
+    "explanation": "Only a function can be called with '(…)'. This value is a {type}, which isn't a function, so there is nothing to call. (Calling a name that isn't a function is the same mistake, reported as its own message.)"
+  },
+  {
+    "code": "T0018",
     "name": "interpolation-not-scalar",
     "category": "type",
     "summary": "A '${ }' hole's value isn't an Int, Float, Bool, or String.",
@@ -868,15 +874,15 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A '${ }' hole puts its value straight into the surrounding text. Int, Float, Bool, and String all have one obvious way to show as text, so they're accepted directly. {actual} isn't one of those."
   },
   {
-    "code": "T0015",
-    "name": "none-needs-annotation",
+    "code": "T0019",
+    "name": "print-not-displayable",
     "category": "type",
-    "summary": "A slot's only starting value is None, so its type has to be written down.",
-    "message": "This slot needs a type.",
-    "explanation": "'None' on its own doesn't say what kind of value the slot will hold — so, just like an empty list '[]', its type has to be written down — for example 'fix nick: String? = None'."
+    "summary": "A value passed to 'print' has no text form.",
+    "message": "'print' can't show a value of type {actual}.",
+    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a String first."
   },
   {
-    "code": "T0016",
+    "code": "T0020",
     "name": "range-bounds-not-int",
     "category": "type",
     "summary": "A range's start or end isn't an Int.",
@@ -884,7 +890,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A range like '0..n' counts whole steps from its start up to (but not including) its end, so both sides have to be whole numbers (Int). This one is {actual}."
   },
   {
-    "code": "T0017",
+    "code": "T0021",
     "name": "for-not-iterable",
     "category": "type",
     "summary": "A 'for' loop was given something that isn't a list or a range.",
@@ -892,7 +898,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'for x in …' goes through the items of a list ('for x in items') or the numbers of a range ('for i in 0..n'). This value is {actual}, which isn't either of those."
   },
   {
-    "code": "T0018",
+    "code": "T0022",
     "name": "missing-field",
     "category": "type",
     "summary": "A record is built without all of its fields.",
@@ -900,7 +906,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "Building a record fills in every field the type declares. Add a value for {fields}, so '{type}' has every field it needs."
   },
   {
-    "code": "T0019",
+    "code": "T0023",
     "name": "unknown-field",
     "category": "type",
     "summary": "A record is built with a field its type doesn't have.",
@@ -908,7 +914,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A record can only be built with the fields its type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration, or remove it."
   },
   {
-    "code": "T0020",
+    "code": "T0024",
     "name": "duplicate-field-value",
     "category": "type",
     "summary": "A record is built with the same field given twice.",
@@ -916,7 +922,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "Each field of a record gets one value when it's built. '{field}' is listed twice, so it isn't clear which value to use — remove one of them."
   },
   {
-    "code": "T0021",
+    "code": "T0025",
     "name": "field-type-mismatch",
     "category": "type",
     "summary": "A field is built with a value of the wrong type.",
@@ -930,7 +936,7 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0022",
+    "code": "T0026",
     "name": "field-access-non-record",
     "category": "type",
     "summary": "A '.field' was read from a value that isn't a record.",
@@ -938,7 +944,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "Reading a field with '.name' works on a record — a value of a type declared with 'type Name = { … }'. This value is {type}, which has no fields to read."
   },
   {
-    "code": "T0023",
+    "code": "T0027",
     "name": "no-such-field",
     "category": "type",
     "summary": "A field was read that the record's type doesn't have.",
@@ -946,39 +952,15 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A record only has the fields its type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration."
   },
   {
-    "code": "T0024",
-    "name": "print-not-displayable",
-    "category": "type",
-    "summary": "A value passed to 'print' has no text form.",
-    "message": "'print' can't show a value of type {actual}.",
-    "explanation": "'print' shows a value as text, so it needs a value that has one obvious way to show: Int, Float, Bool, and String do. {actual} isn't one of those — you need to convert it to a String first."
-  },
-  {
-    "code": "T0025",
-    "name": "value-dropped-by-next-statement",
-    "category": "type",
-    "summary": "A value is produced but thrown away because another statement comes after it.",
-    "message": "This {actual} value isn't used by anything.",
-    "explanation": "Only the last statement in a block keeps its value; another statement comes after this one, so its {actual} value would be quietly thrown away — and a thrown-away value is usually a mistake, like calling a method for its result and forgetting to use it. Use the value: give it a name ('fix x = …'), pass it to a function, or make it the last statement. If throwing it away is what you meant, write 'void' in front ('void …') to say so on purpose."
-  },
-  {
-    "code": "T0026",
-    "name": "value-dropped-by-loop",
-    "category": "type",
-    "summary": "A loop body ends in a value the loop throws away each time around.",
-    "message": "This {actual} value is thrown away on every pass of the loop.",
-    "explanation": "A 'for' or 'while' loop doesn't build a value — it runs its body for the effect and yields Done, so whatever the body ends with is thrown away on every pass. Here that value is {actual}. If throwing it away is what you meant, write 'void' in front ('void …') to say so on purpose."
-  },
-  {
-    "code": "T0027",
-    "name": "void-nothing-to-discard",
-    "category": "type",
-    "summary": "'void' is used on a value that is already Done.",
-    "message": "There's nothing to throw away here — this is already Done.",
-    "explanation": "'void' throws away a value in a spot where it would otherwise be kept. This expression is already Done — it produces no value (an effect like 'print', or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'."
-  },
-  {
     "code": "T0028",
+    "name": "field-access-on-union",
+    "category": "type",
+    "summary": "A '.field' was read from a value that has more than one variant.",
+    "message": "'{type}' has more than one variant, so it has no fields to read directly.",
+    "explanation": "Reading a field with '.name' works on a record — a type with a single variant, whose fields are always the same. '{type}' has more than one variant ({variants}), so which fields it has depends on which one it is. A 'match' looks at each variant on its own and reads that variant's fields."
+  },
+  {
+    "code": "T0029",
     "name": "match-pattern-type-mismatch",
     "category": "type",
     "summary": "A 'match' pattern can't be compared to the value being matched.",
@@ -992,7 +974,7 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0029",
+    "code": "T0030",
     "name": "match-not-exhaustive",
     "category": "type",
     "summary": "A 'match' doesn't cover every possible value.",
@@ -1000,7 +982,15 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A 'match' has to produce a value no matter which value it's given, so its arms together have to cover every case. Add an 'else' arm to handle any value the arms above didn't list, like 'else -> 0'."
   },
   {
-    "code": "T0030",
+    "code": "T0031",
+    "name": "match-missing-variants",
+    "category": "type",
+    "summary": "A 'match' on a union doesn't handle every variant.",
+    "message": "This 'match' doesn't handle {missing}.",
+    "explanation": "A 'match' has to produce a value for every case it might be given. '{type}' has the variants {variants}, but this 'match' has no arm for {missing}. Add an arm for each one it's missing, or an 'else' arm to cover the rest."
+  },
+  {
+    "code": "T0032",
     "name": "match-arms-mismatch",
     "category": "type",
     "summary": "The arms of a 'match' produce different types.",
@@ -1014,7 +1004,7 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0031",
+    "code": "T0033",
     "name": "unreachable-match-arm",
     "category": "type",
     "summary": "A 'match' arm can never be reached.",
@@ -1028,15 +1018,7 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0032",
-    "name": "field-access-on-union",
-    "category": "type",
-    "summary": "A '.field' was read from a value that has more than one variant.",
-    "message": "'{type}' has more than one variant, so it has no fields to read directly.",
-    "explanation": "Reading a field with '.name' works on a record — a type with a single variant, whose fields are always the same. '{type}' has more than one variant ({variants}), so which fields it has depends on which one it is. A 'match' looks at each variant on its own and reads that variant's fields."
-  },
-  {
-    "code": "T0033",
+    "code": "T0034",
     "name": "refutable-binding",
     "category": "type",
     "summary": "A union variant is destructured in a 'fix'/'mut' binding, where it might not match.",
@@ -1044,23 +1026,63 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "Destructuring in a 'fix' or 'mut' binding pulls fields out of a value whose shape is always the same — a record, a type with a single variant. '{type}' has more than one variant ({variants}), so a value of it could be any of them, and a pattern naming one case would not match the others. Use 'match' to handle each variant on its own."
   },
   {
-    "code": "T0034",
-    "name": "match-missing-variants",
-    "category": "type",
-    "summary": "A 'match' on a union doesn't handle every variant.",
-    "message": "This 'match' doesn't handle {missing}.",
-    "explanation": "A 'match' has to produce a value for every case it might be given. '{type}' has the variants {variants}, but this 'match' has no arm for {missing}. Add an arm for each one it's missing, or an 'else' arm to cover the rest."
-  },
-  {
     "code": "T0035",
-    "name": "not-callable",
+    "name": "with-step-not-navigable",
     "category": "type",
-    "summary": "A name that isn't a function is being called.",
-    "message": "'{name}' is a {type}, not a function, so it can't be called.",
-    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…): … { … }'."
+    "summary": "A 'with' path steps into a value that isn't a record or a list.",
+    "message": "There's nothing to update inside this — it has type {type}.",
+    "explanation": "A 'with' path reaches the value to change by stepping into a record by a field name ('.city') or into a list by position ('[0]'). Here it reached a value of type {type}, which is neither a record nor a list, so there's nothing inside it to reach. Check that each step leads through a record or a list to the value you mean to change."
   },
   {
     "code": "T0036",
+    "name": "with-step-on-union",
+    "category": "type",
+    "summary": "A 'with' path steps into a value that has more than one variant.",
+    "message": "'{type}' has more than one variant, so 'with' can't reach inside it here.",
+    "explanation": "'{type}' has more than one variant ({variants}), so which fields it has depends on which one it is — there is no single set of fields to step into. Use a 'match' to handle each variant on its own, then build the updated value inside that arm."
+  },
+  {
+    "code": "T0037",
+    "name": "with-unknown-field",
+    "category": "type",
+    "summary": "A 'with' path names a field the record's type doesn't have.",
+    "message": "'{type}' has no field named '{field}'.",
+    "explanation": "A 'with' update can only change the fields the record's type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration, or remove it."
+  },
+  {
+    "code": "T0038",
+    "name": "with-field-on-list",
+    "category": "type",
+    "summary": "A 'with' path names a field on a list, but a list is updated by position.",
+    "message": "A list is updated by position, not by a field name like '{field}'.",
+    "explanation": "The path reached a list here, and a list's items don't have names — they're picked by position, in brackets. To change one, use '[index]' — for example 'xs with [0] = 9'. (A field name like '{field}' names a place in a record.)"
+  },
+  {
+    "code": "T0039",
+    "name": "with-index-on-record",
+    "category": "type",
+    "summary": "A 'with' path uses '[index]' on a record, but a record is updated by field name.",
+    "message": "'{type}' is a record, so it's updated by field name, not by position.",
+    "explanation": "The path used '[…]' here, but '{type}' is a record — its parts have names, not numbered positions. Name the field to change — for example 'p with age = 31'. (Position '[i]' picks an item in a list.)"
+  },
+  {
+    "code": "T0040",
+    "name": "with-element-type-mismatch",
+    "category": "type",
+    "summary": "A list item is updated with a value of the wrong type.",
+    "message": "This list holds {expected}, but this value is {actual}.",
+    "explanation": "Every item of a list shares one type, so a 'with' update has to keep it — this list holds {expected}, but the new value is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.)"
+  },
+  {
+    "code": "T0041",
+    "name": "with-duplicate-path",
+    "category": "type",
+    "summary": "A 'with' update changes the same position more than once.",
+    "message": "'{path}' is updated more than once here.",
+    "explanation": "Each position in a 'with' update gets one new value. '{path}' is changed twice, so it isn't clear which value to keep — remove one of them."
+  },
+  {
+    "code": "T0042",
     "name": "return-type-mismatch",
     "category": "type",
     "summary": "A function produces a value that doesn't match its declared return type.",
@@ -1074,7 +1096,7 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0037",
+    "code": "T0043",
     "name": "return-outside-function",
     "category": "type",
     "summary": "A 'return' was written outside any function.",
@@ -1082,15 +1104,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'return' leaves the function it is in, handing back a value — so it only makes sense inside one, like 'fn(x: Int): Int { return x }'. Here there is no enclosing function to return from. At the top level, a program's value is simply its last statement (no 'return' needed)."
   },
   {
-    "code": "T0038",
-    "name": "not-callable-value",
-    "category": "type",
-    "summary": "A value that isn't a function is being called.",
-    "message": "This is a {type}, not a function, so it can't be called.",
-    "explanation": "Only a function can be called with '(…)'. This value is a {type}, which isn't a function, so there is nothing to call. (Calling a name that isn't a function is the same mistake, reported as its own message.)"
-  },
-  {
-    "code": "T0039",
+    "code": "T0044",
     "name": "coalesce-left-not-optional",
     "category": "type",
     "summary": "The left side of '??' isn't an optional value.",
@@ -1098,30 +1112,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'??' supplies a value to use when an optional is None — so its left side has to be an optional (a type written with a '?', like 'String?'). This one is {actual}, which is never None, so there is nothing for '??' to fall back from. Drop the '?? …', or make the left side an optional."
   },
   {
-    "code": "T0041",
-    "name": "name-pattern-not-optional",
-    "category": "type",
-    "summary": "A name pattern was used to match a value that isn't an optional.",
-    "message": "A name pattern only matches an optional value, but this is {actual}.",
-    "explanation": "A name in a 'match' arm (like 'value ->') pulls the present value out of an optional — so the value being matched has to be an optional (a type written with a '?', like 'String?'). This one is {actual}. To handle any other value in one arm, use 'else' instead.",
-    "related": [
-      {
-        "key": "subject",
-        "label": "this value is {actual}"
-      }
-    ],
-    "retired": true
-  },
-  {
-    "code": "T0042",
-    "name": "optional-match-not-exhaustive",
-    "category": "type",
-    "summary": "A 'match' on an optional doesn't handle both of its cases.",
-    "message": "This 'match' on {type} doesn't handle {missing}.",
-    "explanation": "An optional is one of two cases — 'None', or a present value — and a 'match' has to produce a value for both. This one has no arm for {missing}. Add a 'None' arm for the absent case and a name arm like 'value ->' to catch the present value, or an 'else' arm to cover whatever is left."
-  },
-  {
-    "code": "T0040",
+    "code": "T0045",
     "name": "coalesce-default-mismatch",
     "category": "type",
     "summary": "The default after '??' has a type that doesn't fit the optional's value.",
@@ -1135,151 +1126,15 @@ export const ERRORS: ErrorEntry[] = [
     ]
   },
   {
-    "code": "T0043",
-    "name": "result-needs-annotation",
-    "category": "type",
-    "summary": "A 'Success'/'Failure' on its own doesn't say what the whole Result type is.",
-    "message": "This needs a type written down, like 'Int orfail SomeError'.",
-    "explanation": "A 'Success{ value: ... }' says what a success holds but not what a failure would be, and a 'Failure{ error: ... }' says the opposite — so on its own neither one shows the whole 'T orfail E' type. Write it down where the slot is created, for example 'fix result: Int orfail ReadError = Success{ value: 1 }'."
-  },
-  {
-    "code": "T0044",
-    "name": "try-outside-function",
-    "category": "type",
-    "summary": "A 'try' is used outside any function.",
-    "message": "'try' can only be used inside a function.",
-    "explanation": "'try' hands a failure back to the function it's in — it unwraps the value on success, or leaves the function early with the failure. Out here there's no function to leave, so there's nowhere for the failure to go. Move this into a function whose return type is an optional or a 'T orfail E'."
-  },
-  {
-    "code": "T0045",
-    "name": "try-not-fallible",
-    "category": "type",
-    "summary": "A 'try' is used on a value that can't fail.",
-    "message": "'try' works on an optional or a 'T orfail E', but this is {actual}.",
-    "explanation": "'try' unwraps the two values that can be absent or failed — an optional (a '?' type) or a Result ('T orfail E') — and leaves the function early on the empty/failure case. This value is {actual}, which is neither, so there's nothing for 'try' to unwrap."
-  },
-  {
     "code": "T0046",
-    "name": "try-return-type-mismatch",
+    "name": "optional-match-not-exhaustive",
     "category": "type",
-    "summary": "A 'try' propagates a failure the enclosing function can't return.",
-    "message": "This 'try' hands back {propagated}, but the function here returns {ret}, which can't hold it.",
-    "explanation": "'try' leaves the function early with the failure case, so the function's return type has to be able to hold it. This 'try' would return {propagated}, but the function returns {ret}. Declare the function to return a matching 'T orfail E' (or a '?' optional when the failure is 'None'), or handle the case here with 'match' instead of 'try'."
+    "summary": "A 'match' on an optional doesn't handle both of its cases.",
+    "message": "This 'match' on {type} doesn't handle {missing}.",
+    "explanation": "An optional is one of two cases — 'None', or a present value — and a 'match' has to produce a value for both. This one has no arm for {missing}. Add a 'None' arm for the absent case and a name arm like 'value ->' to catch the present value, or an 'else' arm to cover whatever is left."
   },
   {
     "code": "T0047",
-    "name": "try-else-binds-optional",
-    "category": "type",
-    "summary": "A 'try … else' names an error, but the value is an optional (which has none).",
-    "message": "This 'else' names an error to catch, but an optional's empty case ('None') carries no error.",
-    "explanation": "'try opt else e -> ...' would bind the failure's error to 'e', but an optional that is empty is just 'None' — there's no error value to name. Drop the name and write 'try opt else -> ...' to supply the error to propagate instead."
-  },
-  {
-    "code": "T0048",
-    "name": "with-step-not-navigable",
-    "category": "type",
-    "summary": "A 'with' path steps into a value that isn't a record or a list.",
-    "message": "There's nothing to update inside this — it has type {type}.",
-    "explanation": "A 'with' path reaches the value to change by stepping into a record by a field name ('.city') or into a list by position ('[0]'). Here it reached a value of type {type}, which is neither a record nor a list, so there's nothing inside it to reach. Check that each step leads through a record or a list to the value you mean to change."
-  },
-  {
-    "code": "T0049",
-    "name": "with-step-on-union",
-    "category": "type",
-    "summary": "A 'with' path steps into a value that has more than one variant.",
-    "message": "'{type}' has more than one variant, so 'with' can't reach inside it here.",
-    "explanation": "'{type}' has more than one variant ({variants}), so which fields it has depends on which one it is — there is no single set of fields to step into. Use a 'match' to handle each variant on its own, then build the updated value inside that arm."
-  },
-  {
-    "code": "T0050",
-    "name": "with-unknown-field",
-    "category": "type",
-    "summary": "A 'with' path names a field the record's type doesn't have.",
-    "message": "'{type}' has no field named '{field}'.",
-    "explanation": "A 'with' update can only change the fields the record's type declares. '{type}' doesn't have a field '{field}' — check the spelling against the type's declaration, or remove it."
-  },
-  {
-    "code": "T0051",
-    "name": "with-duplicate-path",
-    "category": "type",
-    "summary": "A 'with' update changes the same position more than once.",
-    "message": "'{path}' is updated more than once here.",
-    "explanation": "Each position in a 'with' update gets one new value. '{path}' is changed twice, so it isn't clear which value to keep — remove one of them."
-  },
-  {
-    "code": "T0052",
-    "name": "with-field-on-list",
-    "category": "type",
-    "summary": "A 'with' path names a field on a list, but a list is updated by position.",
-    "message": "A list is updated by position, not by a field name like '{field}'.",
-    "explanation": "The path reached a list here, and a list's items don't have names — they're picked by position, in brackets. To change one, use '[index]' — for example 'xs with [0] = 9'. (A field name like '{field}' names a place in a record.)"
-  },
-  {
-    "code": "T0053",
-    "name": "with-index-on-record",
-    "category": "type",
-    "summary": "A 'with' path uses '[index]' on a record, but a record is updated by field name.",
-    "message": "'{type}' is a record, so it's updated by field name, not by position.",
-    "explanation": "The path used '[…]' here, but '{type}' is a record — its parts have names, not numbered positions. Name the field to change — for example 'p with age = 31'. (Position '[i]' picks an item in a list.)"
-  },
-  {
-    "code": "T0054",
-    "name": "with-element-type-mismatch",
-    "category": "type",
-    "summary": "A list item is updated with a value of the wrong type.",
-    "message": "This list holds {expected}, but this value is {actual}.",
-    "explanation": "Every item of a list shares one type, so a 'with' update has to keep it — this list holds {expected}, but the new value is {actual}, and those don't match. (An Int can go where a Float is expected, but not the other way around.)"
-  },
-  {
-    "code": "T0055",
-    "name": "bare-async-call",
-    "category": "type",
-    "summary": "An async function is called directly instead of being prepared into a task.",
-    "message": "'{found}' calls an async function directly, but an async function is prepared into a task with '!'.",
-    "explanation": "An async function does its work slowly — it hands a job to the disk, the network, or another machine — so calling it can't just run it and give back the result. Instead you *prepare* a task with the '!' mark, like 'fetchUser!(id)', which binds the arguments but runs nothing yet. Then 'await' starts the task and waits for its value: 'fix user = await fetchUser!(id)'."
-  },
-  {
-    "code": "T0056",
-    "name": "async-mark-on-nonasync",
-    "category": "type",
-    "summary": "The '!' async-call mark is used on something that isn't an async function.",
-    "message": "'{name}' is not an async function ({type}), so '!' can't prepare a task from it.",
-    "explanation": "The '!' mark prepares a task from an async function, like 'fetchUser!(id)'. Here '{name}' is {type}, which isn't an async function, so there is no task to prepare. If it's an ordinary function, call it without '!': '{name}(…)'."
-  },
-  {
-    "code": "T0057",
-    "name": "await-not-task",
-    "category": "type",
-    "summary": "'await' is used on a value that isn't a task.",
-    "message": "'await' runs a task and waits for its value, but this is {actual}.",
-    "explanation": "'await' starts a task and waits for the value it produces. A task comes only from an async call — the '!' mark, like 'fetchUser!(id)'. This value is {actual}, which is not a task, so there is nothing for 'await' to run."
-  },
-  {
-    "code": "T0058",
-    "name": "await-outside-async",
-    "category": "type",
-    "summary": "'await' is used inside a function that isn't async.",
-    "message": "'await' can only be used inside an async function.",
-    "explanation": "Waiting on a task is itself an async thing to do, so it spreads: a function that 'await's must be marked 'async'. This function isn't, so mark it — 'async fn(…): … { … }' — and its own callers then prepare it with '!' and 'await' it. (At the program's top level 'await' works directly — that is the starting point.)"
-  },
-  {
-    "code": "T0059",
-    "name": "abort-reason-not-string",
-    "category": "type",
-    "summary": "'abort' was given a reason that isn't a String.",
-    "message": "'abort' needs a String reason, but this is {actual}.",
-    "explanation": "'abort' stops the program at a point that should be impossible to reach, and the reason you write is the only explanation anyone gets, so it has to be a String — for example 'abort \"this list is never empty here\"'. This reason is {actual}."
-  },
-  {
-    "code": "T0060",
-    "name": "diverging-slot-init",
-    "category": "type",
-    "summary": "A slot is given a value that never actually arrives, because the right-hand side always leaves first.",
-    "message": "'{name}' never gets a value: the code on the right always leaves first.",
-    "explanation": "The right-hand side here never produces a value — it always leaves first, through an 'abort' or a 'return' — so '{name}' can never be given anything, and this line can't run. Remove it, or change the right-hand side so it produces a value."
-  },
-  {
-    "code": "T0061",
     "name": "redundant-optional",
     "category": "type",
     "summary": "A type is marked optional more than once, but an optional can't nest.",
@@ -1287,7 +1142,111 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A '?' makes a type optional, so it can hold a value or 'None'. Marking it '?' again adds nothing, because an optional doesn't nest — there is no \"maybe a maybe-String\", only \"maybe a String\". Write a single '?' — 'String?', not 'String??'."
   },
   {
-    "code": "T0062",
+    "code": "T0048",
+    "name": "result-needs-annotation",
+    "category": "type",
+    "summary": "A 'Success'/'Failure' on its own doesn't say what the whole Result type is.",
+    "message": "This needs a type written down, like 'Int orfail SomeError'.",
+    "explanation": "A 'Success{ value: ... }' says what a success holds but not what a failure would be, and a 'Failure{ error: ... }' says the opposite — so on its own neither one shows the whole 'T orfail E' type. Write it down where the slot is created, for example 'fix result: Int orfail ReadError = Success{ value: 1 }'."
+  },
+  {
+    "code": "T0049",
+    "name": "try-outside-function",
+    "category": "type",
+    "summary": "A 'try' is used outside any function.",
+    "message": "'try' can only be used inside a function.",
+    "explanation": "'try' hands a failure back to the function it's in — it unwraps the value on success, or leaves the function early with the failure. Out here there's no function to leave, so there's nowhere for the failure to go. Move this into a function whose return type is an optional or a 'T orfail E'."
+  },
+  {
+    "code": "T0050",
+    "name": "try-not-fallible",
+    "category": "type",
+    "summary": "A 'try' is used on a value that can't fail.",
+    "message": "'try' works on an optional or a 'T orfail E', but this is {actual}.",
+    "explanation": "'try' unwraps the two values that can be absent or failed — an optional (a '?' type) or a Result ('T orfail E') — and leaves the function early on the empty/failure case. This value is {actual}, which is neither, so there's nothing for 'try' to unwrap."
+  },
+  {
+    "code": "T0051",
+    "name": "try-return-type-mismatch",
+    "category": "type",
+    "summary": "A 'try' propagates a failure the enclosing function can't return.",
+    "message": "This 'try' hands back {propagated}, but the function here returns {ret}, which can't hold it.",
+    "explanation": "'try' leaves the function early with the failure case, so the function's return type has to be able to hold it. This 'try' would return {propagated}, but the function returns {ret}. Declare the function to return a matching 'T orfail E' (or a '?' optional when the failure is 'None'), or handle the case here with 'match' instead of 'try'."
+  },
+  {
+    "code": "T0052",
+    "name": "try-else-binds-optional",
+    "category": "type",
+    "summary": "A 'try … else' names an error, but the value is an optional (which has none).",
+    "message": "This 'else' names an error to catch, but an optional's empty case ('None') carries no error.",
+    "explanation": "'try opt else e -> ...' would bind the failure's error to 'e', but an optional that is empty is just 'None' — there's no error value to name. Drop the name and write 'try opt else -> ...' to supply the error to propagate instead."
+  },
+  {
+    "code": "T0053",
+    "name": "bare-async-call",
+    "category": "type",
+    "summary": "An async function is called directly instead of being prepared into a task.",
+    "message": "'{found}' calls an async function directly, but an async function is prepared into a task with '!'.",
+    "explanation": "An async function does its work slowly — it hands a job to the disk, the network, or another machine — so calling it can't just run it and give back the result. Instead you *prepare* a task with the '!' mark, like 'fetchUser!(id)', which binds the arguments but runs nothing yet. Then 'await' starts the task and waits for its value: 'fix user = await fetchUser!(id)'."
+  },
+  {
+    "code": "T0054",
+    "name": "async-mark-on-nonasync",
+    "category": "type",
+    "summary": "The '!' async-call mark is used on something that isn't an async function.",
+    "message": "'{name}' is not an async function ({type}), so '!' can't prepare a task from it.",
+    "explanation": "The '!' mark prepares a task from an async function, like 'fetchUser!(id)'. Here '{name}' is {type}, which isn't an async function, so there is no task to prepare. If it's an ordinary function, call it without '!': '{name}(…)'."
+  },
+  {
+    "code": "T0055",
+    "name": "await-not-task",
+    "category": "type",
+    "summary": "'await' is used on a value that isn't a task.",
+    "message": "'await' runs a task and waits for its value, but this is {actual}.",
+    "explanation": "'await' starts a task and waits for the value it produces. A task comes only from an async call — the '!' mark, like 'fetchUser!(id)'. This value is {actual}, which is not a task, so there is nothing for 'await' to run."
+  },
+  {
+    "code": "T0056",
+    "name": "await-outside-async",
+    "category": "type",
+    "summary": "'await' is used inside a function that isn't async.",
+    "message": "'await' can only be used inside an async function.",
+    "explanation": "Waiting on a task is itself an async thing to do, so it spreads: a function that 'await's must be marked 'async'. This function isn't, so mark it — 'async fn(…): … { … }' — and its own callers then prepare it with '!' and 'await' it. (At the program's top level 'await' works directly — that is the starting point.)"
+  },
+  {
+    "code": "T0057",
+    "name": "value-dropped-by-next-statement",
+    "category": "type",
+    "summary": "A value is produced but thrown away because another statement comes after it.",
+    "message": "This {actual} value isn't used by anything.",
+    "explanation": "Only the last statement in a block keeps its value; another statement comes after this one, so its {actual} value would be quietly thrown away — and a thrown-away value is usually a mistake, like calling a method for its result and forgetting to use it. Use the value: give it a name ('fix x = …'), pass it to a function, or make it the last statement. If throwing it away is what you meant, write 'void' in front ('void …') to say so on purpose."
+  },
+  {
+    "code": "T0058",
+    "name": "value-dropped-by-loop",
+    "category": "type",
+    "summary": "A loop body ends in a value the loop throws away each time around.",
+    "message": "This {actual} value is thrown away on every pass of the loop.",
+    "explanation": "A 'for' or 'while' loop doesn't build a value — it runs its body for the effect and yields Done, so whatever the body ends with is thrown away on every pass. Here that value is {actual}. If throwing it away is what you meant, write 'void' in front ('void …') to say so on purpose."
+  },
+  {
+    "code": "T0059",
+    "name": "void-nothing-to-discard",
+    "category": "type",
+    "summary": "'void' is used on a value that is already Done.",
+    "message": "There's nothing to throw away here — this is already Done.",
+    "explanation": "'void' throws away a value in a spot where it would otherwise be kept. This expression is already Done — it produces no value (an effect like 'print', or a loop) — so there's nothing for 'void' to throw away. Remove the 'void'."
+  },
+  {
+    "code": "T0060",
+    "name": "abort-reason-not-string",
+    "category": "type",
+    "summary": "'abort' was given a reason that isn't a String.",
+    "message": "'abort' needs a String reason, but this is {actual}.",
+    "explanation": "'abort' stops the program at a point that should be impossible to reach, and the reason you write is the only explanation anyone gets, so it has to be a String — for example 'abort \"this list is never empty here\"'. This reason is {actual}."
+  },
+  {
+    "code": "T0061",
     "name": "min-max-not-comparable",
     "category": "type",
     "summary": "'min' or 'max' was given values that can't be ordered against each other.",
@@ -1295,7 +1254,7 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'min' and 'max' compare two values and hand back the smaller or larger, so both have to be orderable and of the same kind — two Ints, two Floats (an Int and a Float mix, promoting), or two Strings. {left} and {right} can't be ordered against each other."
   },
   {
-    "code": "T0063",
+    "code": "T0062",
     "name": "assert-equal-mismatch",
     "category": "type",
     "summary": "'assertEqual' was given two values of unrelated types, which can never be equal.",

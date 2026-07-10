@@ -99,17 +99,17 @@ describe('Multiline strings (end-to-end)', () => {
     assert.equal(evalStr(src), 'outer inner end');
   });
 
-  it('reports L0008 when a line has less indentation than the closing """', () => {
+  it('reports L0006 when a line has less indentation than the closing """', () => {
     const src = [
       '"""',
       '    line one',
       '  line two',
       '    """',
     ].join('\n');
-    assert.deepEqual(errorCodes(src), ['L0008']);
+    assert.deepEqual(errorCodes(src), ['L0006']);
   });
 
-  it('reports L0007 for a multiline string unterminated at EOF', () => {
-    assert.deepEqual(errorCodes('"""abc'), ['L0007']);
+  it('reports L0005 for a multiline string unterminated at EOF', () => {
+    assert.deepEqual(errorCodes('"""abc'), ['L0005']);
   });
 });

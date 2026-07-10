@@ -187,14 +187,14 @@ const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
 };
 ```
 
-The `methodCall` rule becomes one uniform lookup-and-apply that raises `T0006`
-(no such method), `T0007` (arity), `T0008` (arg type) in one place — instead of each
+The `methodCall` rule becomes one uniform lookup-and-apply that raises `T0012`
+(no such method), `T0014` (arity), `T0015` (arg type) in one place — instead of each
 dispatcher re-implementing arity/arg checks. "What methods exist" (data, grows when
 you add a builtin) is now cleanly separate from "how a method call is checked" (the
 rule, essentially fixed). Fold `floor` in as an ordinary entry in a `FUNCTIONS` table.
 
-**Verify:** every method in `test-programs/` and a snippet exercising `T0006`/`T0007`/
-`T0008` produce identical codes and result types.
+**Verify:** every method in `test-programs/` and a snippet exercising `T0012`/`T0014`/
+`T0015` produce identical codes and result types.
 
 ---
 

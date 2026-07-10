@@ -130,52 +130,52 @@ describe('async / await (end-to-end)', () => {
   });
 
   describe('the async color is enforced', () => {
-    it('rejects a bare async call — no !  (T0055)', () => {
-      assert.deepEqual(errorCodes('fix f = async fn(x: Int): Int { x }; f(5);'), ['T0055']);
+    it('rejects a bare async call — no !  (T0053)', () => {
+      assert.deepEqual(errorCodes('fix f = async fn(x: Int): Int { x }; f(5);'), ['T0053']);
     });
 
-    it("rejects '!' on an ordinary (non-async) function (T0056)", () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f!(5);'), ['T0056']);
+    it("rejects '!' on an ordinary (non-async) function (T0054)", () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f!(5);'), ['T0054']);
     });
 
-    it("rejects '!' on a value that isn't a function (T0056)", () => {
-      assert.deepEqual(errorCodes('fix x = 5; x!();'), ['T0056']);
+    it("rejects '!' on a value that isn't a function (T0054)", () => {
+      assert.deepEqual(errorCodes('fix x = 5; x!();'), ['T0054']);
     });
 
-    it("rejects 'await' on a value that isn't a task (T0057)", () => {
-      assert.deepEqual(errorCodes('await 5;'), ['T0057']);
+    it("rejects 'await' on a value that isn't a task (T0055)", () => {
+      assert.deepEqual(errorCodes('await 5;'), ['T0055']);
     });
 
-    it("rejects 'await' inside a plain, non-async function (T0058)", () => {
+    it("rejects 'await' inside a plain, non-async function (T0056)", () => {
       assert.deepEqual(
         errorCodes('fix g = async fn(x: Int): Int { x }; fix f = fn(x: Int): Int { await g!(x) };'),
-        ['T0058'],
+        ['T0056'],
       );
     });
 
-    it("rejects 'await try' — there is no Result until await produces one (T0045)", () => {
+    it("rejects 'await try' — there is no Result until await produces one (T0050)", () => {
       // 'try' is applied to the task, but a task is neither an Optional nor a
       // Result, so there's nothing to unwrap: the valid order is 'try await'.
       // Checked inside a Result-returning async fn so 'try' itself is in a valid
       // spot (no try-outside-function error) — the only fault is its operand.
       assert.deepEqual(
         errorCodes('fix f = async fn(): Int { 1 }; fix g = async fn(): Int orfail String { await try f!() };'),
-        ['T0045'],
+        ['T0050'],
       );
     });
 
-    it('rejects comparing two tasks with == (T0009)', () => {
-      assert.deepEqual(errorCodes('fix f = async fn(): Int { 1 }; f!() == f!();'), ['T0009']);
+    it('rejects comparing two tasks with == (T0008)', () => {
+      assert.deepEqual(errorCodes('fix f = async fn(): Int { 1 }; f!() == f!();'), ['T0008']);
     });
   });
 
   describe('async / await surface syntax', () => {
-    it("rejects '!' without an argument list (S0039)", () => {
-      assert.deepEqual(errorCodes('fix f = async fn(): Int { 1 }; f!;'), ['S0039']);
+    it("rejects '!' without an argument list (S0038)", () => {
+      assert.deepEqual(errorCodes('fix f = async fn(): Int { 1 }; f!;'), ['S0038']);
     });
 
-    it("rejects 'async' not followed by 'fn' (S0040)", () => {
-      assert.deepEqual(errorCodes('fix x = async 5;'), ['S0040']);
+    it("rejects 'async' not followed by 'fn' (S0037)", () => {
+      assert.deepEqual(errorCodes('fix x = async 5;'), ['S0037']);
     });
 
     it("'(await t).method()' needs parentheses — await binds looser than a call", () => {

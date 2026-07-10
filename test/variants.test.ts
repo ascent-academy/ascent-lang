@@ -153,8 +153,8 @@ describe('Type variants (end-to-end)', () => {
   });
 
   describe('field-access rule', () => {
-    it('reports T0032 for reading a field on a multi-variant union', () => {
-      assert.deepEqual(errorCodes(`${SHAPE} fix s = Circle{ radius: 2.0 }; s.radius;`), ['T0032']);
+    it('reports T0028 for reading a field on a multi-variant union', () => {
+      assert.deepEqual(errorCodes(`${SHAPE} fix s = Circle{ radius: 2.0 }; s.radius;`), ['T0028']);
     });
 
     it('still allows field access on a single-variant type', () => {
@@ -176,21 +176,21 @@ describe('Type variants (end-to-end)', () => {
       assert.deepEqual(errorCodes('List{ x: 1 };'), ['N0012']);
     });
 
-    it('reports T0018 for a missing field in a variant', () => {
-      assert.deepEqual(errorCodes(`${SHAPE} Circle{};`), ['T0018']);
+    it('reports T0022 for a missing field in a variant', () => {
+      assert.deepEqual(errorCodes(`${SHAPE} Circle{};`), ['T0022']);
     });
 
-    it('reports T0019 for an unknown field in a variant', () => {
-      assert.deepEqual(errorCodes(`${SHAPE} Circle{ radius: 2.0, colour: "red" };`), ['T0019']);
+    it('reports T0023 for an unknown field in a variant', () => {
+      assert.deepEqual(errorCodes(`${SHAPE} Circle{ radius: 2.0, colour: "red" };`), ['T0023']);
     });
 
-    it('reports T0021 for a field value of the wrong type', () => {
-      assert.deepEqual(errorCodes(`${SHAPE} Circle{ radius: "big" };`), ['T0021']);
+    it('reports T0025 for a field value of the wrong type', () => {
+      assert.deepEqual(errorCodes(`${SHAPE} Circle{ radius: "big" };`), ['T0025']);
     });
 
     it("checks each field against its own variant's declaration", () => {
       // 'side' belongs to Square, not Circle — so it's unknown on Circle.
-      assert.ok(errorCodes(`${SHAPE} Circle{ side: 2.0 };`).includes('T0019'));
+      assert.ok(errorCodes(`${SHAPE} Circle{ side: 2.0 };`).includes('T0023'));
     });
   });
 
@@ -217,32 +217,32 @@ describe('Type variants (end-to-end)', () => {
   });
 
   describe('syntax errors', () => {
-    it('reports S0027 when a variant name is missing after a pipe', () => {
-      assert.ok(errorCodes('type Shape = Circle{ radius: Float } | ;').includes('S0027'));
+    it('reports S0022 when a variant name is missing after a pipe', () => {
+      assert.ok(errorCodes('type Shape = Circle{ radius: Float } | ;').includes('S0022'));
     });
 
-    it('reports S0027 when the right-hand side is neither a brace nor a variant', () => {
-      assert.ok(errorCodes('type T = 5;').includes('S0027'));
+    it('reports S0022 when the right-hand side is neither a brace nor a variant', () => {
+      assert.ok(errorCodes('type T = 5;').includes('S0022'));
     });
   });
 
   describe('empty braces are banned (one way to write a zero-field variant)', () => {
-    it('reports S0028 for an empty-brace variant in a declaration', () => {
-      assert.deepEqual(errorCodes('type Color = Red{} | Green{};'), ['S0028', 'S0028']);
+    it('reports S0023 for an empty-brace variant in a declaration', () => {
+      assert.deepEqual(errorCodes('type Color = Red{} | Green{};'), ['S0023', 'S0023']);
     });
 
-    it('reports S0028 for an empty-brace record head', () => {
-      assert.deepEqual(errorCodes('type Empty = {};'), ['S0028']);
+    it('reports S0023 for an empty-brace record head', () => {
+      assert.deepEqual(errorCodes('type Empty = {};'), ['S0023']);
     });
 
-    it('reports S0028 for building a zero-field variant with empty braces', () => {
-      assert.deepEqual(errorCodes('type Color = Red | Green; Red{};'), ['S0028']);
+    it('reports S0023 for building a zero-field variant with empty braces', () => {
+      assert.deepEqual(errorCodes('type Color = Red | Green; Red{};'), ['S0023']);
     });
 
-    it('still reports T0018 (not S0028) for a fielded variant built with empty braces', () => {
+    it('still reports T0022 (not S0023) for a fielded variant built with empty braces', () => {
       // 'Circle{}' looks the same as 'Red{}' but Circle declares fields, so the
       // mistake is a missing field, not empty-braces.
-      assert.deepEqual(errorCodes(`${SHAPE} Circle{};`), ['T0018']);
+      assert.deepEqual(errorCodes(`${SHAPE} Circle{};`), ['T0022']);
     });
   });
 });

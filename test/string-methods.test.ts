@@ -100,16 +100,16 @@ describe('String methods (end-to-end)', () => {
       assert.deepEqual(evalOk('"hello".slice(2..2);'), { type: 'String', value: '' });
     });
 
-    it('crashes with R0007 when the end exceeds the length', () => {
-      assert.equal(evalCrash('"hello".slice(0..6);'), 'R0007');
+    it('crashes with R0006 when the end exceeds the length', () => {
+      assert.equal(evalCrash('"hello".slice(0..6);'), 'R0006');
     });
 
-    it('crashes with R0007 when the start is negative', () => {
-      assert.equal(evalCrash('"hello".slice(-1..3);'), 'R0007');
+    it('crashes with R0006 when the start is negative', () => {
+      assert.equal(evalCrash('"hello".slice(-1..3);'), 'R0006');
     });
 
-    it('crashes with R0007 when the start exceeds the end', () => {
-      assert.equal(evalCrash('"hello".slice(3..1);'), 'R0007');
+    it('crashes with R0006 when the start exceeds the end', () => {
+      assert.equal(evalCrash('"hello".slice(3..1);'), 'R0006');
     });
   });
 
@@ -122,8 +122,8 @@ describe('String methods (end-to-end)', () => {
       assert.deepEqual(evalOk('"ab".repeat(0);'), { type: 'String', value: '' });
     });
 
-    it('crashes with R0008 for a negative count', () => {
-      assert.equal(evalCrash('"ab".repeat(-1);'), 'R0008');
+    it('crashes with R0007 for a negative count', () => {
+      assert.equal(evalCrash('"ab".repeat(-1);'), 'R0007');
     });
   });
 
@@ -165,7 +165,7 @@ describe('String methods (end-to-end)', () => {
     });
   });
 
-  it('reports T0006 for the old .toStr() name, which no longer exists', () => {
-    assert.deepEqual(errorCodes('42.toStr();'), ['T0006']);
+  it('reports T0012 for the old .toStr() name, which no longer exists', () => {
+    assert.deepEqual(errorCodes('42.toStr();'), ['T0012']);
   });
 });

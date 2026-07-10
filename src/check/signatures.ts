@@ -32,7 +32,7 @@ export interface ResolvedSig {
 export type MethodSig = MonoSig | ResolvedSig;
 
 // Arity, then each param checked against its argument in order — pushes
-// T0007 / T0008 and stops at the first mismatch, same as the old
+// T0014 / T0015 and stops at the first mismatch, same as the old
 // hand-rolled dispatchers.
 const checkParams = (
   params: readonly AscentType[], args: AscentType[], diagnostics: Diagnostics, span: Span,
@@ -40,7 +40,7 @@ const checkParams = (
   if (!requireArity(params.length, args.length, diagnostics, span)) return false;
   for (let i = 0; i < params.length; i++) {
     if (!typesEqual(args[i]!, params[i]!)) {
-      typeMismatch('T0008', diagnostics, span, params[i]!, args[i]!);
+      typeMismatch('T0015', diagnostics, span, params[i]!, args[i]!);
       return false;
     }
   }
@@ -61,7 +61,7 @@ const applySig = (
 const appendLike = (recv: AscentType, args: AscentType[], diagnostics: Diagnostics, span: Span): AscentType => {
   if (recv.kind !== 'List') return INVALID_TYPE;
   const ct = leastCommonType(recv.elem, args[0]!);
-  return ct === null ? typeMismatch('T0008', diagnostics, span, recv.elem, args[0]!) : listOfType(ct);
+  return ct === null ? typeMismatch('T0015', diagnostics, span, recv.elem, args[0]!) : listOfType(ct);
 };
 
 export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
@@ -103,9 +103,9 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
       resolve: (recv, args, diagnostics, span) => {
         if (recv.kind !== 'List') return INVALID_TYPE;
         const arg = args[0]!;
-        if (arg.kind !== 'List') return typeMismatch('T0008', diagnostics, span, listOfType(recv.elem), arg);
+        if (arg.kind !== 'List') return typeMismatch('T0015', diagnostics, span, listOfType(recv.elem), arg);
         const ct = leastCommonType(recv.elem, arg.elem);
-        return ct === null ? typeMismatch('T0008', diagnostics, span, listOfType(recv.elem), arg) : listOfType(ct);
+        return ct === null ? typeMismatch('T0015', diagnostics, span, listOfType(recv.elem), arg) : listOfType(ct);
       },
     },
   },
@@ -163,37 +163,37 @@ const orAbortType = (
   args: AscentType[], diagnostics: Diagnostics, span: Span,
 ): AscentType => {
   if (args.length > 1) {
-    diagnostics.error({ code: 'T0007', span, data: { expected: 'no input, or one String message', got: String(args.length) } });
+    diagnostics.error({ code: 'T0014', span, data: { expected: 'no input, or one String message', got: String(args.length) } });
   } else if (args.length === 1 && !typesEqual(args[0]!, STRING_TYPE)) {
-    typeMismatch('T0008', diagnostics, span, STRING_TYPE, args[0]!);
+    typeMismatch('T0015', diagnostics, span, STRING_TYPE, args[0]!);
   }
   return recv.kind === 'Result' ? recv.ok : recv.elem;
 };
 
-// The one place a method call's result type is looked up: T0012 when the
-// receiver's type has no methods at all, T0006 when it has methods but not
+// The one place a method call's result type is looked up: T0011 when the
+// receiver's type has no methods at all, T0012 when it has methods but not
 // this one, otherwise dispatch to the signature.
 export const methodCallType = (
   recv: AscentType, method: string, args: AscentType[], diagnostics: Diagnostics, span: Span,
 ): AscentType => {
   // Result/Optional aren't in METHODS (their sole method, orAbort, is polymorphic
   // over both and dispatched on the static box type — see orAbortType). Intercept
-  // before the table lookup so 'r.orAbort()' resolves and 'r.foo()' is T0006 (a
-  // real method exists, just not that one) rather than T0012 ("no methods").
+  // before the table lookup so 'r.orAbort()' resolves and 'r.foo()' is T0012 (a
+  // real method exists, just not that one) rather than T0011 ("no methods").
   if (recv.kind === 'Result' || recv.kind === 'Optional') {
     if (method === 'orAbort') return orAbortType(recv, args, diagnostics, span);
-    diagnostics.error({ code: 'T0006', span, data: { method, type: typeToString(recv) } });
+    diagnostics.error({ code: 'T0012', span, data: { method, type: typeToString(recv) } });
     return INVALID_TYPE;
   }
 
   const table = METHODS[recv.kind];
   if (table === undefined) {
-    diagnostics.error({ code: 'T0012', span, data: { type: typeToString(recv) } });
+    diagnostics.error({ code: 'T0011', span, data: { type: typeToString(recv) } });
     return INVALID_TYPE;
   }
   const sig = table[method];
   if (sig === undefined) {
-    diagnostics.error({ code: 'T0006', span, data: { method, type: typeToString(recv) } });
+    diagnostics.error({ code: 'T0012', span, data: { method, type: typeToString(recv) } });
     return INVALID_TYPE;
   }
   return applySig(sig, recv, args, diagnostics, span);

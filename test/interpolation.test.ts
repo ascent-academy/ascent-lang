@@ -67,19 +67,19 @@ describe('String interpolation (end-to-end)', () => {
     assert.equal(evalStr(String.raw`"literal \${x}";`), 'literal ${x}');
   });
 
-  it('reports T0014 when a hole holds a non-scalar value (a List)', () => {
-    assert.deepEqual(errorCodes('fix xs = [1, 2]; "xs: ${xs}";'), ['T0014']);
+  it('reports T0018 when a hole holds a non-scalar value (a List)', () => {
+    assert.deepEqual(errorCodes('fix xs = [1, 2]; "xs: ${xs}";'), ['T0018']);
   });
 
-  it('reports T0014 when a hole holds None', () => {
-    assert.deepEqual(errorCodes('"nothing: ${None}";'), ['T0014']);
+  it('reports T0018 when a hole holds None', () => {
+    assert.deepEqual(errorCodes('"nothing: ${None}";'), ['T0018']);
   });
 
-  it('reports S0015 when a hole holds more than one value', () => {
-    assert.deepEqual(errorCodes('"${ 1 2 }";'), ['S0015']);
+  it('reports S0014 when a hole holds more than one value', () => {
+    assert.deepEqual(errorCodes('"${ 1 2 }";'), ['S0014']);
   });
 
-  it('reports L0006 when an interpolation is never closed', () => {
-    assert.deepEqual(errorCodes('"hi ${name'), ['L0006']);
+  it('reports L0007 when an interpolation is never closed', () => {
+    assert.deepEqual(errorCodes('"hi ${name'), ['L0007']);
   });
 });

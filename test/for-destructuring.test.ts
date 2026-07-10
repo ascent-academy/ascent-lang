@@ -54,10 +54,10 @@ describe('for-loop destructuring', () => {
       assert.deepEqual(errorCodes(src), ['N0002']);
     });
 
-    it('T0033 — a union variant is refutable, so it can’t destructure the loop', () => {
+    it('T0034 — a union variant is refutable, so it can’t destructure the loop', () => {
       const src = 'type Shape = Circle{ radius: Float } | Square{ side: Float };'
         + ' fix shapes = [Circle{ radius: 1.0 }]; for Circle{ radius } in shapes { void radius };';
-      assert.deepEqual(errorCodes(src), ['T0033']);
+      assert.deepEqual(errorCodes(src), ['T0034']);
     });
 
     it('T0001 — the element type isn’t the pattern’s record type', () => {
@@ -70,9 +70,9 @@ describe('for-loop destructuring', () => {
       assert.deepEqual(errorCodes(src), ['T0001']);
     });
 
-    it('T0019 — a field the record doesn’t declare', () => {
+    it('T0023 — a field the record doesn’t declare', () => {
       const src = `${POINTS} for Point{ z } in points { void z };`;
-      assert.deepEqual(errorCodes(src), ['T0019']);
+      assert.deepEqual(errorCodes(src), ['T0023']);
     });
 
     it('N0005 — an unknown type name in the pattern', () => {
@@ -80,13 +80,13 @@ describe('for-loop destructuring', () => {
       assert.deepEqual(errorCodes(src), ['N0005']);
     });
 
-    it('S0016 — the target is neither a name nor a pattern', () => {
-      assert.ok(errorCodes(`${POINTS} for 5 in points { void 1 };`).includes('S0016'));
+    it('S0015 — the target is neither a name nor a pattern', () => {
+      assert.ok(errorCodes(`${POINTS} for 5 in points { void 1 };`).includes('S0015'));
     });
 
-    it('S0028 — empty pattern braces bind nothing', () => {
+    it('S0023 — empty pattern braces bind nothing', () => {
       const src = `${POINTS} for Point{} in points { void 1 };`;
-      assert.deepEqual(errorCodes(src), ['S0028']);
+      assert.deepEqual(errorCodes(src), ['S0023']);
     });
   });
 });

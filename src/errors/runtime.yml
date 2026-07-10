@@ -55,19 +55,6 @@
     outside that range.
 
 - code: R0006
-  name: empty-string-access
-  category: runtime
-  summary: "'.first()' or '.last()' was called on a String with no characters."
-  message: "'.{method}()' has nothing to return: this String is empty."
-  explanation: >-
-    '.first()' returns a String's first character and '.last()' its last, but
-    an empty String ("") has neither. Check the String's '.length()' before
-    calling '.{method}()' if it might be empty.
-  # Retired: '.first()'/'.last()' now return String? (None on an empty
-  # String) instead of crashing, now that Optional exists (design.md §4).
-  retired: true
-
-- code: R0007
   name: string-slice-out-of-bounds
   category: runtime
   summary: "'.slice(start..end)' had a start or end outside the String's valid range."
@@ -78,7 +65,7 @@
     and {length}, with start no greater than end. '{start}' and '{end}' don't
     fit that rule here.
 
-- code: R0008
+- code: R0007
   name: negative-repeat-count
   category: runtime
   summary: "'.repeat(n)' was called with a negative n."
@@ -88,7 +75,7 @@
     be 0 or more — there's no such thing as repeating something a negative
     number of times. Use 0 if you want an empty String back.
 
-- code: R0009
+- code: R0008
   name: abort
   category: runtime
   summary: "'abort' deliberately stopped the program at a point marked unreachable."
@@ -99,7 +86,7 @@
     The reason above is the one written at that 'abort'. If this spot can really
     be reached, handle that case instead of aborting.
 
-- code: R0010
+- code: R0009
   name: orabort-on-failure
   category: runtime
   summary: "'.orAbort()' was called on a Result that turned out to be a Failure."
@@ -111,7 +98,7 @@
     Failure with 'match' or 'try' if it can really happen, and keep '.orAbort()'
     only where a Failure would be a bug.
 
-- code: R0011
+- code: R0010
   name: orabort-on-none
   category: runtime
   summary: "'.orAbort()' was called on an Optional that turned out to be None."
@@ -122,7 +109,7 @@
     there, so a None stops the program. Handle the None with 'match' or '??' if it
     can really happen, and keep '.orAbort()' only where a None would be a bug.
 
-- code: R0012
+- code: R0011
   name: assertion-failed
   category: runtime
   summary: "'assert' was given a condition that turned out to be False."
@@ -133,7 +120,7 @@
     carry on past a broken expectation. Find why it wasn't true, or handle that
     case instead of asserting.
 
-- code: R0013
+- code: R0012
   name: assert-equal-failed
   category: runtime
   summary: "'assertEqual' was given two values that turned out not to be equal."

@@ -96,8 +96,8 @@ describe('stdlib module system (end-to-end)', () => {
       assert.deepEqual(evalOk('import { assert } from "assert"; assert(1 < 2);'), { type: 'Done' });
     });
 
-    it('assert crashes (R0012) on a false condition', () => {
-      assert.equal(evalCrash('import { assert } from "assert"; assert(2 < 1);'), 'R0012');
+    it('assert crashes (R0011) on a false condition', () => {
+      assert.equal(evalCrash('import { assert } from "assert"; assert(2 < 1);'), 'R0011');
     });
 
     it('assertEqual passes equal values, including Int vs Float', () => {
@@ -105,8 +105,8 @@ describe('stdlib module system (end-to-end)', () => {
       assert.deepEqual(evalOk('import { assertEqual } from "assert"; assertEqual(1, 1.0);'), { type: 'Done' });
     });
 
-    it('assertEqual crashes (R0013) on unequal values', () => {
-      assert.equal(evalCrash('import { assertEqual } from "assert"; assertEqual(2, 3);'), 'R0013');
+    it('assertEqual crashes (R0012) on unequal values', () => {
+      assert.equal(evalCrash('import { assertEqual } from "assert"; assertEqual(2, 3);'), 'R0012');
     });
   });
 
@@ -137,21 +137,21 @@ describe('stdlib module system (end-to-end)', () => {
   });
 
   describe('call-checking of stdlib functions', () => {
-    it('reports the wrong number of inputs (T0007)', () => {
-      assert.ok(errorCodes('import { sqrt } from "math"; sqrt(1, 2);').includes('T0007'));
+    it('reports the wrong number of inputs (T0014)', () => {
+      assert.ok(errorCodes('import { sqrt } from "math"; sqrt(1, 2);').includes('T0014'));
     });
 
-    it('reports a non-numeric sqrt argument (T0008)', () => {
-      assert.ok(errorCodes('import { sqrt } from "math"; sqrt("x");').includes('T0008'));
+    it('reports a non-numeric sqrt argument (T0015)', () => {
+      assert.ok(errorCodes('import { sqrt } from "math"; sqrt("x");').includes('T0015'));
     });
 
-    it('reports min/max on values that cannot be ordered (T0062)', () => {
-      assert.ok(errorCodes('import { min } from "math"; min(True, False);').includes('T0062'));
-      assert.ok(errorCodes('import { min } from "math"; min(1, "x");').includes('T0062'));
+    it('reports min/max on values that cannot be ordered (T0061)', () => {
+      assert.ok(errorCodes('import { min } from "math"; min(True, False);').includes('T0061'));
+      assert.ok(errorCodes('import { min } from "math"; min(1, "x");').includes('T0061'));
     });
 
-    it('reports assertEqual on unrelated types (T0063)', () => {
-      assert.ok(errorCodes('import { assertEqual } from "assert"; assertEqual(1, "x");').includes('T0063'));
+    it('reports assertEqual on unrelated types (T0062)', () => {
+      assert.ok(errorCodes('import { assertEqual } from "assert"; assertEqual(1, "x");').includes('T0062'));
     });
   });
 
@@ -179,24 +179,24 @@ describe('stdlib module system (end-to-end)', () => {
   });
 
   describe('placement — imports lead the file, never inside a body', () => {
-    it('rejects an import inside a function body (S0044)', () => {
-      assert.ok(errorCodes('fix f = fn(): Int { import { max } from "math"; max(2, 9) };').includes('S0044'));
+    it('rejects an import inside a function body (S0042)', () => {
+      assert.ok(errorCodes('fix f = fn(): Int { import { max } from "math"; max(2, 9) };').includes('S0042'));
     });
 
-    it('rejects an import inside a program body (S0044)', () => {
-      assert.ok(errorCodes('program (x: Int) { import { min } from "math"; min(x, 5) }').includes('S0044'));
+    it('rejects an import inside a program body (S0042)', () => {
+      assert.ok(errorCodes('program (x: Int) { import { min } from "math"; min(x, 5) }').includes('S0042'));
     });
 
-    it("rejects an import inside an 'if' body (S0044)", () => {
-      assert.ok(errorCodes('if (True) { import { min } from "math"; min(1, 2) } else { 0 };').includes('S0044'));
+    it("rejects an import inside an 'if' body (S0042)", () => {
+      assert.ok(errorCodes('if (True) { import { min } from "math"; min(1, 2) } else { 0 };').includes('S0042'));
     });
 
-    it('rejects an import that comes after another top-level statement (S0045)', () => {
-      assert.ok(errorCodes('fix a = 1; import { min } from "math"; min(a, 2);').includes('S0045'));
+    it('rejects an import that comes after another top-level statement (S0043)', () => {
+      assert.ok(errorCodes('fix a = 1; import { min } from "math"; min(a, 2);').includes('S0043'));
     });
 
-    it('rejects a top-level import placed after a type declaration (S0045)', () => {
-      assert.ok(errorCodes('type P = { n: Int }; import { min } from "math"; min(1, 2);').includes('S0045'));
+    it('rejects a top-level import placed after a type declaration (S0043)', () => {
+      assert.ok(errorCodes('type P = { n: Int }; import { min } from "math"; min(1, 2);').includes('S0043'));
     });
 
     it('accepts leading imports whose names are used in a later fn / program body', () => {
@@ -212,16 +212,16 @@ describe('stdlib module system (end-to-end)', () => {
   });
 
   describe('import syntax errors', () => {
-    it('rejects a missing from (S0042)', () => {
-      assert.ok(errorCodes('import { min } "math";').includes('S0042'));
+    it('rejects a missing from (S0040)', () => {
+      assert.ok(errorCodes('import { min } "math";').includes('S0040'));
     });
 
-    it('rejects a missing module specifier (S0043)', () => {
-      assert.ok(errorCodes('import { min } from math;').includes('S0043'));
+    it('rejects a missing module specifier (S0041)', () => {
+      assert.ok(errorCodes('import { min } from math;').includes('S0041'));
     });
 
-    it('rejects neither braces nor a name after import (S0041)', () => {
-      assert.ok(errorCodes('import from "math";').includes('S0041'));
+    it('rejects neither braces nor a name after import (S0039)', () => {
+      assert.ok(errorCodes('import from "math";').includes('S0039'));
     });
   });
 });

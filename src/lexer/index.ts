@@ -67,7 +67,7 @@ export class Lexer {
         this.c.advance();
       }
     }
-    this.error('L0005', this.c.spanFrom(start));
+    this.error('L0008', this.c.spanFrom(start));
   }
 
   private skipTrivia(): void {
@@ -98,7 +98,7 @@ export class Lexer {
   // after a hole's swallowed closing '}') up to whichever comes first — the
   // closing '"' (the string ends here, STR_PART_END), an unescaped '${' (a
   // hole starts — pushes an 'interp' frame so nextToken() resumes ordinary
-  // tokenization, STR_PART), or EOF/newline (unterminated, L0003, same as a
+  // tokenization, STR_PART), or EOF/newline (unterminated, L0004, same as a
   // plain string). `startOverride` lets the very first chunk's span begin at
   // the opening '"' — matching the old STR_LIT span exactly — while later
   // chunks (resumed after a hole) start fresh at the current position.
@@ -109,7 +109,7 @@ export class Lexer {
       const ch = this.c.peek();
       if (ch === '\0' || ch === '\n') {
         this.modeStack.pop();
-        return this.error('L0003', this.c.spanFrom(start));
+        return this.error('L0004', this.c.spanFrom(start));
       }
       if (ch === '"') {
         this.c.advance(); // consume closing '"'
@@ -166,7 +166,7 @@ export class Lexer {
         const top = this.modeStack[this.modeStack.length - 1];
         const openStart = top !== undefined && top.kind === 'mstring' ? top.start : start;
         this.modeStack.pop();
-        return this.error('L0007', this.c.spanFrom(openStart));
+        return this.error('L0005', this.c.spanFrom(openStart));
       }
       if (ch === '"' && this.c.peek(1) === '"' && this.c.peek(2) === '"') {
         const margin = this.c.mark().column - 1;
@@ -239,7 +239,7 @@ export class Lexer {
       if (top !== undefined) {
         const span = this.c.spanFrom(top.start);
         this.modeStack = [];
-        return this.error('L0006', span);
+        return this.error('L0007', span);
       }
       const start = this.c.mark();
       return this.token('EOF', start);
@@ -255,13 +255,13 @@ export class Lexer {
     }
 
     // A leading-dot float like .5 is a number missing its integer part, so
-    // L0004 (its own error, with a certain '0.5' fix) is more helpful than
+    // L0003 (its own error, with a certain '0.5' fix) is more helpful than
     // L0001 ("unexpected character") or L0002 (a number run into letters).
     if (ch === '.' && isDigit(this.c.peek(1))) {
       const start = this.c.mark();
       this.c.advance(); // '.'
       this.consumeWhile(isDigit);
-      return this.error('L0004', this.c.spanFrom(start));
+      return this.error('L0003', this.c.spanFrom(start));
     }
 
     const start = this.c.mark();

@@ -44,14 +44,14 @@ export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv)
   // The body's last statement is the program's value (whitepaper §2); every
   // other statement — all the leading setup, and every non-final body statement
   // — sits in a Done-required position, so a real value left there is dropped
-  // (T0025).
+  // (T0057).
   const lastIndex = program.stmts.length - 1;
   const typedStmts: TypedStatement[] = program.stmts.map((stmt, i) => {
     if (i === program.bodyStart) bindArgs();
     const typedStmt = inferStmt(stmt, env, diagnostics);
     const isValuePosition = i >= program.bodyStart && i === lastIndex;
     if (!isValuePosition) {
-      reportDroppedValue(typedStmt, 'T0025', diagnostics);
+      reportDroppedValue(typedStmt, 'T0057', diagnostics);
     }
     return typedStmt;
   });
