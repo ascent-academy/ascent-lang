@@ -1,6 +1,6 @@
 {
   "name": "@ascent-lang/dev",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "The Ascent teaching language: CLI and interpreter for running and embedding .asc programs.",
   "type": "module",
   "main": "dist/lib.js",
