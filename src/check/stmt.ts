@@ -1,7 +1,7 @@
 import type { Statement, Block, If, Match, LiteralPattern, BindTarget, FieldPattern } from '../parser/ast.js';
 import type { Span } from '../lexer/token.js';
 import type { TypedBlock, TypedIf, TypedMatch, TypedMatchArm, TypedExpr, TypedStatement, TypedFieldPattern, TypedBindTarget } from '../parser/typed-ast.js';
-import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, isInvalidType, containsNever, typeToString, leastCommonType, isAssignableTo, namedType, functionType } from '../types/types.js';
+import { AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, isInvalidType, containsNever, containsBareNone, typeToString, leastCommonType, joinTypes, isAssignableTo, namedType, functionType } from '../types/types.js';
 import type { TypeEnv, RecordField, Variant } from './env.js';
 import type { TypedVariantDecl } from '../parser/typed-ast.js';
 import { Diagnostics } from './diagnostics.js';
@@ -96,7 +96,10 @@ export const inferIf = (expr: If, env: TypeEnv, diagnostics: Diagnostics): Typed
     ? inferIf(expr.else, env, diagnostics)
     : inferBlock(expr.else, env, diagnostics);
 
-  const ct = leastCommonType(typedThen.type, typedElse.type);
+  // The branches join like a list's elements — a value and an optional fold into
+  // an optional ('if (c) { None } else { 5 }' is 'Int?'), so joinTypes, not the
+  // strict leastCommonType.
+  const ct = joinTypes(typedThen.type, typedElse.type);
   if (ct === null) {
     diagnostics.error({
       code: 'T0010', span: expr.span,
@@ -366,16 +369,16 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
     }
   }
 
-  // Join the reachable arms pairwise, like a list literal's elements. On the
-  // first pair with no common type, report T0032 and settle the whole match at
-  // Invalid so the failure stops here instead of cascading. leastCommonType is
-  // Invalid-aware, so an arm whose own body failed carries Invalid through
-  // without a second diagnostic.
+  // Join the reachable arms pairwise, like a list literal's elements (joinTypes,
+  // so a value arm and a None arm fold into an optional). On the first pair with
+  // no common type, report T0032 and settle the whole match at Invalid so the
+  // failure stops here instead of cascading. joinTypes is Invalid-aware, so an
+  // arm whose own body failed carries Invalid through without a second diagnostic.
   let type: AscentType = DONE_TYPE;
   if (bodyTypes.length > 0) {
     type = bodyTypes[0]!.type;
     for (const arm of bodyTypes.slice(1)) {
-      const ct = leastCommonType(type, arm.type);
+      const ct = joinTypes(type, arm.type);
       if (ct === null) {
         diagnostics.error({
           code: 'T0032', span: expr.span,
@@ -565,10 +568,14 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
         if (isInvalidType(typedInit.type)) {
           // Its own failure was already reported where it was synthesized —
           // don't also demand an annotation for a type that was never real.
-        } else if (typedInit.type.kind === 'None') {
+        } else if (containsBareNone(typedInit.type)) {
           // design.md §7's slot-inference wrinkle: a bare 'None' carries no
-          // type information (there's nothing to widen it to) — so it needs
-          // a written annotation too.
+          // type information (there's nothing to widen it to) — so it needs a
+          // written annotation too. This fires for a lone 'None' *and* for a
+          // list of nothing but it ('[None]' → List<None>), which freezes the
+          // slot's element type the same dead-end way — but not for a real
+          // Optional ('String?' from '.first()', 'List<Int?>'), whose None is
+          // the legitimate absent case.
           diagnostics.error({ code: 'T0002', span: stmt.init.span });
         } else if (typedInit.type.kind === 'Result' && containsNever(typedInit.type)) {
           // A bare 'Success{ … }' / 'Failure{ … }' pins only one side of the

@@ -25,12 +25,14 @@
 - code: T0002
   name: none-needs-annotation
   category: type
-  summary: A slot's only starting value is None, so its type has to be written down.
+  summary: A slot's starting value is built only from None, so its type has to be written down.
   message: "This slot needs a type."
   explanation: >-
-    'None' on its own doesn't say what kind of value the slot will hold — so,
-    just like an empty list '[]', its type has to be written down — for
-    example 'fix nick: String? = None'.
+    'None' is not a value with a type of its own — it is the empty case of an
+    optional ('String?'). On its own, or as a list of nothing else ('[None]'),
+    it doesn't say what kind of value the slot will hold, so — just like an
+    empty list '[]' — its type has to be written down, as in
+    'fix nick: String? = None' or 'fix names: List<String?> = [None]'.
 
 - code: T0003
   name: empty-list-needs-annotation

@@ -3,7 +3,7 @@ import type { Span } from '../lexer/token.js';
 import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedWithUpdate, TypedPathStep, TypedTryElse } from '../parser/typed-ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
-  listOfType, leastCommonType, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf, taskOf,
+  listOfType, leastCommonType, joinTypes, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf, taskOf,
   typesEqual,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
@@ -28,13 +28,15 @@ import { check } from './check.js';
 // The join of a non-empty list literal's typed elements, pairwise against
 // the first — T0005 when two elements share no common supertype. Shared by
 // synth (the result is the list's type, as-is) and check (which may still
-// widen the result further toward an expected element type). leastCommonType
-// is already Invalid-aware, so an element that failed on its own quietly
-// carries Invalid through the join without a second diagnostic here.
+// widen the result further toward an expected element type). Uses joinTypes,
+// so a mix of a value and an optional folds into an optional element — '[None,
+// 1]' is 'List<Int?>', '[x, None]' (x: Int) likewise. joinTypes is Invalid-aware
+// (via leastCommonType), so an element that failed on its own quietly carries
+// Invalid through the join without a second diagnostic here.
 export const joinElementTypes = (typedElements: TypedExpr[], span: Span, diagnostics: Diagnostics): AscentType => {
   let elemType: AscentType = typedElements[0]!.type;
   for (const te of typedElements.slice(1)) {
-    const ct = leastCommonType(elemType, te.type);
+    const ct = joinTypes(elemType, te.type);
     if (ct === null) {
       diagnostics.error({
         code: 'T0005', span,
@@ -640,13 +642,14 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       let type: AscentType;
       if (isInvalidType(lt) || isInvalidType(rt)) {
         type = INVALID_TYPE;
-      } else if (lt.kind !== 'Optional' && lt.kind !== 'None') {
+      } else if (lt.kind !== 'Optional') {
         diagnostics.error({ code: 'T0044', span: expr.left.span, data: { actual: typeToString(lt) } });
         type = INVALID_TYPE;
       } else {
-        // The present-value type: an Optional's element, or Never for a bare
-        // None (which has no present value, so the default always wins).
-        const presentType = lt.kind === 'Optional' ? lt.elem : NEVER_TYPE;
+        // The present-value type is the optional's element — 'Never' for a bare
+        // 'None' ('Optional<Never>'), which has no present value, so the default
+        // always wins.
+        const presentType = lt.elem;
         const joined = leastCommonType(presentType, rt);
         if (joined === null) {
           diagnostics.error({

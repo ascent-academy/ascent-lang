@@ -3,7 +3,12 @@ export type AscentType =
   | { kind: 'Float' }
   | { kind: 'Bool' }
   | { kind: 'String' }
-  | { kind: 'None' }
+  // There is no standalone 'None' type: 'None' is not a value with a type of its
+  // own, only an optional's absent case (design.md §7). The 'None' *literal*
+  // synthesizes 'Optional<Never>' — an optional known to be empty — which widens
+  // into any 'T?' (Optional is covariant, Never <: T) exactly as a bare 'None'
+  // used to, and which no list/slot can freeze at (containsNever catches it, like
+  // '[]'/List<Never>). 'NONE_TYPE'/'isNoneType' below name that canonical form.
   | { kind: 'Done' }
   | { kind: 'Never' }
   | { kind: 'Invalid' }
@@ -57,7 +62,15 @@ export const INT_TYPE: AscentType = { kind: 'Int' };
 export const FLOAT_TYPE: AscentType = { kind: 'Float' };
 export const BOOL_TYPE: AscentType = { kind: 'Bool' };
 export const STRING_TYPE: AscentType = { kind: 'String' };
-export const NONE_TYPE: AscentType = { kind: 'None' };
+// The canonical type of the 'None' literal: an optional known to be empty. Its
+// element is 'Never' — the same "unresolved, widens into anything" element an
+// empty list carries — so 'None' flows into any 'T?' and never freezes a slot.
+export const NONE_TYPE: AscentType = { kind: 'Optional', elem: { kind: 'Never' } };
+// True for that canonical empty-optional — the type-level "this is None". Used
+// where the old '{ kind: "None" }' check was: a bare 'None' needing an
+// annotation, and the 'None' pattern/propagation cases in the checker.
+export const isNoneType = (t: AscentType): boolean =>
+  t.kind === 'Optional' && t.elem.kind === 'Never';
 export const DONE_TYPE: AscentType = { kind: 'Done' };
 // design.md §7: the bottom type — uninhabited, assignable to every type. Not
 // (yet) a type anyone writes; it only ever shows up as the checker's own
@@ -102,6 +115,11 @@ export const typeToString = (t: AscentType): string => {
 
   if (t.kind === 'List') {
     return `List<${typeToString(t.elem)}>`;
+  }
+  // The empty optional 'Optional<Never>' is the type of the 'None' literal — show
+  // it as 'None', the word the learner wrote, not 'Never?'.
+  if (t.kind === 'Optional' && t.elem.kind === 'Never') {
+    return 'None';
   }
   if (t.kind === 'Optional') {
     return `${postfix(t.elem)}?`;
@@ -163,6 +181,23 @@ export const containsNever = (t: AscentType): boolean => {
   // practice an async function's result type is always written explicitly, so
   // this is for completeness (a slot 'fix t = ...' holding a Task<Never>).
   if (t.kind === 'Task') return containsNever(t.result);
+  return false;
+};
+
+// True when a *bare* 'None' (the empty optional, 'Optional<Never>') appears
+// anywhere t is built from — a lone 'None', or a list of nothing but it
+// ('[None]' → 'List<Never?>'). Such a slot carries no real element type and
+// freezes exactly the way '[]'/List<Never> does, so it needs an annotation; this
+// picks the 'None'-flavored message (T0002) over the empty-list one (T0003).
+// Crucially it does NOT recurse into a non-empty 'Optional': a 'T?' legitimately
+// holds None as its absent case, so 'String?' (from '"hi".first()') or
+// 'List<Int?>' is *not* a bare None.
+export const containsBareNone = (t: AscentType): boolean => {
+  if (isNoneType(t)) return true;
+  if (t.kind === 'List') return containsBareNone(t.elem);
+  if (t.kind === 'Result') return containsBareNone(t.ok) || containsBareNone(t.err);
+  if (t.kind === 'Task') return containsBareNone(t.result);
+  // A non-empty 'Optional' is deliberately opaque here — None belongs inside it.
   return false;
 };
 
@@ -259,7 +294,10 @@ export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
   }
 
   if (sup.kind === 'Optional') {
-    if (sub.kind === 'None') return null;
+    // A bare value 'T' flows into 'T?' unwrapped; an optional 'S?' flows into
+    // 'T?' when S <: T (covariance). 'None' is just the 'S?' case with S = Never
+    // — 'Optional<Never> <: Optional<T>' falls straight out of 'Never <: T', so
+    // it needs no special row of its own.
     const subElem = sub.kind === 'Optional' ? sub.elem : sub;
     return subtype(subElem, sup.elem);
   }
@@ -323,3 +361,25 @@ export const leastCommonType = (a: AscentType, b: AscentType): AscentType | null
 
 // `from` is assignable to `to` exactly when it's a subtype of `to`.
 export const isAssignableTo = (from: AscentType, to: AscentType): boolean => subtype(from, to) !== false;
+
+// The join used to fold several *values* into one type: a list literal's
+// elements ('[None, 1]' → 'Int?'), an 'if'/'else''s two branches, a 'match''s
+// arm bodies. It is leastCommonType plus one rule — when a plain value meets an
+// optional (or two optionals whose present types differ), the join is an
+// optional of the joined present types, since either side may be absent. So
+// 'None' ('Optional<Never>') joined with 'Int' is 'Int?', and 'Int?' with
+// 'Float' is 'Float?'. leastCommonType itself stays strict on purpose: it also
+// answers "do these two types have anything in common at all" for '==' and match
+// patterns, where 'Int' and 'None' must read as *incompatible* rather than being
+// silently widened into 'Int?'.
+export const joinTypes = (a: AscentType, b: AscentType): AscentType | null => {
+  const direct = leastCommonType(a, b);
+  if (direct !== null) return direct;
+  if (a.kind === 'Optional' || b.kind === 'Optional') {
+    const aElem = a.kind === 'Optional' ? a.elem : a;
+    const bElem = b.kind === 'Optional' ? b.elem : b;
+    const inner = leastCommonType(aElem, bElem);
+    if (inner !== null) return optionalOf(inner);
+  }
+  return null;
+};
