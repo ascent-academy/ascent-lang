@@ -52,8 +52,13 @@ export type ComparisonOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
 export type BooleanOp = 'and' | 'or';
 export type BinaryOp = ArithmeticOp | ComparisonOp | BooleanOp;
 
-// A block is itself an expression — it yields the value of its last
-// statement, or Done when empty (the '{}' unit value).
+// A block groups statements between '{' and '}' and yields the value of its
+// last statement (or Done when empty, or when that statement isn't a value).
+// It is a *body* form, never a standalone value: the grammar only ever produces
+// one as the body of an 'if'/'while'/'for', a function, or a 'match' arm — a '{'
+// in value position is S0044, not a block-value. Its node still lives in the
+// Expr union because a 'match' arm's body may be a block (and the checker and
+// interpreter walk it there and in the if/fn branches that hold one).
 export type Block = { kind: 'block'; stmts: Statement[]; span: Span };
 
 // 'else if' is sugar: the else branch is either a block or another

@@ -704,6 +704,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "All of a file's imports go together at the very top, above the rest of the code (and above 'program'). This import comes after another statement — move it up so every import sits at the start of the file."
   },
   {
+    "code": "S0044",
+    "name": "block-as-value",
+    "category": "syntactic",
+    "summary": "A block ('{ … }') was written where a value belongs.",
+    "message": "A '{ … }' block can't be used as a value here.",
+    "explanation": "A '{ … }' block groups statements as the body of something — an 'if', a 'while' or 'for' loop, a function ('fn(…): T { … }'), or a 'match' arm. It is not a value on its own, so it can't be given a name, passed to a function, or placed inside a larger expression. A '{' here has no body to belong to. To pick a value, use an 'if' ('fix x = if (c) { 1 } else { 2 }') or a 'match'; to run several statements, put them in the body of the construct they belong to."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",

@@ -120,9 +120,11 @@ export function parseMatch(ts: TokenStream): Match | null {
   };
 }
 
-// One 'pattern -> body' arm. The body is a full expression (a bare value or a
-// '{ … }' block), parsed with the ordinary parseExpr — it stops at the ',' or
-// '}' that ends the arm, neither of which is an operator.
+// One 'pattern -> body' arm. The body is either a '{ … }' block — the arm's
+// body position is one of the few spots a block may appear, so a '{' right after
+// '->' opens one directly here (parseAtom refuses a '{', S0044) — or any other
+// expression, parsed with the ordinary parseExpr, which stops at the ',' or '}'
+// that ends the arm (neither an operator).
 function parseMatchArm(ts: TokenStream): MatchArm | null {
   const pattern = parsePattern(ts);
   if (pattern === null) {
@@ -131,7 +133,7 @@ function parseMatchArm(ts: TokenStream): MatchArm | null {
 
   if (ts.expect('ARROW', 'S0036') === null) return null;
 
-  const body = parseExpr(ts);
+  const body = ts.peek().kind === 'LBRACE' ? parseBlock(ts) : parseExpr(ts);
   if (body === null) {
     return null;
   }

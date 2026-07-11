@@ -423,8 +423,16 @@ function parseAtom(ts: TokenStream): Expr | null {
     return parseList(ts);
   }
 
+  // A '{' never starts a value. A block is a *body* — of an 'if'/'while'/'for'
+  // loop, a function, or a 'match' arm — never a standalone expression, so a '{'
+  // in value position (after '=', inside a call's args, as a lone statement, …)
+  // is a block used where a value belongs (S0044), not a value the parser can
+  // build. The one place a block body appears in expression position — a 'match'
+  // arm's body — is parsed by parseMatchArm itself, which reaches parseBlock
+  // directly rather than through here.
   if (tok.kind === 'LBRACE') {
-    return parseBlock(ts);
+    ts.report('S0044', tok.span);
+    return null;
   }
 
   if (tok.kind === 'KW_IF') {
