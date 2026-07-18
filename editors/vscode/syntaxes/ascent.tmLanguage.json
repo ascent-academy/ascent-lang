@@ -1,0 +1,127 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ascent",
+  "scopeName": "source.ascent",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#constants" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.ascent",
+          "begin": "#(?!\\[)",
+          "end": "$",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.comment.ascent" }
+          }
+        },
+        { "include": "#block-comment" }
+      ]
+    },
+    "block-comment": {
+      "name": "comment.block.ascent",
+      "begin": "#\\[",
+      "end": "\\]#",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.comment.begin.ascent" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.comment.end.ascent" }
+      },
+      "patterns": [
+        { "include": "#block-comment" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.ascent",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#interpolation" }
+          ]
+        },
+        {
+          "name": "string.quoted.double.ascent",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "include": "#string-escape" },
+            { "include": "#interpolation" }
+          ]
+        }
+      ]
+    },
+    "string-escape": {
+      "name": "constant.character.escape.ascent",
+      "match": "\\\\(?:[nrt\"\\\\$]|u\\{[0-9A-Fa-f]+\\})"
+    },
+    "interpolation": {
+      "name": "meta.interpolation.ascent",
+      "begin": "\\$\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.interpolation.begin.ascent" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.section.interpolation.end.ascent" }
+      },
+      "patterns": [
+        { "include": "$self" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.ascent",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.ascent",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "constants": {
+      "name": "constant.language.ascent",
+      "match": "\\b(True|False|None|Done)\\b"
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.ascent",
+          "match": "\\b(if|else|while|for|in|match|return|try|await)\\b"
+        },
+        {
+          "name": "storage.type.ascent",
+          "match": "\\b(fix|mut|fn|type|program|async)\\b"
+        },
+        {
+          "name": "keyword.operator.word.ascent",
+          "match": "\\b(div|mod|and|or|not|orfail)\\b"
+        },
+        {
+          "name": "keyword.other.ascent",
+          "match": "\\b(void|abort|with|import|from)\\b"
+        }
+      ]
+    },
+    "types": {
+      "name": "entity.name.type.ascent",
+      "match": "\\b[A-Z][A-Za-z0-9]*\\b"
+    },
+    "operators": {
+      "name": "keyword.operator.ascent",
+      "match": "(\\*\\*|->|=>|==|!=|<=|>=|\\?\\?|\\.\\.|[-+*/<>=!.?|:])"
+    }
+  }
+}
