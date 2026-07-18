@@ -71,29 +71,19 @@ export type TokenKind =
   | 'ERROR'          // a character or run the lexer couldn't recognise
   | 'EOF';           // the sentinel that marks the end of source
 
-// Whitespace and comments carry no grammatical meaning; the lexer still emits
-// them (so the token stream is lossless — see Token.text) but TokenStream
-// drops them before the parser ever sees them.
 const TRIVIA_KINDS: ReadonlySet<TokenKind> = new Set(['WHITESPACE', 'LINE_COMMENT', 'BLOCK_COMMENT']);
 
 export const isTrivia = (kind: TokenKind): boolean => TRIVIA_KINDS.has(kind);
 
-// The syntax-highlighting class a token renders as. A lossless token stream
-// (see Token.text) plus this map is all a highlighter needs: walk the tokens
-// and wrap each one's raw `text` in a span of its class. `null` means "emit the
-// text with no wrapping" — whitespace needs no class and EOF has no text at
-// all. `error` is meant to be styled as a squiggle rather than a colour.
 export type SyntaxClass =
-  | 'keyword'      // fix, if, and, div, program, … (every KW_*)
-  | 'type'         // TYPE_NAME plus the built-in constructors True/False/None/Done
-  | 'literal'      // Int/Float numbers and every string chunk
-  | 'punctuation'  // operators and delimiters — rendered muted
-  | 'comment'      // line and block comments — rendered muted
-  | 'plain'        // a slot (binding name) — no special colour
-  | 'error';       // an unrecognised character — rendered as a squiggle
+  | 'keyword'
+  | 'type'
+  | 'literal'
+  | 'punctuation'
+  | 'comment'
+  | 'plain'
+  | 'error';
 
-// Exhaustive by construction: TokenKind is a Record key, so adding a new kind
-// without classifying it is a compile error rather than a silently-unstyled token.
 const SYNTAX_CLASSES: Record<TokenKind, SyntaxClass | null> = {
   INT_LIT: 'literal',
   FLOAT_LIT: 'literal',
@@ -168,8 +158,6 @@ const SYNTAX_CLASSES: Record<TokenKind, SyntaxClass | null> = {
   EOF: null,
 };
 
-// The highlighting class for a token kind, or null when it renders no span
-// (WHITESPACE, EOF).
 export const syntaxClass = (kind: TokenKind): SyntaxClass | null => SYNTAX_CLASSES[kind];
 
 export interface Position {
