@@ -38,10 +38,11 @@ export const CONSTRUCTORS: Map<string, TokenKind> = new Map([
   ['Done', 'DONE_LIT'],
 ]);
 
-export const resolveWord = (value: string, firstCh: string): TokenKind | null => {
+export const resolveWord = (word: string): TokenKind | null => {
+  const firstCh = word[0] ?? '';
   if (firstCh >= 'A' && firstCh <= 'Z') {
-    return CONSTRUCTORS.get(value) ?? 'TYPE_NAME';
+    return CONSTRUCTORS.get(word) ?? 'TYPE_NAME';
   }
 
-  return KEYWORDS.get(value) ?? 'SLOT';
+  return KEYWORDS.get(word) ?? 'SLOT';
 }

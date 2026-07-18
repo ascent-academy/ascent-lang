@@ -102,9 +102,8 @@ export class Lexer {
 
   private readWord(): RawToken {
     const start = this.c.mark();
-    const firstCh = this.c.peek();
     this.consumeWhile(isAlphaNum);
-    const kind = resolveWord(this.c.slice(start), firstCh);
+    const kind = resolveWord(this.c.slice(start));
     return kind !== null ? this.token(kind, start) : this.error('L0001', this.c.spanFrom(start));
   }
 
