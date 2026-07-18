@@ -229,140 +229,145 @@ export class Lexer {
   }
 
   private nextToken(): RawToken {
-    // While a 'string' frame is on top, we're mid-way through a "..." literal's
-    // text — scan its next chunk instead of running the ordinary dispatch
-    // below (which would wrongly treat whitespace/comments as trivia).
-    const top = this.modeStack[this.modeStack.length - 1];
-    if (top !== undefined && top.kind === 'string') {
-      return this.readStringChunk();
-    }
-    if (top !== undefined && top.kind === 'mstring') {
-      return this.readMultilineChunk();
-    }
-
-    // Trivia is emitted, one run per call, so nextToken() peels it off until a
-    // significant token (or EOF) is reached — the outer tokenize() loop drives
-    // the repetition.
-    const trivia = this.readTrivia();
-    if (trivia !== null) {
-      return trivia;
-    }
-
-    if (this.c.atEnd()) {
-      // top, if present here, must be an 'interp' frame (a 'string' frame
-      // would have returned above) whose '${' was never closed. Clear the
-      // whole stack rather than popping just this frame: at true EOF there's
-      // no more source left to legitimately re-tokenize, so any other frame
-      // still underneath would only ever produce more of the same "also
-      // reached EOF" noise, never a new fact worth a separate diagnostic.
-      if (top !== undefined) {
-        const span = this.c.spanFrom(top.start);
-        this.modeStack = [];
-        return this.error('L0007', span);
+    // Looping rather than recursing to resume string-chunk scanning after a
+    // '}' closes a hole (see the '}' case below) — that path has no token of
+    // its own to emit, just more source to re-dispatch on.
+    while (true) {
+      // While a 'string' frame is on top, we're mid-way through a "..." literal's
+      // text — scan its next chunk instead of running the ordinary dispatch
+      // below (which would wrongly treat whitespace/comments as trivia).
+      const top = this.modeStack[this.modeStack.length - 1];
+      if (top !== undefined && top.kind === 'string') {
+        return this.readStringChunk();
       }
-      const start = this.c.mark();
-      return this.token('EOF', start);
-    }
+      if (top !== undefined && top.kind === 'mstring') {
+        return this.readMultilineChunk();
+      }
 
-    const ch = this.c.peek();
+      // Trivia is emitted, one run per call, so nextToken() peels it off until a
+      // significant token (or EOF) is reached — the outer tokenize() loop drives
+      // the repetition.
+      const trivia = this.readTrivia();
+      if (trivia !== null) {
+        return trivia;
+      }
 
-    if (isDigit(ch)) {
-      return this.readNumber();
-    }
-    if (isAlpha(ch)) {
-      return this.readWord();
-    }
-
-    // A leading-dot float like .5 is a number missing its integer part, so
-    // L0003 (its own error, with a certain '0.5' fix) is more helpful than
-    // L0001 ("unexpected character") or L0002 (a number run into letters).
-    if (ch === '.' && isDigit(this.c.peek(1))) {
-      const start = this.c.mark();
-      this.c.advance(); // '.'
-      this.consumeWhile(isDigit);
-      return this.error('L0003', this.c.spanFrom(start));
-    }
-
-    const start = this.c.mark();
-    this.c.advance();
-
-    switch (ch) {
-      case '+': return this.token('PLUS', start);
-      case '-':
-        // '->' opens a 'match' arm's result; a lone '-' is subtraction/negation.
-        if (this.c.match('>')) return this.token('ARROW', start);
-        return this.token('MINUS', start);
-      case '*':
-        if (this.c.match('*')) return this.token('STAR_STAR', start);
-        return this.token('STAR', start);
-      case '/': return this.token('SLASH', start);
-      case '=':
-        if (this.c.match('=')) return this.token('EQ_EQ', start);
-        // '=>' introduces a function's single-expression body ('fn(x): Int => e');
-        // a lone '=' is a slot declaration/update.
-        if (this.c.match('>')) return this.token('FAT_ARROW', start);
-        return this.token('EQUALS', start);
-      case '!':
-        // '!=' is inequality; a bare '!' is the async-call mark 'f!(id)' that
-        // prepares a Task (§2/§8). Negation is the word 'not' (§5), never '!'.
-        if (this.c.match('=')) return this.token('BANG_EQ', start);
-        return this.token('BANG', start);
-      case '<':
-        if (this.c.match('=')) return this.token('LT_EQ', start);
-        return this.token('LT', start);
-      case '>':
-        if (this.c.match('=')) return this.token('GT_EQ', start);
-        return this.token('GT', start);
-      case '"':
-        if (this.c.match('""')) {
-          this.modeStack.push({ kind: 'mstring', start });
-          return this.readMultilineChunk();
+      if (this.c.atEnd()) {
+        // top, if present here, must be an 'interp' frame (a 'string' frame
+        // would have returned above) whose '${' was never closed. Clear the
+        // whole stack rather than popping just this frame: at true EOF there's
+        // no more source left to legitimately re-tokenize, so any other frame
+        // still underneath would only ever produce more of the same "also
+        // reached EOF" noise, never a new fact worth a separate diagnostic.
+        if (top !== undefined) {
+          const span = this.c.spanFrom(top.start);
+          this.modeStack = [];
+          return this.error('L0007', span);
         }
-        this.modeStack.push({ kind: 'string' });
-        return this.readStringChunk(start);
-      case '.':
-        // '..' is the range operator ('0..n'); a lone '.' is member access.
-        // A number never reaches here with a following digit (readNumber
-        // consumes '.5' as its fractional part), so '..' can't split a float.
-        if (this.c.match('.')) return this.token('DOTDOT', start);
-        return this.token('DOT', start);
-      case ':': return this.token('COLON', start);
-      case ',': return this.token('COMMA', start);
-      case ';': return this.token('SEMICOLON', start);
-      case '(': return this.token('LPAREN', start);
-      case ')': return this.token('RPAREN', start);
-      case '{': {
-        // Braces inside a '${ }' hole (an 'if' body, a block, …) nest one
-        // level deeper than the hole itself, so the depth counter tracks
-        // them — only the '}' back at depth 0 closes the hole (see '}' below).
-        const cur = this.modeStack[this.modeStack.length - 1];
-        if (cur !== undefined && cur.kind === 'interp') cur.depth++;
-        return this.token('LBRACE', start);
+        const start = this.c.mark();
+        return this.token('EOF', start);
       }
-      case '}': {
-        const cur = this.modeStack[this.modeStack.length - 1];
-        if (cur !== undefined && cur.kind === 'interp') {
-          if (cur.depth > 0) {
-            cur.depth--;
-            return this.token('RBRACE', start);
+
+      const ch = this.c.peek();
+
+      if (isDigit(ch)) {
+        return this.readNumber();
+      }
+      if (isAlpha(ch)) {
+        return this.readWord();
+      }
+
+      // A leading-dot float like .5 is a number missing its integer part, so
+      // L0003 (its own error, with a certain '0.5' fix) is more helpful than
+      // L0001 ("unexpected character") or L0002 (a number run into letters).
+      if (ch === '.' && isDigit(this.c.peek(1))) {
+        const start = this.c.mark();
+        this.c.advance(); // '.'
+        this.consumeWhile(isDigit);
+        return this.error('L0003', this.c.spanFrom(start));
+      }
+
+      const start = this.c.mark();
+      this.c.advance();
+
+      switch (ch) {
+        case '+': return this.token('PLUS', start);
+        case '-':
+          // '->' opens a 'match' arm's result; a lone '-' is subtraction/negation.
+          if (this.c.match('>')) return this.token('ARROW', start);
+          return this.token('MINUS', start);
+        case '*':
+          if (this.c.match('*')) return this.token('STAR_STAR', start);
+          return this.token('STAR', start);
+        case '/': return this.token('SLASH', start);
+        case '=':
+          if (this.c.match('=')) return this.token('EQ_EQ', start);
+          // '=>' introduces a function's single-expression body ('fn(x): Int => e');
+          // a lone '=' is a slot declaration/update.
+          if (this.c.match('>')) return this.token('FAT_ARROW', start);
+          return this.token('EQUALS', start);
+        case '!':
+          // '!=' is inequality; a bare '!' is the async-call mark 'f!(id)' that
+          // prepares a Task (§2/§8). Negation is the word 'not' (§5), never '!'.
+          if (this.c.match('=')) return this.token('BANG_EQ', start);
+          return this.token('BANG', start);
+        case '<':
+          if (this.c.match('=')) return this.token('LT_EQ', start);
+          return this.token('LT', start);
+        case '>':
+          if (this.c.match('=')) return this.token('GT_EQ', start);
+          return this.token('GT', start);
+        case '"':
+          if (this.c.match('""')) {
+            this.modeStack.push({ kind: 'mstring', start });
+            return this.readMultilineChunk();
           }
-          // This '}' closes the hole itself, not a nested block — swallow it
-          // (same as the closing '"' is swallowed) and resume chunk-scanning
-          // the string frame now back on top, without emitting a token for it.
-          this.modeStack.pop();
-          return this.nextToken();
+          this.modeStack.push({ kind: 'string' });
+          return this.readStringChunk(start);
+        case '.':
+          // '..' is the range operator ('0..n'); a lone '.' is member access.
+          // A number never reaches here with a following digit (readNumber
+          // consumes '.5' as its fractional part), so '..' can't split a float.
+          if (this.c.match('.')) return this.token('DOTDOT', start);
+          return this.token('DOT', start);
+        case ':': return this.token('COLON', start);
+        case ',': return this.token('COMMA', start);
+        case ';': return this.token('SEMICOLON', start);
+        case '(': return this.token('LPAREN', start);
+        case ')': return this.token('RPAREN', start);
+        case '{': {
+          // Braces inside a '${ }' hole (an 'if' body, a block, …) nest one
+          // level deeper than the hole itself, so the depth counter tracks
+          // them — only the '}' back at depth 0 closes the hole (see '}' below).
+          const cur = this.modeStack[this.modeStack.length - 1];
+          if (cur !== undefined && cur.kind === 'interp') cur.depth++;
+          return this.token('LBRACE', start);
         }
-        return this.token('RBRACE', start);
+        case '}': {
+          const cur = this.modeStack[this.modeStack.length - 1];
+          if (cur !== undefined && cur.kind === 'interp') {
+            if (cur.depth > 0) {
+              cur.depth--;
+              return this.token('RBRACE', start);
+            }
+            // This '}' closes the hole itself, not a nested block — swallow it
+            // (same as the closing '"' is swallowed) and resume chunk-scanning
+            // the string frame now back on top, without emitting a token for it.
+            this.modeStack.pop();
+            continue;
+          }
+          return this.token('RBRACE', start);
+        }
+        case '[': return this.token('LBRACKET', start);
+        case ']': return this.token('RBRACKET', start);
+        case '?':
+          // '??' is the Optional default operator ('a ?? b', §9); a lone '?' is
+          // the Optional<T> type suffix ('String?', §4).
+          if (this.c.match('?')) return this.token('QUESTION_QUESTION', start);
+          return this.token('QUESTION', start);
+        case '|': return this.token('PIPE', start);
+        default: return this.error('L0001', this.c.spanFrom(start));
       }
-      case '[': return this.token('LBRACKET', start);
-      case ']': return this.token('RBRACKET', start);
-      case '?':
-        // '??' is the Optional default operator ('a ?? b', §9); a lone '?' is
-        // the Optional<T> type suffix ('String?', §4).
-        if (this.c.match('?')) return this.token('QUESTION_QUESTION', start);
-        return this.token('QUESTION', start);
-      case '|': return this.token('PIPE', start);
-      default: return this.error('L0001', this.c.spanFrom(start));
     }
   }
 
