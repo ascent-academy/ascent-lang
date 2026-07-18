@@ -16,6 +16,9 @@ export class Cursor {
     return this.src[this.pos + offset] ?? '\0';
   }
 
+  // Columns count UTF-16 code units, not codepoints or graphemes (an astral
+  // char like an emoji advances col by 2). This matches LSP's default
+  // position encoding and is intentional, not a bug to "fix".
   public advance(): string {
     const ch = this.src[this.pos++] ?? '\0';
     if (ch === '\n') {
