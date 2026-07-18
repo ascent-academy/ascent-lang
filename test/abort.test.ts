@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 import { elaborate } from '../src/errors/elaborate.js';
 import type { Marker } from '../src/lexer/token.js';
 
@@ -11,7 +12,7 @@ function evalOk(src: string): RuntimeValue {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, { stdout: () => {} });
+  const result = executeProgram(program, testHost());
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
@@ -24,7 +25,7 @@ function evalCrash(src: string): Marker {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, { stdout: () => {} });
+  const result = executeProgram(program, testHost());
   assert.equal(result.kind, 'error');
   if (result.kind !== 'error') throw new Error('unreachable');
   return result.error.marker;

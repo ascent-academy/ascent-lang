@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 import { typeToString } from '../src/types/types.js';
 
 // The 'with' update form (whitepaper §6) — v1 scope: records only, single-field
@@ -13,7 +14,7 @@ function evalOk(src: string): RuntimeValue {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, { stdout: () => {} });
+  const result = executeProgram(program, testHost());
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
@@ -191,7 +192,7 @@ describe("'with' record update (end-to-end)", () => {
     it('crashes (R0005) on an out-of-range index', () => {
       const { program } = parse('fix xs = [1, 2]; xs with [5] = 0;');
       assert.ok(program !== null);
-      const result = executeProgram(program!, { stdout: () => {} });
+      const result = executeProgram(program!, testHost());
       assert.equal(result.kind, 'error');
       if (result.kind !== 'error') throw new Error('unreachable');
       assert.equal(result.error.marker.code, 'R0005');
@@ -257,7 +258,7 @@ describe("'with' record update (end-to-end)", () => {
     it('crashes (R0005) on an out-of-range index anywhere along the path', () => {
       const { program } = parse(`${M} m with users[9].home.city = "x";`);
       assert.ok(program !== null);
-      const result = executeProgram(program!, { stdout: () => {} });
+      const result = executeProgram(program!, testHost());
       assert.equal(result.kind, 'error');
       if (result.kind !== 'error') throw new Error('unreachable');
       assert.equal(result.error.marker.code, 'R0005');

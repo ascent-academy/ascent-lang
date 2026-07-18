@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 
 // Same harness as the other end-to-end suites: run a clean program and return
 // both the emitted text and the structured final value; or collect the error
@@ -11,7 +12,7 @@ function run(src: string): { output: string[]; value: RuntimeValue } {
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const output: string[] = [];
-  const result = executeProgram(program, { stdout: text => output.push(text) });
+  const result = executeProgram(program, testHost(text => output.push(text)));
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return { output, value: result.value };

@@ -11,17 +11,18 @@ import {
   type ScalarValue, type RuntimeValue,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary, isInt64 } from './interpreter/arithmetic.js';
-import { Environment, type AssignResult, type OutputSink } from './interpreter/env.js';
+import { Environment, type AssignResult } from './interpreter/env.js';
 import { evalMethodCall } from './interpreter/builtins.js';
 import { evalModuleCall } from './interpreter/stdlib.js';
+import { Host } from './host.js';
 
 // Re-export the value domain and the scope chain so existing importers of
 // './interpreter.js' (lib.ts, the CLI, the tests) keep resolving
-// RuntimeValue/ScalarValue/Environment/AssignResult/OutputSink here;
+// RuntimeValue/ScalarValue/Environment/AssignResult here;
 // interpreter/values.ts and interpreter/env.ts are the sources of truth.
 export type { ScalarValue, RuntimeValue };
 export { Environment };
-export type { AssignResult, OutputSink };
+export type { AssignResult };
 
 // A 'return' unwinds the tree walk up to the nearest function-application
 // boundary (whitepaper §5). Thrown by evaluateExpr's 'return' case and caught
@@ -602,10 +603,10 @@ export type RuntimeResult =
 // unless it's Done — the "no information" value is nothing to output.
 export const executeProgram = (
   program: TypedProgram,
-  output: OutputSink,
+  host: Host,
   inputs: ProgramInputs = new ProgramInputs(program.args),
 ): RuntimeResult => {
-  const env = new Environment(null, output);
+  const env = new Environment(host);
   // Declare each input as a fixed slot from `inputs`. This happens right before
   // the body begins (bodyStart), so the inputs are in scope only for the body,
   // not the leading setup statements above it (whitepaper §11, revised rule).

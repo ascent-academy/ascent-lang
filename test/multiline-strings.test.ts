@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning the
 // String value of its last statement.
@@ -8,7 +9,7 @@ function evalStr(src: string): string {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, { stdout: () => {} });
+  const result = executeProgram(program, testHost());
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   assert.equal(result.value.type, 'String');

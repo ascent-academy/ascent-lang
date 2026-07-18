@@ -4,6 +4,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 
 // Runs every *.asc file under test/snippets/, recursively — each
 // subdirectory becomes a nested describe(), each file becomes one it().
@@ -58,7 +59,7 @@ const runSnippet = (src: string, expectation: Expectation): void => {
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the snippet to typecheck');
   const outputs: string[] = [];
-  const result = executeProgram(program, { stdout: text => outputs.push(text) });
+  const result = executeProgram(program, testHost(text => outputs.push(text)));
 
   if (expectation.kind === 'runtime-error') {
     assert.equal(result.kind, 'error');

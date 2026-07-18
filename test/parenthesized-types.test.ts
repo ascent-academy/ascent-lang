@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 import { optionalOf, STRING_TYPE, INT_TYPE } from '../src/types/types.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its last
@@ -10,7 +11,7 @@ function evalOk(src: string): RuntimeValue {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, { stdout: () => {} });
+  const result = executeProgram(program, testHost());
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
@@ -70,7 +71,7 @@ describe('parenthesized types (end-to-end)', () => {
       // collapsed 'String?', so '??' defaults it like any Optional.
       const { program } = parse('fix pick = fn(): String?? { None }; pick() ?? "default";');
       assert.ok(program !== null);
-      const result = executeProgram(program, { stdout: () => {} });
+      const result = executeProgram(program, testHost());
       assert.equal(result.kind, 'ok');
       if (result.kind !== 'ok') throw new Error('unreachable');
       assert.deepEqual(result.value, { type: 'String', value: 'default' });

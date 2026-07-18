@@ -5,11 +5,12 @@
 //   const { program, diagnostics } = parse(src);
 //   if (diagnostics.length > 0) { /* report them; do not execute */ }
 //   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
-//   const result = executeProgram(program!, { stdout: text => console.log(text) }, inputs);
+//   const host: Host = { capabilities: { console: { write: text => console.log(text) } } };
+//   const result = executeProgram(program!, host, inputs);
 //
 // The program's output — every `print` call and its final value, each already
-// rendered to text by the interpreter — is streamed to the OutputSink you pass;
-// `result.value` is that same final value as a structured RuntimeValue (for a
+// rendered to text by the interpreter — is streamed to the Host's console
+// capability you pass; `result.value` is that same final value as a structured RuntimeValue (for a
 // crash, `result.kind` is 'error' and carries the RuntimeError instead).
 //
 // `program` is non-null whenever typechecking itself ran — even for a
@@ -48,7 +49,7 @@ export {
   executeProgram,
   ProgramInputs,
 } from './interpreter.js';
-export type { RuntimeValue, RuntimeResult, AssignResult, ScalarValue, OutputSink } from './interpreter.js';
+export type { RuntimeValue, RuntimeResult, AssignResult, ScalarValue } from './interpreter.js';
 
 export type { RuntimeError } from './errors/runtime-error.js';
 

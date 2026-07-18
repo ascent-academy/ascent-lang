@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram, ProgramInputs } from '../src/interpreter.js';
 import type { RuntimeValue, ScalarValue } from '../src/interpreter.js';
+import { testHost } from './support/test-host.js';
 
 // Runs a program with the given input values bound, returning its last
 // statement's RuntimeValue. `args` maps each declared input name to the value
@@ -12,7 +13,7 @@ function evalWithArgs(src: string, args: Record<string, ScalarValue>): RuntimeVa
   assert.ok(program !== null, 'expected the program to typecheck');
   const inputs = new ProgramInputs(program.args);
   for (const [name, value] of Object.entries(args)) inputs.set(name, value);
-  const result = executeProgram(program, { stdout: () => {} }, inputs);
+  const result = executeProgram(program, testHost(), inputs);
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
@@ -159,7 +160,7 @@ describe('program inputs (program (…) { … } header)', () => {
       assert.ok(program !== null);
       const inputs = new ProgramInputs(program.args);
       inputs.set('n', { type: 'Int', value: 3n });
-      executeProgram(program, { stdout: t => output.push(t) }, inputs);
+      executeProgram(program, testHost(t => output.push(t)), inputs);
       assert.deepEqual(output, ['setup', '3']);
     });
 
