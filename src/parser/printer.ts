@@ -1,7 +1,14 @@
 import chalk from 'chalk';
 import type { Expr, Statement, TypeExpr, Pattern } from './ast.js';
 import type { RuntimeValue } from '../interpreter.js';
+import { PRELUDE_ASYNC_RESULT } from '../interpreter/values.js';
 import { typeToString, functionType } from '../types/types.js';
+
+// A Task's result type for display: a user async call's Task carries the
+// function it will apply ('fn.result'); a builtin prompt Task carries no
+// function, so its result type comes from the fixed prelude table instead.
+const taskResultType = (value: Extract<RuntimeValue, { type: 'Task' }>) =>
+  'fn' in value ? value.fn.result : PRELUDE_ASYNC_RESULT[value.builtin];
 
 // How a 'match' arm's pattern shows in the AST dump — the constant it compares
 // against, a variant tag (with its bound fields), or 'else'. Shared by both
@@ -321,7 +328,7 @@ export const formatValue = (value: RuntimeValue): string => {
     // An inert task has no data to show — render its result type (whitepaper §8:
     // a Task isn't Display, so this only surfaces in a value / AST dump).
     case 'Task':
-      return chalk.magenta(`Task<${typeToString(value.fn.result)}>`);
+      return chalk.magenta(`Task<${typeToString(taskResultType(value))}>`);
     case 'None':
       return chalk.yellow('None');
     case 'Done':
@@ -354,7 +361,7 @@ export const valueToString = (value: RuntimeValue): string => {
     case 'Function':
       return typeToString(functionType(value.params.map(p => p.type), value.result));
     case 'Task':
-      return `Task<${typeToString(value.fn.result)}>`;
+      return `Task<${typeToString(taskResultType(value))}>`;
     case 'None':
       return 'None';
     case 'Done':

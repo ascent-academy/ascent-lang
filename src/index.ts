@@ -123,7 +123,7 @@ const runFile = async (filePath: string): Promise<void> => {
 
   // The program's output (its final value and any print calls) is written to
   // stdout by host.capabilities.console as it runs; the result only tells success from a crash.
-  const result = executeProgram(typedProgram, terminalHost, inputs);
+  const result = await executeProgram(typedProgram, terminalHost, inputs);
   if (result.kind === 'error') {
     process.stderr.write(renderTerminal(elaborate(result.error.marker, src), src, filePath) + '\n');
     process.exit(1);
@@ -188,7 +188,7 @@ const runRepl = async (): Promise<void> => {
           for (let i = 0; i < typedStmts.length; i++) {
             process.stdout.write(formatTypedStmt(typedStmts[i]!) + '\n');
             try {
-              const result = executeStmt(typedStmts[i]!, env);
+              const result = await executeStmt(typedStmts[i]!, env);
               process.stdout.write(chalk.dim('=> ') + formatValue(result) + '\n');
             } catch (e) {
               if (e instanceof RuntimeError) {

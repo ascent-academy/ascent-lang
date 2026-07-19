@@ -129,3 +129,13 @@
     'assertEqual(a, b)' checks that two values are equal. Here they weren't — the
     first was {left} and the second {right} — so the program stops. This usually
     means a computation produced something other than what was expected.
+
+- code: R0013
+  name: prompt-end-of-input
+  category: runtime
+  summary: "'prompt' (or 'promptInt'/'promptFloat'/'promptBool') found no more input to read."
+  message: "There's no more input to read."
+  explanation: >-
+    'prompt' and its typed versions wait for a line of input from whoever runs the
+    program. Here there was none left to give — the input source closed (for
+    example, stdin ended) — so there is nothing to read and the program stops.

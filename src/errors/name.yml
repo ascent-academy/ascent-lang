@@ -180,3 +180,13 @@
     'import {name} from …' brings the whole module in under the name '{name}', and
     you reach its functions through it — '{name}.min(…)'. The module itself isn't a
     value you can store or call on its own.
+
+- code: N0017
+  name: builtin-async-function-as-value
+  category: name
+  summary: A built-in async function is used as a value instead of being prepared and awaited.
+  message: "'{name}' is a built-in async function; call it as 'await {name}!(…)'."
+  explanation: >-
+    '{name}' is one of the language's built-in async functions, so it can only be
+    prepared into a task with '!' and then run with 'await' — like 'await
+    {name}!("...")' — not passed around as a value or stored in a slot.

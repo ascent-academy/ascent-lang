@@ -6,11 +6,11 @@ import { testHost } from './support/test-host.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue.
-function evalOk(src: string): RuntimeValue {
+async function evalOk(src: string): Promise<RuntimeValue> {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, testHost());
+  const result = await executeProgram(program, testHost());
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
@@ -25,27 +25,27 @@ function errorCodes(src: string): string[] {
 // every value position rejects one with S0044.
 describe('a block is not a value (S0044)', () => {
   describe('the { symbol never starts an expression', () => {
-    it('rejects a block bound to a name (fix)', () => {
+    it('rejects a block bound to a name (fix)', async () => {
       assert.deepEqual(errorCodes('fix blck = { 5 };'), ['S0044']);
     });
 
-    it('rejects a block as a lone statement', () => {
+    it('rejects a block as a lone statement', async () => {
       assert.deepEqual(errorCodes('{ 5 };'), ['S0044']);
     });
 
-    it('rejects a block as a call argument', () => {
+    it('rejects a block as a call argument', async () => {
       assert.deepEqual(errorCodes('print({ 5 });'), ['S0044']);
     });
 
-    it('rejects a block as an operand of a binary expression', () => {
+    it('rejects a block as an operand of a binary expression', async () => {
       assert.deepEqual(errorCodes('fix x = 1 + { 2 };'), ['S0044']);
     });
 
-    it('rejects a block as a list element', () => {
+    it('rejects a block as a list element', async () => {
       assert.deepEqual(errorCodes('fix xs = [{ 1 }];'), ['S0044']);
     });
 
-    it('rejects a block nested as a statement inside another block', () => {
+    it('rejects a block nested as a statement inside another block', async () => {
       // Panic-mode recovery may add a follow-on marker after the skipped
       // statement; S0044 is the diagnosed cause.
       assert.equal(errorCodes('fix x = if (True) { { 5 } } else { 6 }; x;')[0], 'S0044');
@@ -53,18 +53,18 @@ describe('a block is not a value (S0044)', () => {
   });
 
   describe('blocks still work as the body of a guarding construct', () => {
-    it('an if/else branch is a block', () => {
-      assert.deepEqual(evalOk('fix x = if (True) { fix a = 2; a * 3 } else { 0 }; x;'),
+    it('an if/else branch is a block', async () => {
+      assert.deepEqual(await evalOk('fix x = if (True) { fix a = 2; a * 3 } else { 0 }; x;'),
         { type: 'Int', value: 6n });
     });
 
-    it("a match arm's body may be a block", () => {
-      assert.deepEqual(evalOk('fix n = 2; match n { 0 -> { 100 }, else -> { fix m = n + 1; m } };'),
+    it("a match arm's body may be a block", async () => {
+      assert.deepEqual(await evalOk('fix n = 2; match n { 0 -> { 100 }, else -> { fix m = n + 1; m } };'),
         { type: 'Int', value: 3n });
     });
 
-    it('a function body is a block', () => {
-      assert.deepEqual(evalOk('fix f = fn(n: Int): Int { fix r = n + 1; r }; f(4);'),
+    it('a function body is a block', async () => {
+      assert.deepEqual(await evalOk('fix f = fn(n: Int): Int { fix r = n + 1; r }; f(4);'),
         { type: 'Int', value: 5n });
     });
   });

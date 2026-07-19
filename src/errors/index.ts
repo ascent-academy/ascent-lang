@@ -246,6 +246,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'import {name} from …' brings the whole module in under the name '{name}', and you reach its functions through it — '{name}.min(…)'. The module itself isn't a value you can store or call on its own."
   },
   {
+    "code": "N0017",
+    "name": "builtin-async-function-as-value",
+    "category": "name",
+    "summary": "A built-in async function is used as a value instead of being prepared and awaited.",
+    "message": "'{name}' is a built-in async function; call it as 'await {name}!(…)'.",
+    "explanation": "'{name}' is one of the language's built-in async functions, so it can only be prepared into a task with '!' and then run with 'await' — like 'await {name}!(\"...\")' — not passed around as a value or stored in a slot."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",
@@ -340,6 +348,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'assertEqual' was given two values that turned out not to be equal.",
     "message": "An assertion failed: {left} is not equal to {right}.",
     "explanation": "'assertEqual(a, b)' checks that two values are equal. Here they weren't — the first was {left} and the second {right} — so the program stops. This usually means a computation produced something other than what was expected."
+  },
+  {
+    "code": "R0013",
+    "name": "prompt-end-of-input",
+    "category": "runtime",
+    "summary": "'prompt' (or 'promptInt'/'promptFloat'/'promptBool') found no more input to read.",
+    "message": "There's no more input to read.",
+    "explanation": "'prompt' and its typed versions wait for a line of input from whoever runs the program. Here there was none left to give — the input source closed (for example, stdin ended) — so there is nothing to read and the program stops."
   },
   {
     "code": "S0001",

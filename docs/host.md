@@ -112,7 +112,9 @@ export interface Capabilities {
 }
 
 export interface Console {
-  write(text: string): void;                        // exactly today's OutputSink.stdout
+  write(text: string): void;                        // a whole line — print
+  writeInline(text: string): void;                   // no line break — printInline
+  readLine(): string | null;                         // one line of input, or null at end-of-input — the prompt family
 }
 
 export interface Clock {
@@ -229,6 +231,16 @@ and gives it room:
 
 Everything after that (clock, random, fs, net, limits, tracer) is added one
 curated capability at a time, exactly the way the stdlib grows.
+
+**Landed since:** `console` grew its other half — `writeInline` (no line break,
+backs `printInline`) and `readLine` (blocks for one line, backs the `prompt`
+family) — needed to ship docs/version-0.1/stdlib/prelude.md in full. `readLine`
+returns `string | null` rather than the `Promise<Result<…>>` shape §4.2 gives
+`fs`/`net`: the prelude's prompts are ambient (no `import`), so there's no
+Result type in scope to fail into at the call site the way a stdlib module
+export has one; "no more input" (a closed stdin) is the one failure mode, and
+it surfaces as a runtime crash (R0013) instead, the same tier `abort` and
+`.orAbort()` already crash through.
 
 ## 9. Open decisions
 

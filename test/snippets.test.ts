@@ -48,7 +48,7 @@ const parseExpectation = (relPath: string, firstLine: string): Expectation => {
   }
 };
 
-const runSnippet = (src: string, expectation: Expectation): void => {
+const runSnippet = async (src: string, expectation: Expectation): Promise<void> => {
   const { program, diagnostics } = parse(src);
 
   if (expectation.kind === 'errors') {
@@ -59,7 +59,7 @@ const runSnippet = (src: string, expectation: Expectation): void => {
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the snippet to typecheck');
   const outputs: string[] = [];
-  const result = executeProgram(program, testHost(text => outputs.push(text)));
+  const result = await executeProgram(program, testHost(text => outputs.push(text)));
 
   if (expectation.kind === 'runtime-error') {
     assert.equal(result.kind, 'error');
@@ -86,12 +86,12 @@ const registerDir = (dir: string): void => {
     }
     if (!entry.name.endsWith('.asc')) continue;
 
-    it(entry.name.slice(0, -'.asc'.length), () => {
+    it(entry.name.slice(0, -'.asc'.length), async () => {
       const src = readFileSync(full, 'utf8');
       const newline = src.indexOf('\n');
       const firstLine = newline === -1 ? src : src.slice(0, newline);
       const expectation = parseExpectation(relative(SNIPPETS_ROOT, full), firstLine);
-      runSnippet(src, expectation);
+      await runSnippet(src, expectation);
     });
   }
 };

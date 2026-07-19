@@ -1,4 +1,4 @@
-import { subtype, type AscentType, type Coercion } from '../types/types.js';
+import { subtype, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, type AscentType, type Coercion } from '../types/types.js';
 import type { TypedBlock } from '../parser/typed-ast.js';
 import type { Environment } from './env.js';
 
@@ -41,9 +41,28 @@ export type RuntimeValue = (
   // type-level discipline, not a runtime suspension. Held, stored, and passed
   // like any value until awaited (there are no free-floating running tasks).
   | { type: 'Task'; fn: Extract<RuntimeValue, { type: 'Function' }>; args: RuntimeValue[]; argTypes: AscentType[] }
+  // The 'prompt' family (docs/version-0.1/stdlib/prelude.md) is async but has
+  // no Ascent-authored body to defer — its "work" is a host read — so its Task
+  // just carries which builtin and the already-evaluated message, same
+  // capture-args-now/run-on-await shape as the user-function Task above.
+  | { type: 'Task'; builtin: PreludeAsyncFn; message: string }
   | { type: 'None' }
   | { type: 'Done' }
 );
+
+// The prelude's ambient async input functions (prompt/promptInt/promptFloat/
+// promptBool) — the fixed set that can appear as a builtin Task above.
+export type PreludeAsyncFn = 'prompt' | 'promptInt' | 'promptFloat' | 'promptBool';
+
+// Each builtin's result type — a builtin Task has no 'fn' to read '.result'
+// off (unlike a user async call's Task), but the printer still needs it to
+// render an unawaited one as 'Task<…>' (parser/printer.ts).
+export const PRELUDE_ASYNC_RESULT: Record<PreludeAsyncFn, AscentType> = {
+  prompt: STRING_TYPE,
+  promptInt: INT_TYPE,
+  promptFloat: FLOAT_TYPE,
+  promptBool: BOOL_TYPE,
+};
 
 // Per-type narrowings, so a builtin impl keyed under 'Int' can take an
 // already-narrowed receiver (`r.value` is a bigint) without re-checking.

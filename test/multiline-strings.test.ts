@@ -5,11 +5,11 @@ import { testHost } from './support/test-host.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning the
 // String value of its last statement.
-function evalStr(src: string): string {
+async function evalStr(src: string): Promise<string> {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
-  const result = executeProgram(program, testHost());
+  const result = await executeProgram(program, testHost());
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   assert.equal(result.value.type, 'String');
@@ -21,7 +21,7 @@ function errorCodes(src: string): string[] {
 }
 
 describe('Multiline strings (end-to-end)', () => {
-  it('matches design.md\'s own worked example exactly', () => {
+  it('matches design.md\'s own worked example exactly', async () => {
     const src = [
       'fix color = "red";',
       'fix poem = """',
@@ -30,20 +30,20 @@ describe('Multiline strings (end-to-end)', () => {
       '    """;',
       'poem',
     ].join('\n');
-    assert.equal(evalStr(src), 'Roses are red,\nAscent is small.');
+    assert.equal(await evalStr(src), 'Roses are red,\nAscent is small.');
   });
 
-  it('leaves content at margin 0 (closing """ flush left) untouched', () => {
+  it('leaves content at margin 0 (closing """ flush left) untouched', async () => {
     const src = [
       '"""',
       'line one',
       'line two',
       '"""',
     ].join('\n');
-    assert.equal(evalStr(src), 'line one\nline two');
+    assert.equal(await evalStr(src), 'line one\nline two');
   });
 
-  it('exempts a blank line in the middle from the indentation requirement', () => {
+  it('exempts a blank line in the middle from the indentation requirement', async () => {
     const src = [
       '"""',
       '    para one',
@@ -51,43 +51,43 @@ describe('Multiline strings (end-to-end)', () => {
       '    para two',
       '    """',
     ].join('\n');
-    assert.equal(evalStr(src), 'para one\n\npara two');
+    assert.equal(await evalStr(src), 'para one\n\npara two');
   });
 
-  it('preserves extra indentation beyond the common margin', () => {
+  it('preserves extra indentation beyond the common margin', async () => {
     const src = [
       '"""',
       '    outer',
       '      inner',
       '    """',
     ].join('\n');
-    assert.equal(evalStr(src), 'outer\n  inner');
+    assert.equal(await evalStr(src), 'outer\n  inner');
   });
 
-  it('keeps content on the same line as an opening delimiter with no leading newline', () => {
-    assert.equal(evalStr('"""hello\nworld"""'), 'hello\nworld');
+  it('keeps content on the same line as an opening delimiter with no leading newline', async () => {
+    assert.equal(await evalStr('"""hello\nworld"""'), 'hello\nworld');
   });
 
-  it('resolves escapes after dedent, including \\${ and \\"""', () => {
+  it('resolves escapes after dedent, including \\${ and \\"""', async () => {
     const src = [
       '"""',
       '    literal \\${x} and \\""" done',
       '    """',
     ].join('\n');
-    assert.equal(evalStr(src), 'literal ${x} and """ done');
+    assert.equal(await evalStr(src), 'literal ${x} and """ done');
   });
 
-  it('evaluates a hole inside a multiline string', () => {
+  it('evaluates a hole inside a multiline string', async () => {
     const src = [
       'fix age = 21;',
       '"""',
       '    age: ${age}',
       '    """',
     ].join('\n');
-    assert.equal(evalStr(src), 'age: 21');
+    assert.equal(await evalStr(src), 'age: 21');
   });
 
-  it('evaluates a nested multiline string inside a hole', () => {
+  it('evaluates a nested multiline string inside a hole', async () => {
     const src = [
       '"""',
       '    outer ${',
@@ -97,10 +97,10 @@ describe('Multiline strings (end-to-end)', () => {
       '    } end',
       '    """',
     ].join('\n');
-    assert.equal(evalStr(src), 'outer inner end');
+    assert.equal(await evalStr(src), 'outer inner end');
   });
 
-  it('reports L0006 when a line has less indentation than the closing """', () => {
+  it('reports L0006 when a line has less indentation than the closing """', async () => {
     const src = [
       '"""',
       '    line one',
@@ -110,7 +110,7 @@ describe('Multiline strings (end-to-end)', () => {
     assert.deepEqual(errorCodes(src), ['L0006']);
   });
 
-  it('reports L0005 for a multiline string unterminated at EOF', () => {
+  it('reports L0005 for a multiline string unterminated at EOF', async () => {
     assert.deepEqual(errorCodes('"""abc'), ['L0005']);
   });
 });

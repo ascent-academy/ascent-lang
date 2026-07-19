@@ -8,7 +8,7 @@ import {
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
-import { methodCallType, FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
+import { methodCallType, FUNCTIONS, ASYNC_FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
 import { MODULE_SIGS, moduleCallType } from './stdlib.js';
 import { BUILTIN_TYPE_NAMES, typeFromExpr } from './formation.js';
 import { freeVariables } from './captures.js';
@@ -298,13 +298,16 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const binding = env.get(expr.name);
       if (binding === null) {
         // A bare built-in / imported / namespace name in value position, not a
-        // call. A namespace ('math') is reached qualified, so it's N0016; an
-        // ambient (print) or imported stdlib function (min) has no first-class
-        // type yet — it can only be called — so it's N0013, clearer than
-        // "undefined name". A call 'print(x)' never reaches here (it's a 'call'
-        // node). Otherwise the name simply isn't declared (N0001).
+        // call. A namespace ('math') is reached qualified, so it's N0016; a
+        // built-in async function (the 'prompt' family) can only be prepared
+        // with '!' and awaited, so it gets its own message (N0017); an ambient
+        // sync builtin (print) or imported stdlib function (min) has no
+        // first-class type yet — it can only be called — so it's N0013,
+        // clearer than "undefined name". A call 'print(x)' never reaches here
+        // (it's a 'call' node). Otherwise the name simply isn't declared (N0001).
         let code = 'N0001';
         if (env.getNamespace(expr.name) !== null) code = 'N0016';
+        else if (ASYNC_FUNCTIONS[expr.name] !== undefined) code = 'N0017';
         else if (FUNCTIONS[expr.name] !== undefined || env.getImportedFn(expr.name) !== null) code = 'N0013';
         diagnostics.error({ code, span: expr.span, data: { name: expr.name } });
         return { ...expr, type: INVALID_TYPE };
@@ -340,6 +343,14 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           }
         }
         return { kind: 'call', callee: expr.callee, args: typedArgs, type: builtin.result, span: expr.span };
+      }
+
+      // A bare call of a built-in async function (the 'prompt' family) is the
+      // same mistake as calling a user-defined async fn without '!' (T0053):
+      // it must be prepared into a Task and awaited, never called directly.
+      if (ASYNC_FUNCTIONS[expr.callee] !== undefined) {
+        diagnostics.error({ code: 'T0053', span: expr.span });
+        return invalid();
       }
 
       // A stdlib function brought in bare by a named import ('import { min } from
@@ -419,6 +430,22 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // 'Task<result>', not the bare result — nothing runs until 'await'.
       const typedArgs = expr.args.map(arg => synth(arg, env, diagnostics));
       const invalid = (): TypedExpr => ({ kind: 'asyncCall', callee: expr.callee, args: typedArgs, type: INVALID_TYPE, span: expr.span });
+
+      // A built-in async function (the 'prompt' family) — checked against its
+      // own signature before falling to a user-defined slot, same priority as
+      // FUNCTIONS in the 'call' judgment above.
+      const asyncBuiltin = ASYNC_FUNCTIONS[expr.callee];
+      if (asyncBuiltin !== undefined) {
+        if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
+        if (!requireArity(asyncBuiltin.params.length, typedArgs.length, diagnostics, expr.span)) return invalid();
+        for (let i = 0; i < asyncBuiltin.params.length; i++) {
+          if (!typesEqual(typedArgs[i]!.type, asyncBuiltin.params[i]!)) {
+            typeMismatch('T0015', diagnostics, expr.span, asyncBuiltin.params[i]!, typedArgs[i]!.type);
+            return invalid();
+          }
+        }
+        return { kind: 'asyncCall', callee: expr.callee, args: typedArgs, type: taskOf(asyncBuiltin.result), span: expr.span };
+      }
 
       const binding = env.get(expr.callee);
       if (binding === null) {

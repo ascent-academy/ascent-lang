@@ -20,7 +20,11 @@ import type { Expr, Statement, Block, FnParam, BindTarget, MatchArm } from '../p
 
 // Built-in free functions are resolved by the interpreter's own 'call' case, not
 // looked up as slots, so they are never captured (there is no binding to snapshot).
-const BUILTIN_CALLEES: ReadonlySet<string> = new Set(['print']);
+const BUILTIN_CALLEES: ReadonlySet<string> = new Set(['print', 'printInline']);
+
+// The prelude's built-in async functions (the 'prompt' family) — resolved by
+// the interpreter's 'asyncCall' case the same way, so likewise never captured.
+const BUILTIN_ASYNC_CALLEES: ReadonlySet<string> = new Set(['prompt', 'promptInt', 'promptFloat', 'promptBool']);
 
 // The local names a fix/mut/for target introduces — a plain name, or every field
 // a record-destructuring pattern binds.
@@ -108,8 +112,9 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
       for (const a of expr.args) visitExpr(a, bound, out);
       return;
     case 'asyncCall':
-      // 'f!(args)' names an async function by name — a capture just like 'call'.
-      if (!bound.has(expr.callee)) out.add(expr.callee);
+      // 'f!(args)' names an async function by name — a capture just like 'call',
+      // except a built-in callee (the 'prompt' family), which isn't one either.
+      if (!BUILTIN_ASYNC_CALLEES.has(expr.callee) && !bound.has(expr.callee)) out.add(expr.callee);
       for (const a of expr.args) visitExpr(a, bound, out);
       return;
     case 'await':

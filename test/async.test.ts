@@ -7,12 +7,12 @@ import { testHost } from './support/test-host.js';
 // Same harness as the other end-to-end suites (see functions.test.ts): run a
 // clean program and return both the emitted text and the structured final
 // value; or collect the error codes of a program that shouldn't typecheck.
-function run(src: string): { output: string[]; value: RuntimeValue } {
+async function run(src: string): Promise<{ output: string[]; value: RuntimeValue }> {
   const { program, diagnostics } = parse(src);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const output: string[] = [];
-  const result = executeProgram(program, testHost(text => output.push(text)));
+  const result = await executeProgram(program, testHost(text => output.push(text)));
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return { output, value: result.value };
@@ -26,30 +26,30 @@ const int = (value: bigint): RuntimeValue => ({ type: 'Int', value });
 
 describe('async / await (end-to-end)', () => {
   describe('preparing and awaiting a task', () => {
-    it('awaits an async call inline, yielding its result (§8)', () => {
-      assert.deepEqual(run('fix fetch = async fn(x: Int): Int { x * 2 }; await fetch!(5);').value, int(10n));
+    it('awaits an async call inline, yielding its result (§8)', async () => {
+      assert.deepEqual((await run('fix fetch = async fn(x: Int): Int { x * 2 }; await fetch!(5);')).value, int(10n));
     });
 
-    it('prepares a task, then awaits it in two steps', () => {
+    it('prepares a task, then awaits it in two steps', async () => {
       assert.deepEqual(
-        run('fix fetch = async fn(x: Int): Int { x * 2 }; fix t = fetch!(5); await t;').value,
+        (await run('fix fetch = async fn(x: Int): Int { x * 2 }; fix t = fetch!(5); await t;')).value,
         int(10n),
       );
     });
 
-    it('a prepared task is inert — its body does not run until awaited', () => {
+    it('a prepared task is inert — its body does not run until awaited', async () => {
       // Only awaiting runs the body, so the "running" line appears *after* the
       // "prepared" line, never before (the whitepaper's honest core, §8).
-      const { output } = run(
+      const { output } = await run(
         'fix fetch = async fn(x: Int): Done { print("ran") }; fix t = fetch!(5); print("prepared"); await t;',
       );
       assert.deepEqual(output, ['prepared', 'ran']);
     });
 
-    it('binds the arguments at preparation time', () => {
+    it('binds the arguments at preparation time', async () => {
       // The argument expression is evaluated when the task is prepared, so the
       // "arg" line prints before "prepared" — the body ("ran") only on await.
-      const { output } = run([
+      const { output } = await run([
         'fix log = fn(x: Int): Int { print("arg"); x };',
         'fix fetch = async fn(x: Int): Done { print("ran") };',
         'fix t = fetch!(log(1));',
@@ -59,64 +59,64 @@ describe('async / await (end-to-end)', () => {
       assert.deepEqual(output, ['arg', 'prepared', 'ran']);
     });
 
-    it('widens an Int argument into a Float parameter through the task (§5)', () => {
+    it('widens an Int argument into a Float parameter through the task (§5)', async () => {
       assert.deepEqual(
-        run('fix f = async fn(x: Float): Float { x + 1.0 }; await f!(3);').value,
+        (await run('fix f = async fn(x: Float): Float { x + 1.0 }; await f!(3);')).value,
         { type: 'Float', value: 4 },
       );
     });
 
-    it('awaits a task held in a Task<T>-annotated slot', () => {
+    it('awaits a task held in a Task<T>-annotated slot', async () => {
       assert.deepEqual(
-        run('fix f = async fn(x: Int): Int { x }; fix t: Task<Int> = f!(5); await t;').value,
+        (await run('fix f = async fn(x: Int): Int { x }; fix t: Task<Int> = f!(5); await t;')).value,
         int(5n),
       );
     });
 
-    it('renders a prepared task as its Task type when it is the final value', () => {
-      assert.deepEqual(run('fix f = async fn(x: Int): Int { x }; f!(5);').output, ['Task<Int>']);
+    it('renders a prepared task as its Task type when it is the final value', async () => {
+      assert.deepEqual((await run('fix f = async fn(x: Int): Int { x }; f!(5);')).output, ['Task<Int>']);
     });
   });
 
   describe('async bodies await other tasks (the color propagates)', () => {
-    it('an async fn awaits another async call in its body', () => {
+    it('an async fn awaits another async call in its body', async () => {
       assert.deepEqual(
-        run([
+        (await run([
           'fix inner = async fn(x: Int): Int { x + 1 };',
           'fix outer = async fn(x: Int): Int { fix v = await inner!(x); v * 10 };',
           'await outer!(4);',
-        ].join('\n')).value,
+        ].join('\n'))).value,
         int(50n),
       );
     });
 
-    it('a recursive async fn awaits itself (recursive-let, §5)', () => {
+    it('a recursive async fn awaits itself (recursive-let, §5)', async () => {
       assert.deepEqual(
-        run([
+        (await run([
           'fix sum = async fn(n: Int): Int { if (n == 0) { 0 } else { fix r = await sum!(n - 1); r + n } };',
           'await sum!(3);',
-        ].join('\n')).value,
+        ].join('\n'))).value,
         int(6n),
       );
     });
 
-    it('awaits a Result-returning async call, then matches it (§9)', () => {
+    it('awaits a Result-returning async call, then matches it (§9)', async () => {
       assert.deepEqual(
-        run([
+        (await run([
           'fix read = async fn(ok: Bool): Int orfail String {',
           '  if (ok) { Success{ value: 42 } } else { Failure{ error: "bad" } }',
           '};',
           'fix use = async fn(): Int { fix r = await read!(True); match r { Success{ value } -> value, Failure{ error } -> 0 } };',
           'await use!();',
-        ].join('\n')).value,
+        ].join('\n'))).value,
         int(42n),
       );
     });
 
-    it("'try await' waits, then propagates the failure (§8/§9)", () => {
+    it("'try await' waits, then propagates the failure (§8/§9)", async () => {
       // try await: await resolves the timing, then try unwraps-or-propagates the
       // settled Result. Driven to its Failure, the whole task returns it.
-      const { value } = run([
+      const { value } = await run([
         'fix read = async fn(ok: Bool): Int orfail String {',
         '  if (ok) { Success{ value: 42 } } else { Failure{ error: "bad" } }',
         '};',
@@ -131,30 +131,30 @@ describe('async / await (end-to-end)', () => {
   });
 
   describe('the async color is enforced', () => {
-    it('rejects a bare async call — no !  (T0053)', () => {
+    it('rejects a bare async call — no !  (T0053)', async () => {
       assert.deepEqual(errorCodes('fix f = async fn(x: Int): Int { x }; f(5);'), ['T0053']);
     });
 
-    it("rejects '!' on an ordinary (non-async) function (T0054)", () => {
+    it("rejects '!' on an ordinary (non-async) function (T0054)", async () => {
       assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { x }; f!(5);'), ['T0054']);
     });
 
-    it("rejects '!' on a value that isn't a function (T0054)", () => {
+    it("rejects '!' on a value that isn't a function (T0054)", async () => {
       assert.deepEqual(errorCodes('fix x = 5; x!();'), ['T0054']);
     });
 
-    it("rejects 'await' on a value that isn't a task (T0055)", () => {
+    it("rejects 'await' on a value that isn't a task (T0055)", async () => {
       assert.deepEqual(errorCodes('await 5;'), ['T0055']);
     });
 
-    it("rejects 'await' inside a plain, non-async function (T0056)", () => {
+    it("rejects 'await' inside a plain, non-async function (T0056)", async () => {
       assert.deepEqual(
         errorCodes('fix g = async fn(x: Int): Int { x }; fix f = fn(x: Int): Int { await g!(x) };'),
         ['T0056'],
       );
     });
 
-    it("rejects 'await try' — there is no Result until await produces one (T0050)", () => {
+    it("rejects 'await try' — there is no Result until await produces one (T0050)", async () => {
       // 'try' is applied to the task, but a task is neither an Optional nor a
       // Result, so there's nothing to unwrap: the valid order is 'try await'.
       // Checked inside a Result-returning async fn so 'try' itself is in a valid
@@ -165,25 +165,25 @@ describe('async / await (end-to-end)', () => {
       );
     });
 
-    it('rejects comparing two tasks with == (T0008)', () => {
+    it('rejects comparing two tasks with == (T0008)', async () => {
       assert.deepEqual(errorCodes('fix f = async fn(): Int { 1 }; f!() == f!();'), ['T0008']);
     });
   });
 
   describe('async / await surface syntax', () => {
-    it("rejects '!' without an argument list (S0038)", () => {
+    it("rejects '!' without an argument list (S0038)", async () => {
       assert.deepEqual(errorCodes('fix f = async fn(): Int { 1 }; f!;'), ['S0038']);
     });
 
-    it("rejects 'async' not followed by 'fn' (S0037)", () => {
+    it("rejects 'async' not followed by 'fn' (S0037)", async () => {
       assert.deepEqual(errorCodes('fix x = async 5;'), ['S0037']);
     });
 
-    it("'(await t).method()' needs parentheses — await binds looser than a call", () => {
+    it("'(await t).method()' needs parentheses — await binds looser than a call", async () => {
       // Without parens, '.last()' would attach to the task (which has no methods);
       // parenthesizing awaits first, then calls on the resulting String.
       assert.deepEqual(
-        run('fix f = async fn(): String { "abc" }; (await f!()).last();').value,
+        (await run('fix f = async fn(): String { "abc" }; (await f!()).last();')).value,
         { type: 'String', value: 'c' },
       );
     });

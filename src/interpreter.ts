@@ -8,13 +8,20 @@ import { RuntimeError } from './errors/runtime-error.js';
 import {
   coerce, scalarToString, valuesEqual,
   intVal, floatVal, strVal, boolVal, rangeVal, recordVal, NONE, DONE,
-  type ScalarValue, type RuntimeValue,
+  type ScalarValue, type RuntimeValue, type PreludeAsyncFn,
 } from './interpreter/values.js';
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary, isInt64 } from './interpreter/arithmetic.js';
 import { Environment, type AssignResult } from './interpreter/env.js';
 import { evalMethodCall } from './interpreter/builtins.js';
 import { evalModuleCall } from './interpreter/stdlib.js';
+import { runPromptTask } from './interpreter/prelude.js';
 import { Host } from './host.js';
+
+// The prelude's async builtins (docs/version-0.1/stdlib/prelude.md) — checked
+// by name here exactly as 'print'/'printInline' are in the 'call' case below,
+// since none of the four is a real slot binding for 'asyncCall' to resolve.
+const PRELUDE_ASYNC_FNS: ReadonlySet<string> = new Set(['prompt', 'promptInt', 'promptFloat', 'promptBool']);
+const isPreludeAsyncFn = (name: string): name is PreludeAsyncFn => PRELUDE_ASYNC_FNS.has(name);
 
 // Re-export the value domain and the scope chain so existing importers of
 // './interpreter.js' (lib.ts, the CLI, the tests) keep resolving
@@ -33,7 +40,26 @@ class ReturnSignal {
   public constructor(public readonly value: RuntimeValue) { }
 }
 
-export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue => {
+// The whole tree walk is genuinely async now (evaluateExpr/executeStmt/
+// evaluateBlock/applyFunction/applyPathUpdate all return Promises): 'await' in
+// Ascent runs through a real JS 'await', so a Host capability that itself
+// suspends (a UI's modal-driven input, a future fs/net call) can do so for
+// real — JS's own event loop is the scheduler, no bespoke one needed. This is
+// plumbing only: nothing about the language's colored-async surface changes,
+// and every Host capability today still resolves synchronously, so behaviour
+// is unchanged — only the *mechanism* underneath 'await' is now real.
+
+// Evaluates a list of expressions in order, left to right — never
+// Promise.all/`.map`, which would let two arguments' side effects (or
+// suspensions) interleave instead of running one after the other, same as any
+// mainstream language's call-argument evaluation order.
+const evaluateAll = async (exprs: TypedExpr[], env: Environment): Promise<RuntimeValue[]> => {
+  const values: RuntimeValue[] = [];
+  for (const e of exprs) values.push(await evaluateExpr(e, env));
+  return values;
+};
+
+export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<RuntimeValue> => {
   switch (expr.kind) {
     case 'literal': {
       switch (expr.valueType) {
@@ -49,7 +75,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       let result = '';
       for (const part of expr.parts) {
         if (part.kind === 'text') { result += part.value; continue; }
-        result += scalarToString(evaluateExpr(part.expr, env));
+        result += scalarToString(await evaluateExpr(part.expr, env));
       }
       return strVal(result);
     }
@@ -61,7 +87,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       return value;
     }
     case 'call': {
-      const args = expr.args.map(a => evaluateExpr(a, env));
+      const args = await evaluateAll(expr.args, env);
       // A stdlib module function (whitepaper §10). Both import forms were
       // resolved to a 'call' carrying `module`, so this one branch dispatches
       // every stdlib call — the registry proved present by the checker.
@@ -72,12 +98,14 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
           span: expr.span,
         });
       }
-      if (expr.callee === 'print') {
+      if (expr.callee === 'print' || expr.callee === 'printInline') {
         // The checker proved the argument is Display (a scalar), so it has a
         // canonical text form — the same one an interpolation hole renders.
         // Emit it and yield Done, since a side-effecting call has no meaningful
-        // result (whitepaper §7).
-        env.output(scalarToString(args[0]!));
+        // result (whitepaper §7). printInline is print's no-newline twin
+        // (docs/version-0.1/stdlib/prelude.md).
+        const text = scalarToString(args[0]!);
+        if (expr.callee === 'print') env.output(text); else env.outputInline(text);
         return DONE;
       }
       // Otherwise a user function: the checker proved the name is a slot holding
@@ -86,36 +114,45 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       if (fn === undefined || fn.type !== 'Function') {
         throw new Error(`internal: call of non-function '${expr.callee}'`);
       }
-      return applyFunction(fn, args, expr.args.map(a => a.type));
+      return await applyFunction(fn, args, expr.args.map(a => a.type));
     }
     case 'apply': {
       // Calling a computed function value: evaluate the callee, then apply it.
       // The checker proved it's a function, so anything else is an internal bug.
-      const fn = evaluateExpr(expr.callee, env);
-      const args = expr.args.map(a => evaluateExpr(a, env));
+      const fn = await evaluateExpr(expr.callee, env);
+      const args = await evaluateAll(expr.args, env);
       if (fn.type !== 'Function') throw new Error('internal: apply of a non-function value');
-      return applyFunction(fn, args, expr.args.map(a => a.type));
+      return await applyFunction(fn, args, expr.args.map(a => a.type));
     }
     case 'asyncCall': {
       // 'f!(args)' prepares an inert Task (whitepaper §8): evaluate the arguments
       // *now* (they are bound), capture the async function value, but do NOT run
       // the body — that waits for 'await'. The checker proved the name is a slot
-      // holding an (async) function value.
+      // holding an (async) function value, or one of the prelude's own async
+      // builtins (the 'prompt' family) — those have no Ascent body to capture,
+      // just their message argument, so the Task carries the builtin's name.
+      if (isPreludeAsyncFn(expr.callee)) {
+        const args = await evaluateAll(expr.args, env);
+        const message = (args[0] as Extract<RuntimeValue, { type: 'String' }>).value;
+        return { type: 'Task', builtin: expr.callee, message };
+      }
       const fn = env.get(expr.callee);
       if (fn === undefined || fn.type !== 'Function') {
         throw new Error(`internal: async call of non-function '${expr.callee}'`);
       }
-      const args = expr.args.map(a => evaluateExpr(a, env));
+      const args = await evaluateAll(expr.args, env);
       return { type: 'Task', fn, args, argTypes: expr.args.map(a => a.type) };
     }
     case 'await': {
-      // 'await task' runs the task and yields its value (whitepaper §8). There is
-      // no scheduler in v1, so this just applies the captured function to the
-      // already-bound arguments — the body runs synchronously here. The checker
-      // proved the operand is a Task.
-      const task = evaluateExpr(expr.task, env);
+      // 'await task' runs the task and yields its value (whitepaper §8), through
+      // a real JS 'await' now — a Task that suspends (a builtin prompt reading
+      // real input, and later a real host capability) genuinely does. The
+      // checker proved the operand is a Task. A builtin prompt Task has no
+      // captured function to apply — it runs through the host instead.
+      const task = await evaluateExpr(expr.task, env);
       if (task.type !== 'Task') throw new Error('internal: await of a non-task value');
-      return applyFunction(task.fn, task.args, task.argTypes);
+      if ('builtin' in task) return runPromptTask(task.builtin, task.message, env, expr.span);
+      return await applyFunction(task.fn, task.args, task.argTypes);
     }
     case 'fn': {
       // Build the function value, snapshotting the outer names its body uses
@@ -136,7 +173,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // Coerce the returned value into the declared return type here (Int →
       // Float, etc.), so applyFunction uses it as-is. A bare 'return' yields
       // Done; its from-type equals the target, so the coercion is a no-op.
-      const raw = expr.value !== null ? evaluateExpr(expr.value, env) : DONE;
+      const raw = expr.value !== null ? await evaluateExpr(expr.value, env) : DONE;
       const fromType = expr.value !== null ? expr.value.type : expr.returnType;
       throw new ReturnSignal(coerce(raw, fromType, expr.returnType));
     }
@@ -145,12 +182,12 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // reason is checked to a String, so evaluating it yields a StringValue; its
       // text is the only information there is, reported by R0008. The span points
       // at the whole 'abort …' so the caret lands on the deliberate stop.
-      const reason = evaluateExpr(expr.reason, env) as Extract<RuntimeValue, { type: 'String' }>;
+      const reason = await evaluateExpr(expr.reason, env) as Extract<RuntimeValue, { type: 'String' }>;
       throw new RuntimeError({ code: 'R0008', span: expr.span, data: { reason: reason.value } });
     }
     case 'methodCall': {
-      const receiver = evaluateExpr(expr.receiver, env);
-      const args = expr.args.map(a => evaluateExpr(a, env));
+      const receiver = await evaluateExpr(expr.receiver, env);
+      const args = await evaluateAll(expr.args, env);
       // The ctx carries the static types alongside the values: the List methods
       // widen their elements to the result element type, and each source's own
       // static type is the `from` its coercion witness needs.
@@ -168,7 +205,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // fix/mut init gets against its slotType.
       const fields = new Map<string, RuntimeValue>();
       for (const f of expr.fields) {
-        fields.set(f.name, coerce(evaluateExpr(f.value, env), f.value.type, f.declaredType));
+        fields.set(f.name, coerce(await evaluateExpr(f.value, env), f.value.type, f.declaredType));
       }
       return recordVal(expr.typeName, fields);
     }
@@ -181,19 +218,19 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // widening a construction field gets), then applyPathUpdate walks the path,
       // copying each container it passes and sharing the rest (records and lists
       // are immutable, so the base is untouched).
-      const base = evaluateExpr(expr.base, env);
+      const base = await evaluateExpr(expr.base, env);
       const childEnv = env.child();
       childEnv.declare('its', base, false);
 
       let result = base;
       for (const u of expr.updates) {
-        const value = coerce(evaluateExpr(u.value, childEnv), u.value.type, u.declaredType);
-        result = applyPathUpdate(result, u.path, 0, value, childEnv);
+        const value = coerce(await evaluateExpr(u.value, childEnv), u.value.type, u.declaredType);
+        result = await applyPathUpdate(result, u.path, 0, value, childEnv);
       }
       return result;
     }
     case 'fieldAccess': {
-      const receiver = evaluateExpr(expr.receiver, env);
+      const receiver = await evaluateExpr(expr.receiver, env);
       if (receiver.type !== 'Record') throw new Error('internal: field access on a non-record');
       const value = receiver.fields.get(expr.field);
       if (value === undefined) throw new Error(`internal: no field '${expr.field}' on ${receiver.name}`);
@@ -205,23 +242,24 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // is what widens a nested element, e.g. a List<Int> element under a
       // List<List<Float>> literal.
       const elemType = expr.type.kind === 'List' ? expr.type.elem : null;
-      const elements = expr.elements.map(el => {
-        const v = evaluateExpr(el, env);
-        return elemType !== null ? coerce(v, el.type, elemType) : v;
-      });
+      const elements: RuntimeValue[] = [];
+      for (const el of expr.elements) {
+        const v = await evaluateExpr(el, env);
+        elements.push(elemType !== null ? coerce(v, el.type, elemType) : v);
+      }
       return { type: 'List', elements };
     }
     case 'range': {
-      const lo = evaluateExpr(expr.lo, env);
-      const hi = evaluateExpr(expr.hi, env);
+      const lo = await evaluateExpr(expr.lo, env);
+      const hi = await evaluateExpr(expr.hi, env);
       if (lo.type !== 'Int' || hi.type !== 'Int') throw new Error('internal: range bound not an Int');
       // No lo <= hi requirement: a range with lo >= hi is simply empty
       // (design.md §4 — half-open, so '5..5' and '5..3' both yield nothing).
       return rangeVal(lo.value, hi.value);
     }
     case 'index': {
-      const list = evaluateExpr(expr.list, env);
-      const idx = evaluateExpr(expr.index, env);
+      const list = await evaluateExpr(expr.list, env);
+      const idx = await evaluateExpr(expr.index, env);
       if (list.type !== 'List') throw new Error('internal: index receiver not a List');
       if (idx.type !== 'Int') throw new Error('internal: index not an Int');
       const i = Number(idx.value);
@@ -235,7 +273,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       return list.elements[i]!;
     }
     case 'unary': {
-      const operand = evaluateExpr(expr.operand, env);
+      const operand = await evaluateExpr(expr.operand, env);
       if (expr.op === 'not') {
         if (operand.type !== 'Bool') throw new Error(`internal: 'not' on ${operand.type}`);
         return boolVal(!operand.value);
@@ -250,18 +288,19 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // when it's still needed — the same laziness every mainstream
       // language gives its logical operators.
       if (expr.op === 'and' || expr.op === 'or') {
-        const left = evaluateExpr(expr.left, env);
+        const left = await evaluateExpr(expr.left, env);
         if (left.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
         if (expr.op === 'and' ? !left.value : left.value) return left;
-        const right = evaluateExpr(expr.right, env);
+        const right = await evaluateExpr(expr.right, env);
         if (right.type !== 'Bool') throw new Error(`internal: '${expr.op}' on non-Bool`);
         return right;
       }
       // expr.right.span is where R0002/R0003 point — at the divisor/exponent,
       // not the whole expression (expr.span, used for an overflow result).
-      return evaluateBinary(
-        expr.op, evaluateExpr(expr.left, env), evaluateExpr(expr.right, env), expr.span, expr.right.span,
-      );
+      // Sequential, not Promise.all — left evaluates fully before right starts.
+      const left = await evaluateExpr(expr.left, env);
+      const right = await evaluateExpr(expr.right, env);
+      return evaluateBinary(expr.op, left, right, expr.span, expr.right.span);
     }
     case 'coalesce': {
       // 'opt ?? default' short-circuits: the default is evaluated only when the
@@ -269,26 +308,26 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // Optional has no wrapper (§4), so it's already a value of the optional's
       // element type; coerce it (and the default) to the whole '??''s join type,
       // exactly as an 'if' widens the branch it takes.
-      const left = evaluateExpr(expr.left, env);
+      const left = await evaluateExpr(expr.left, env);
       if (left.type !== 'None') {
         const presentType = expr.left.type.kind === 'Optional' ? expr.left.type.elem : expr.left.type;
         return coerce(left, presentType, expr.type);
       }
-      return coerce(evaluateExpr(expr.right, env), expr.right.type, expr.type);
+      return coerce(await evaluateExpr(expr.right, env), expr.right.type, expr.type);
     }
     case 'block': {
-      return evaluateBlock(expr, env);
+      return await evaluateBlock(expr, env);
     }
     case 'if': {
-      const cond = evaluateExpr(expr.cond, env);
+      const cond = await evaluateExpr(expr.cond, env);
       if (cond.type !== 'Bool') throw new Error('internal: if condition not Bool');
       // The whole 'if' has the join type of its branches, so the taken branch's
       // own value is widened to it — 'if (c) { 1 } else { 2.5 }' yields a Float
       // even when the Int branch runs. Same coercion a fix/mut init gets against
       // its slot type; a no-op when the branch already is the join type (or when
       // there's no else, where the join is Done and the coercion doesn't apply).
-      if (cond.value) return coerce(evaluateExpr(expr.then, env), expr.then.type, expr.type);
-      if (expr.else !== null) return coerce(evaluateExpr(expr.else, env), expr.else.type, expr.type);
+      if (cond.value) return coerce(await evaluateExpr(expr.then, env), expr.then.type, expr.type);
+      if (expr.else !== null) return coerce(await evaluateExpr(expr.else, env), expr.else.type, expr.type);
       return DONE;
     }
     case 'match': {
@@ -298,11 +337,11 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // one. A variant arm runs in a child scope holding its bound fields; the
       // taken arm's value is widened to the match's join type, exactly as an
       // 'if' widens its taken branch.
-      const subject = evaluateExpr(expr.subject, env);
+      const subject = await evaluateExpr(expr.subject, env);
       for (const arm of expr.arms) {
         const armEnv = matchArm(arm.pattern, subject, env);
         if (armEnv !== null) {
-          return coerce(evaluateExpr(arm.body, armEnv), arm.body.type, expr.type);
+          return coerce(await evaluateExpr(arm.body, armEnv), arm.body.type, expr.type);
         }
       }
       throw new Error('internal: no match arm matched (checker should guarantee exhaustiveness)');
@@ -313,7 +352,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
       // via a ReturnSignal, exactly as the desugared 'Failure/None -> return …'
       // arm would. The bad value is 'None' (an Optional) or a 'Failure' record (a
       // Result); anything else is a present Optional value or a 'Success'.
-      const v = evaluateExpr(expr.subject, env);
+      const v = await evaluateExpr(expr.subject, env);
       const isBad = v.type === 'None' || (v.type === 'Record' && v.name === 'Failure');
       if (!isBad) {
         // Good: a 'Success' unwraps to its 'value' field; a present Optional value
@@ -334,7 +373,7 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
         armEnv = env.child();
         armEnv.declare(expr.elseClause.binding, (v as Extract<RuntimeValue, { type: 'Record' }>).fields.get('error')!, false);
       }
-      const mapped = evaluateExpr(expr.elseClause.body, armEnv);
+      const mapped = await evaluateExpr(expr.elseClause.body, armEnv);
       const failure = recordVal('Failure', new Map([['error', mapped]]));
       throw new ReturnSignal(coerce(failure, expr.propagateType, expr.returnType));
     }
@@ -349,7 +388,9 @@ export const evaluateExpr = (expr: TypedExpr, env: Environment): RuntimeValue =>
 // (whitepaper §5); 'None' matches the absent Optional; a literal matches when
 // it's '=='-equal to the subject (the same structural, numeric-tower-aware
 // equality '==' uses — so an Int pattern can match a Float subject); a variant
-// matches when the subject is the record carrying that tag.
+// matches when the subject is the record carrying that tag. Never touches
+// evaluateExpr (the subject and every pattern are already values), so this
+// stays a plain synchronous helper.
 const matchArm = (pattern: Pattern, subject: RuntimeValue, env: Environment): Environment | null => {
   if (pattern.kind === 'elsePattern') return env;
   if (pattern.kind === 'nonePattern') return subject.type === 'None' ? env : null;
@@ -392,38 +433,38 @@ const literalPatternValue = (p: LiteralPattern): RuntimeValue => {
 // exactly as reading 'xs[i]' does, since 'with' navigates existing structure and
 // never grows it. The checker proved the step kinds match the value shapes, so a
 // mismatch here is an interpreter bug.
-const applyPathUpdate = (
+const applyPathUpdate = async (
   container: RuntimeValue, path: TypedPathStep[], from: number, value: RuntimeValue, env: Environment,
-): RuntimeValue => {
+): Promise<RuntimeValue> => {
   const step = path[from]!;
   const isLast = from === path.length - 1;
 
   if (step.kind === 'field') {
     if (container.type !== 'Record') throw new Error('internal: a field step on a non-record value');
-    const child = isLast ? value : applyPathUpdate(container.fields.get(step.field)!, path, from + 1, value, env);
+    const child = isLast ? value : await applyPathUpdate(container.fields.get(step.field)!, path, from + 1, value, env);
     const fields = new Map(container.fields);
     fields.set(step.field, child);
     return recordVal(container.name, fields);
   }
 
   if (container.type !== 'List') throw new Error('internal: an index step on a non-list value');
-  const idx = evaluateExpr(step.index, env);
+  const idx = await evaluateExpr(step.index, env);
   if (idx.type !== 'Int') throw new Error('internal: a with-update index that is not an Int');
   const i = Number(idx.value);
   if (i < 0 || i >= container.elements.length) {
     throw new RuntimeError({ code: 'R0005', span: step.index.span, data: { length: String(container.elements.length) } });
   }
-  const child = isLast ? value : applyPathUpdate(container.elements[i]!, path, from + 1, value, env);
+  const child = isLast ? value : await applyPathUpdate(container.elements[i]!, path, from + 1, value, env);
   const elements = container.elements.slice();
   elements[i] = child;
   return { type: 'List', elements };
 };
 
-const evaluateBlock = (block: TypedBlock, env: Environment): RuntimeValue => {
+const evaluateBlock = async (block: TypedBlock, env: Environment): Promise<RuntimeValue> => {
   const blockEnv = env.child();
   let result: RuntimeValue = DONE;
   for (const stmt of block.stmts) {
-    result = executeStmt(stmt, blockEnv);
+    result = await executeStmt(stmt, blockEnv);
   }
   return result;
 };
@@ -436,15 +477,15 @@ const evaluateBlock = (block: TypedBlock, env: Environment): RuntimeValue => {
 // one-way rule of §5), bound as a fixed slot; the body's value is coerced into
 // the declared return type. `argTypes` are the arguments' static types, needed
 // as the `from` side of each coercion witness.
-const applyFunction = (
+const applyFunction = async (
   fn: Extract<RuntimeValue, { type: 'Function' }>, args: RuntimeValue[], argTypes: AscentType[],
-): RuntimeValue => {
+): Promise<RuntimeValue> => {
   const callEnv = fn.closure.child();
   fn.params.forEach((p, i) => callEnv.declare(p.name, coerce(args[i]!, argTypes[i]!, p.type), false));
   try {
     // Normal path: the body's fall-through value (§2), coerced to the return
     // type. A body that always diverges throws ReturnSignal before this runs.
-    const result = evaluateBlock(fn.body, callEnv);
+    const result = await evaluateBlock(fn.body, callEnv);
     return coerce(result, fn.body.type, fn.result);
   } catch (e) {
     // An early 'return' lands here — its value is already coerced to fn.result.
@@ -471,14 +512,14 @@ const declareTarget = (target: TypedBindTarget, value: RuntimeValue, env: Enviro
   }
 };
 
-export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValue => {
+export const executeStmt = async (stmt: TypedStatement, env: Environment): Promise<RuntimeValue> => {
   switch (stmt.kind) {
     case 'fix':
     case 'mut': {
       // Coerce the init value from its own type to the declared slot type
       // (handles Int → Float when the annotation says Float but the literal is
       // an Int, and any nested widening the same edge implies).
-      const value = coerce(evaluateExpr(stmt.init, env), stmt.init.type, stmt.slotType);
+      const value = coerce(await evaluateExpr(stmt.init, env), stmt.init.type, stmt.slotType);
       // Recursion tie-the-knot: a function bound by name has itself in scope
       // inside its own body (the recursive-let rule, §5). Inject it into its own
       // closure so a self-call resolves at call time. Sound as value capture —
@@ -490,7 +531,7 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       return DONE;
     }
     case 'assign': {
-      const value = coerce(evaluateExpr(stmt.value, env), stmt.value.type, stmt.slotType);
+      const value = coerce(await evaluateExpr(stmt.value, env), stmt.value.type, stmt.slotType);
       const result = env.assign(stmt.name, value);
       if (result !== 'ok') throw new Error(`internal: assign '${stmt.name}' → ${result}`);
       return DONE;
@@ -505,20 +546,20 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       // runtime, just like a type declaration.
       return DONE;
     case 'expr':
-      return evaluateExpr(stmt.expr, env);
+      return await evaluateExpr(stmt.expr, env);
     case 'void':
       // Evaluate for its effect, then throw the value away — the statement
       // yields Done (whitepaper §2).
-      evaluateExpr(stmt.expr, env);
+      await evaluateExpr(stmt.expr, env);
       return DONE;
     case 'while': {
       // Each iteration evaluates the body as a block, giving it a fresh
       // child scope — a 'fix' from one iteration doesn't leak into the next.
       while (true) {
-        const cond = evaluateExpr(stmt.cond, env);
+        const cond = await evaluateExpr(stmt.cond, env);
         if (cond.type !== 'Bool') throw new Error('internal: while condition not Bool');
         if (!cond.value) break;
-        evaluateBlock(stmt.body, env);
+        await evaluateBlock(stmt.body, env);
       }
       return DONE;
     }
@@ -526,21 +567,21 @@ export const executeStmt = (stmt: TypedStatement, env: Environment): RuntimeValu
       // Each iteration binds the loop variable in a fresh child scope, then
       // runs the body (which opens its own scope under it) — so the binding
       // is a new fixed slot per pass, never leaking or carrying over.
-      const runBody = (value: RuntimeValue): void => {
+      const runBody = async (value: RuntimeValue): Promise<void> => {
         const loopEnv = env.child();
         declareTarget(stmt.target, value, loopEnv, false);
-        evaluateBlock(stmt.body, loopEnv);
+        await evaluateBlock(stmt.body, loopEnv);
       };
 
-      const iterable = evaluateExpr(stmt.iterable, env);
+      const iterable = await evaluateExpr(stmt.iterable, env);
       if (iterable.type === 'Range') {
         // Half-open: lo up to but not including hi. A step of +1 always
         // terminates, and lo >= hi runs zero times (design.md §4).
-        for (let i = iterable.lo; i < iterable.hi; i++) runBody(intVal(i));
+        for (let i = iterable.lo; i < iterable.hi; i++) await runBody(intVal(i));
       } else if (iterable.type === 'List') {
         // Elements are already the list's element type (coerced at build
         // time), so each is bound as-is — no re-coercion needed.
-        for (const el of iterable.elements) runBody(el);
+        for (const el of iterable.elements) await runBody(el);
       } else {
         throw new Error(`internal: for over non-iterable ${iterable.type}`);
       }
@@ -601,11 +642,11 @@ export type RuntimeResult =
 // callers provide values, not scopes. The program's final value (the
 // block-value rule, whitepaper §2) is emitted to the same sink `print` uses,
 // unless it's Done — the "no information" value is nothing to output.
-export const executeProgram = (
+export const executeProgram = async (
   program: TypedProgram,
   host: Host,
   inputs: ProgramInputs = new ProgramInputs(program.args),
-): RuntimeResult => {
+): Promise<RuntimeResult> => {
   const env = new Environment(host);
   // Declare each input as a fixed slot from `inputs`. This happens right before
   // the body begins (bodyStart), so the inputs are in scope only for the body,
@@ -624,7 +665,7 @@ export const executeProgram = (
     let result: RuntimeValue = DONE;
     for (let i = 0; i < program.stmts.length; i++) {
       if (i === program.bodyStart) bindArgs();
-      result = executeStmt(program.stmts[i]!, env);
+      result = await executeStmt(program.stmts[i]!, env);
     }
     // Ascent renders the final value to its display string (whitepaper §2's
     // block-value output) and streams it to the sink; the sink only ever sees

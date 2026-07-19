@@ -5,8 +5,10 @@
 //   const { program, diagnostics } = parse(src);
 //   if (diagnostics.length > 0) { /* report them; do not execute */ }
 //   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
-//   const host: Host = { capabilities: { console: { write: text => console.log(text) } } };
-//   const result = executeProgram(program!, host, inputs);
+//   const result = executeProgram(program!, terminalHost, inputs);
+//
+// A non-terminal embedder passes its own Host instead — see src/host.ts's
+// Console shape and src/terminal-host.ts for a reference implementation.
 //
 // The program's output — every `print` call and its final value, each already
 // rendered to text by the interpreter — is streamed to the Host's console
@@ -50,6 +52,9 @@ export {
   ProgramInputs,
 } from './interpreter.js';
 export type { RuntimeValue, RuntimeResult, AssignResult, ScalarValue } from './interpreter.js';
+
+export type { Host, Capabilities, Console } from './host.js';
+export { terminalHost } from './terminal-host.js';
 
 export type { RuntimeError } from './errors/runtime-error.js';
 

@@ -145,9 +145,27 @@ export interface FunctionSig {
 // interpolation hole carries — and yields Done, the unit value of a
 // side-effecting call (whitepaper §7). So a scalar prints directly; a value
 // with no text form is shown by interpolating a scalar field (`print("${x.n}")`)
-// or converting it (`print(x.toString())`).
+// or converting it (`print(x.toString())`). `printInline` is print's no-newline
+// twin (docs/version-0.1/stdlib/prelude.md) — same bound, same result.
 export const FUNCTIONS: Record<string, FunctionSig> = {
   print: { params: [{ bound: 'Display' }], result: DONE_TYPE },
+  printInline: { params: [{ bound: 'Display' }], result: DONE_TYPE },
+};
+
+// The prelude's ambient async input functions (docs/version-0.1/stdlib/
+// prelude.md) — each shows its message and blocks for a line, so all four are
+// async by nature and must be prepared with '!' and run through 'await', just
+// like a user-defined 'async fn'; only the checker signature and the runtime
+// behaviour behind it are built in rather than written in Ascent. Kept as its
+// own table (not folded into FUNCTIONS) since synth's 'call' judgment must
+// reject a *bare* call of one (T0053, the same mistake as calling a
+// user-defined async fn without '!'), while 'asyncCall' is the only judgment
+// that may actually resolve one.
+export const ASYNC_FUNCTIONS: Record<string, MonoSig> = {
+  prompt: { params: [STRING_TYPE], result: STRING_TYPE },
+  promptInt: { params: [STRING_TYPE], result: INT_TYPE },
+  promptFloat: { params: [STRING_TYPE], result: FLOAT_TYPE },
+  promptBool: { params: [STRING_TYPE], result: BOOL_TYPE },
 };
 
 // '.orAbort(msg?)' unwraps a Result/Optional's good case or diverges through the
