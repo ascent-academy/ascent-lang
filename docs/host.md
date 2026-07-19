@@ -173,7 +173,7 @@ export interface Tracer {
 
 The payoff. Every row is the same interface with a different backing:
 
-| capability      | `nodeHost` (terminal) | `platformHost` (teaching)      | `testHost`               |
+| capability      | `terminalHost`        | `platformHost` (teaching)      | `testHost`               |
 |-----------------|-----------------------|--------------------------------|--------------------------|
 | `console`       | write to stdout       | append to a console panel      | collect into an array    |
 | `clock`         | system clock          | injected (frozen / scrubbable) | fixed                    |
@@ -224,8 +224,8 @@ and gives it room:
 1. `OutputSink { stdout }` → `Console { write }`; add `Host.capabilities.console`.
 2. `Environment` carries `host` instead of `sink`; `env.output(text)` becomes
    `env.host.capabilities.console.write(text)`.
-3. `executeProgram(program, host, inputs)`; the CLI builds a `nodeHost`, the test
-   harness a `testHost`.
+3. `executeProgram(program, host, inputs)`; the CLI builds a `terminalHost`, the
+   test harness a `testHost`.
 
 Everything after that (clock, random, fs, net, limits, tracer) is added one
 curated capability at a time, exactly the way the stdlib grows.
