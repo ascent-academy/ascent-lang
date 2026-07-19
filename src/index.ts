@@ -140,10 +140,17 @@ const runRepl = async (): Promise<void> => {
   const env = new Environment(terminalHost);
   const typeEnv = new TypeEnv(terminalHost.capabilities);
 
+  // A while(true) loop awaiting rl.question() in turn would miss lines (and
+  // the eventual close) on piped, non-TTY stdin: readline can emit 'line' —
+  // even 'close' — in the gap between one question() resolving and the next
+  // one re-arming its listener, and a pipe delivers fast enough to hit that
+  // gap. Driving the interface as an async iterator has no such gap — it's
+  // fed straight from the stream — so it's correct for both a real terminal
+  // and a pipe (e.g. `echo '1 + 1;' | ascent`).
   try {
-    while (true) {
-      const line = await rl.question(PROMPT);
-
+    rl.setPrompt(PROMPT);
+    rl.prompt();
+    for await (const line of rl) {
       const lexResult = new Lexer(line).tokenize();
       let markerIndex = 0;
       const tokenParts = lexResult.tokens
@@ -200,9 +207,8 @@ const runRepl = async (): Promise<void> => {
           }
         }
       }
+      rl.prompt();
     }
-  } catch {
-    // stdin closed (Ctrl+D)
   } finally {
     rl.close();
   }
