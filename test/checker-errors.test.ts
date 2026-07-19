@@ -29,8 +29,8 @@ describe('checker rules (type & name)', () => {
     });
 
     it('reports T0011 for a method call on a type that has none', () => {
-      // Bool carries no methods, so any '.method()' on it is T0011.
-      assert.deepEqual(errorCodes('fix b = True; b.foo();'), ['T0011']);
+      // Done carries no methods, so any '.method()' on it is T0011.
+      assert.deepEqual(errorCodes('print(1).foo();'), ['T0011']);
     });
   });
 

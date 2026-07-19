@@ -27,10 +27,10 @@ Every conversion is a **method on the source value**, spelled `value.toTarget()`
 ### To `String` — always succeeds (`Display`)
 
 ```
-(any Display value).toStr(): String
+(any Display value).toString(): String
 ```
 
-`42.toStr()` → `"42"`, `True.toStr()` → `"True"`, `3.5.toStr()` → `"3.5"`. Uses the canonical `Display` form (§7) — the same one `${}` and `print` use. Structured types don't satisfy `Display` yet, so `.toStr()` is a scalar (and later, opt-in `Display`) operation, never a universal `toString` (§6).
+`42.toString()` → `"42"`, `True.toString()` → `"True"`, `3.5.toString()` → `"3.5"`. Uses the canonical `Display` form (§7) — the same one `${}` and `print` use. Structured types don't satisfy `Display` yet, so `.toString()` is a scalar (and later, opt-in `Display`) operation, never a universal method every type gets for free (§6).
 
 ### From `String` — can fail, returns `T?`
 
@@ -110,6 +110,6 @@ fix hyp   = sqrt(x*x + y*y)    # library math — free function
 
 ## Settled decisions
 
-- **Conversions are methods on the source value** (`value.toTarget()`), returning `Target` when infallible and `Target?` when fallible — symmetric with `.toStr()`, and the `?` makes failability visible. Not `Int.parse(...)` (Ascent has no static members on types) and not `parseInt(...)` free functions (would break the `.toStr()` / `.toInt()` method symmetry).
+- **Conversions are methods on the source value** (`value.toTarget()`), returning `Target` when infallible and `Target?` when fallible — symmetric with `.toString()`, and the `?` makes failability visible. Not `Int.parse(...)` (Ascent has no static members on types) and not `parseInt(...)` free functions (would break the `.toString()` / `.toInt()` method symmetry).
 - **`Float` → `Int` is the named rounding family** (`trunc` / `round` / `floor` / `ceil`), never a bare `.toInt()` — the rounding decision is the caller's and stays explicit.
 - **The scalar method surface is conversions + rounding + `abs`;** all other math is the imported `math` module, gated by the "property of this value, clearer named than spelled" test.

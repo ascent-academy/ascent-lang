@@ -70,10 +70,19 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
     toFloat: { params: [], result: FLOAT_TYPE },
     abs: { params: [], result: INT_TYPE },
   },
+  // stdlib/scalars.md: a Float has no bare '.toInt()' — converting drops the
+  // fractional part, and *how* is the caller's call, so the four named
+  // roundings replace it (never a T0012-worthy bare toInt).
   Float: {
     toString: { params: [], result: STRING_TYPE },
-    toInt: { params: [], result: INT_TYPE },
+    trunc: { params: [], result: INT_TYPE },
+    round: { params: [], result: INT_TYPE },
+    floor: { params: [], result: INT_TYPE },
+    ceil: { params: [], result: INT_TYPE },
     abs: { params: [], result: FLOAT_TYPE },
+  },
+  Bool: {
+    toString: { params: [], result: STRING_TYPE },
   },
   // design.md §4: no integer indexing on String — these named, grapheme-aware
   // methods replace it. length/first/last/chars/slice all count and cut on
@@ -91,6 +100,12 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
     repeat: { params: [INT_TYPE], result: STRING_TYPE },
     trim: { params: [], result: STRING_TYPE },
     padLeft: { params: [INT_TYPE], result: STRING_TYPE },
+    // stdlib/scalars.md: parsing can fail — a String might not name a
+    // number/Bool — so each returns T?, never a bare T, forcing the miss to
+    // be handled (?? / match / try) instead of hidden.
+    toInt: { params: [], result: optionalOf(INT_TYPE) },
+    toFloat: { params: [], result: optionalOf(FLOAT_TYPE) },
+    toBool: { params: [], result: optionalOf(BOOL_TYPE) },
   },
   List: {
     length: { params: [], result: INT_TYPE },

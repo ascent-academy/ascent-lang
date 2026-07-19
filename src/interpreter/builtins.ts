@@ -2,12 +2,13 @@ import type { Span } from '../lexer/token.js';
 import type { AscentType } from '../types/types.js';
 import { RuntimeError } from '../errors/runtime-error.js';
 import {
-  coerce, formatFloat, graphemesOf,
+  coerce, formatFloat, graphemesOf, scalarToString,
   intVal, floatVal, strVal, boolVal, NONE,
-  type RuntimeValue, type IntValue, type FloatValue, type StringValue, type ListValue, type RangeValue,
+  type RuntimeValue, type IntValue, type FloatValue, type BoolValue, type StringValue, type ListValue, type RangeValue,
 } from './values.js';
 import { checkIntOverflow } from './arithmetic.js';
 import { valueToString } from '../parser/printer.js';
+import { tryParseInt, tryParseFloat, tryParseBool } from '../scalar-input.js';
 
 // ---- Built-in methods: data, not control flow -----------------------
 //
@@ -51,10 +52,26 @@ const INT_IMPLS: Record<string, MethodImpl<IntValue>> = {
   abs: (r, _args, { span }) => intVal(checkIntOverflow(r.value < 0n ? -r.value : r.value, span)),
 };
 
+// stdlib/scalars.md: a Float has no bare '.toInt()' — losing the fractional
+// part is a decision the caller must name, so each rounding rule is its own
+// method rather than one hidden choice. All four always succeed (a finite
+// Float always rounds), so only checkIntOverflow guards the Int result.
+const roundHalfAwayFromZero = (n: number): number => Math.sign(n) * Math.round(Math.abs(n));
+
 const FLOAT_IMPLS: Record<string, MethodImpl<FloatValue>> = {
   toString: (r: FloatValue) => strVal(formatFloat(r.value)),
-  toInt: (r, _args, { span }) => intVal(checkIntOverflow(BigInt(Math.trunc(r.value)), span)),
+  trunc: (r, _args, { span }) => intVal(checkIntOverflow(BigInt(Math.trunc(r.value)), span)),
+  round: (r, _args, { span }) => intVal(checkIntOverflow(BigInt(roundHalfAwayFromZero(r.value)), span)),
+  floor: (r, _args, { span }) => intVal(checkIntOverflow(BigInt(Math.floor(r.value)), span)),
+  ceil: (r, _args, { span }) => intVal(checkIntOverflow(BigInt(Math.ceil(r.value)), span)),
   abs: r => floatVal(Math.abs(r.value)),
+};
+
+// toString is the same canonical Display form '${}'/print use (scalarToString),
+// shared here rather than reimplemented — 'True'/'False', matching the literal
+// spelling (design.md §4).
+const BOOL_IMPLS: Record<string, MethodImpl<BoolValue>> = {
+  toString: (r: BoolValue) => strVal(scalarToString(r)),
 };
 
 // design.md §4/§9: no integer indexing on String — first/last/slice work in
@@ -100,6 +117,22 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
     const target = Number((args[0] as IntValue).value);
     const padCount = Math.max(0, target - graphemesOf(r.value).length);
     return strVal(' '.repeat(padCount) + r.value);
+  },
+  // stdlib/scalars.md: parsing a String can fail, so each returns T? (None on
+  // a bad parse) rather than crashing. Reuses scalar-input.ts's tryParse*,
+  // the same validation the prompt family's ask*/CLI '--flag' parsing already
+  // apply — one rule for "does this String name a value", not three.
+  toInt: r => {
+    const parsed = tryParseInt(r.value);
+    return parsed === null ? NONE : intVal(parsed);
+  },
+  toFloat: r => {
+    const parsed = tryParseFloat(r.value);
+    return parsed === null ? NONE : floatVal(parsed);
+  },
+  toBool: r => {
+    const parsed = tryParseBool(r.value);
+    return parsed === null ? NONE : boolVal(parsed);
   },
 };
 
@@ -172,6 +205,7 @@ const RANGE_IMPLS: Record<string, MethodImpl<RangeValue>> = {
 export const METHOD_IMPLS: Partial<Record<RuntimeValue['type'], Record<string, MethodImpl>>> = {
   Int: INT_IMPLS as Record<string, MethodImpl>,
   Float: FLOAT_IMPLS as Record<string, MethodImpl>,
+  Bool: BOOL_IMPLS as Record<string, MethodImpl>,
   String: STRING_IMPLS as Record<string, MethodImpl>,
   List: LIST_IMPLS as Record<string, MethodImpl>,
   Range: RANGE_IMPLS as Record<string, MethodImpl>,

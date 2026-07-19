@@ -75,6 +75,7 @@ export const PRELUDE_ASYNC_RESULT: Record<PreludeAsyncFn, AscentType> = {
 // already-narrowed receiver (`r.value` is a bigint) without re-checking.
 export type IntValue = Extract<RuntimeValue, { type: 'Int' }>;
 export type FloatValue = Extract<RuntimeValue, { type: 'Float' }>;
+export type BoolValue = Extract<RuntimeValue, { type: 'Bool' }>;
 export type StringValue = Extract<RuntimeValue, { type: 'String' }>;
 export type ListValue = Extract<RuntimeValue, { type: 'List' }>;
 export type RangeValue = Extract<RuntimeValue, { type: 'Range' }>;
