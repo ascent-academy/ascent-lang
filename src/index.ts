@@ -14,21 +14,11 @@ import { elaborate } from './errors/elaborate.js';
 import { renderTerminal } from './errors/render.js';
 import { RuntimeError } from './errors/runtime-error.js';
 import type { ProgramArg } from './parser/ast.js';
-import { Host } from './host.js';
+import { terminalHost } from './terminal-host.js';
 
 // \x01 and \x02 bracket invisible bytes so readline counts the visible
 // width of the prompt correctly — without them cursor positioning breaks.
 const PROMPT = `\x01${chalk.bold.green('>')}\x02 `;
-
-const host: Host = {
-  capabilities: {
-    console: {
-      write(text: string): void {
-        process.stdout.write(text + '\n');
-      },
-    },
-  },
-};
 
 // Parses '--name value' pairs from argv into a name→raw-string map.
 const parseCliFlags = (argv: string[]): Map<string, string> => {
@@ -133,7 +123,7 @@ const runFile = async (filePath: string): Promise<void> => {
 
   // The program's output (its final value and any print calls) is written to
   // stdout by host.capabilities.console as it runs; the result only tells success from a crash.
-  const result = executeProgram(typedProgram, host, inputs);
+  const result = executeProgram(typedProgram, terminalHost, inputs);
   if (result.kind === 'error') {
     process.stderr.write(renderTerminal(elaborate(result.error.marker, src), src, filePath) + '\n');
     process.exit(1);
@@ -147,7 +137,7 @@ const runRepl = async (): Promise<void> => {
   // The env carries the same host so `print` in a REPL line outputs here;
   // each line's own value is still echoed separately below (the '=> …'
   // inspection line), so a bare expression isn't routed through the console.
-  const env = new Environment(host);
+  const env = new Environment(terminalHost);
   const typeEnv = new TypeEnv();
 
   try {
