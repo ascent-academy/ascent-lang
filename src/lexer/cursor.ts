@@ -58,8 +58,6 @@ export class Cursor {
     return this.src.slice(start.offset, this.pos);
   }
 
-  // The raw source between two absolute offsets — used by tokenize() to fill in
-  // each token's lossless `text` from the span it just produced.
   public sliceRange(startOffset: number, endOffset: number): string {
     return this.src.slice(startOffset, endOffset);
   }
