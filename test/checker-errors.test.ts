@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
+import { testCapabilities } from './support/test-host.js';
 
 // The diagnostic codes a program reports, in the order they're raised.
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 // Core checker rules that other suites exercise only incidentally. Each case is

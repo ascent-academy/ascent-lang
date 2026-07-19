@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Same harness as print.test.ts/string-methods.test.ts, extended with scripted
 // `input` lines for the prompt family — testHost hands them out one per
 // readLine call, in order (test/support/test-host.ts).
 async function run(src: string, input: readonly string[] = []): Promise<{ output: string[]; value: RuntimeValue }> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const output: string[] = [];
@@ -19,7 +19,7 @@ async function run(src: string, input: readonly string[] = []): Promise<{ output
 }
 
 async function evalCrash(src: string, input: readonly string[] = []): Promise<string> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost(() => { }, input));
@@ -29,7 +29,7 @@ async function evalCrash(src: string, input: readonly string[] = []): Promise<st
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 describe('prelude (docs/version-0.1/stdlib/prelude.md, end-to-end)', () => {

@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 import { typeToString } from '../src/types/types.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue. Output is streamed to a sink we discard here —
 // these tests assert on the structured value executeProgram returns, not its text.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -21,7 +21,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 // The inferred type of a program's last statement (which must be an
 // expression), rendered as it would appear in a diagnostic.
 function typeOfLast(src: string): string {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const last = program.stmts[program.stmts.length - 1]!;
@@ -31,7 +31,7 @@ function typeOfLast(src: string): string {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 const PERSON = 'type Person = { name: String, age: Int };';

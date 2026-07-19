@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue. Output is streamed to a sink we discard here —
 // these tests assert on the structured value executeProgram returns, not its text.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -20,7 +20,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 // Runs a program expected to typecheck but crash at runtime, returning the
 // RuntimeError's code. Output is discarded — only the crash matters here.
 async function evalCrash(src: string): Promise<string> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -30,7 +30,7 @@ async function evalCrash(src: string): Promise<string> {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 describe('String methods (end-to-end)', () => {

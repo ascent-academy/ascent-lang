@@ -199,21 +199,39 @@ provides **virtual** implementations behind the same interfaces (in-memory fs,
 proxied fetch), or omits a capability entirely. Nothing about the interpreter
 changes between columns.
 
-## 6. Partial capabilities meet the module system
+## 6. Partial capabilities meet the module system — landed
 
 Rather than a bespoke "capability absent" runtime path, tie a missing capability
 to **import resolution** (§10) — honest, and it falls out of machinery that
 already exists:
 
 ```ascent
-import { readFile } from "fs";   # resolves only if host.capabilities.fs is present;
-                                 # otherwise a clean "fs isn't available in this environment"
+import { readLines } from "fs";   # rejected (N0018) unless the capabilities
+                                  # this program is checked against include 'fs'
 ```
 
 So **the host's capability set *is* the set of importable effect-modules.** Real
 fs on the CLI, virtual fs on the platform, neither on a bare host — decided
 entirely by which capabilities the host carries, checked where every other import
 is checked.
+
+**How it actually landed:** the wrinkle this section didn't address is *when*.
+`parse()`/`typecheck()` run before any concrete `Host` object need exist (the
+CLI builds `terminalHost` only after typechecking succeeds), so there's no
+live Host to ask. The fix: `parse(src, capabilities)` and `typecheck(program,
+source, capabilities, parentEnv?)` both take a **required** `Capabilities`
+argument — not a `Host` (that would drag a bundle of actual I/O
+implementations into a phase that only ever needs to ask "does one exist,"
+never to call it). Required, not optional-with-a-lenient-default: a caller
+must say what it's checking against, the same "no silent default" stance the
+language takes on `fix`/`mut` themselves. `TypeEnv` carries it from the root
+(`getCapabilities()`, mirroring `enclosingReturn()`/`enclosingAsync()`'s
+walk-to-root pattern); `check/stdlib.ts`'s `MODULE_REQUIRES_CAPABILITY` map
+says which capability each module needs (today: `{ fs: 'fs' }`); the `import`
+statement judgment (`stmt.ts`) checks it before ever registering the name, so
+a gated-out import cascades into the same "no such function" (T0013) an
+unknown module (N0014) already does on a later use — accepted, not fixed, for
+consistency with that existing cascade.
 
 ## 7. The determinism rule
 
@@ -263,16 +281,17 @@ never part of the `Console` contract itself).
 `readLines(path)` only, not the fuller `read`/`write`/`exists` sketch above
 (grown from nothing, the same "one curated capability at a time" way `ask*`
 did). This is also §6's own worked example landing, in a narrower shape than
-sketched there: `import { readLines } from "fs"` resolves against the stdlib
-registry exactly like `math`/`assert` (§10) — **not** yet gated on
-`host.capabilities.fs` being present, since typechecking has no host to check
-against (it runs before one exists); a host lacking `fs` instead crashes at
-`await` time (R0014), the same tier `abort` does. `readLines` is `async`
-(prepared with `!`, run through `await`) and fallible (`List<String> orfail
-String`) — the checker's stdlib registry (`check/stdlib.ts`) grew a second,
-parallel `ASYNC_MODULE_SIGS` table alongside the sync `MODULE_SIGS`, for the
-same reason the prelude's `ASYNC_FUNCTIONS` sits apart from `FUNCTIONS`: a
-*bare* call of an async export must be rejected (T0053), which only a
+sketched there, and — per §6's update — genuinely gated now: `import {
+readLines } from "fs"` is rejected (N0018) unless the capabilities the caller
+declared to `parse()`/`typecheck()` include `fs`. A host that claims `fs` at
+check time but doesn't actually implement it at run time (a caller/Host
+mismatch, not the gate doing its job) still crashes at `await` time (R0014),
+the same tier `abort` does. `readLines` is `async` (prepared with `!`, run
+through `await`) and fallible (`List<String> orfail String`) — the checker's
+stdlib registry (`check/stdlib.ts`) grew a second, parallel
+`ASYNC_MODULE_SIGS` table alongside the sync `MODULE_SIGS`, for the same
+reason the prelude's `ASYNC_FUNCTIONS` sits apart from `FUNCTIONS`: a *bare*
+call of an async export must be rejected (T0053), which only a
 separate table lets `synth.ts`'s `call` judgment check for cheaply.
 
 ## 9. Open decisions
@@ -280,9 +299,9 @@ separate table lets `synth.ts`'s `call` judgment check for cheaply.
 - **Reach path.** Do *scripts* get effects via `import … from "fs"` (capabilities
   surfaced as modules), via the §11 `Command` runtime, or both? Current lean:
   imports→capabilities for scripts, `Command`s for UI, the Host underneath both.
-  **Partly landed:** `import { readLines } from "fs"` is exactly this for
-  scripts now — still not capability-gated at the import site (see §8's `fs`
-  note above), so the "or both" and the gating mechanism are still open.
+  **Landed for scripts:** `import { readLines } from "fs"` is exactly this,
+  now capability-gated too (§6). The "or both" — whether UI's `Command` path
+  eventually wants the same gating — is still open.
 - **`clock` / `random`: optional vs always-on.** Optional permits a *fully*
   timeless, deterministic host; always-on is simpler for authors.
 - **Fuel granularity.** Per-node step, per-call, or per-loop-iteration — trades

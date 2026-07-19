@@ -6,6 +6,7 @@ import { parseStmt, parseBlock } from './stmt.js';
 import { parseParam } from './type-expr.js';
 import { typecheck } from '../check/index.js';
 import type { TypedResult } from '../check/index.js';
+import type { Capabilities } from '../host.js';
 import { elaborate } from '../errors/elaborate.js';
 
 export interface ParseResult {
@@ -96,7 +97,7 @@ export const parseTokens = (tokens: Token[]): ParseResult => {
   return { program, errorMarkers: ts.errors };
 }
 
-export const parse = (src: string): TypedResult => {
+export const parse = (src: string, capabilities: Capabilities): TypedResult => {
   const lexResult = new Lexer(src).tokenize();
   if (lexResult.errorMarkers.length > 0) {
     return {
@@ -110,5 +111,5 @@ export const parse = (src: string): TypedResult => {
     return { program: null, diagnostics: parseResult.errorMarkers.map(marker => elaborate(marker, src)) };
   }
 
-  return typecheck(parseResult.program, src);
+  return typecheck(parseResult.program, src, capabilities);
 }

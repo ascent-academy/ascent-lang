@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 import { typeToString } from '../src/types/types.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue. Output goes to a discarded sink.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -18,12 +18,12 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 // The displayed type of a program's last statement (which must be an expression).
 function typeOfLast(src: string): string {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.ok(program !== null, `expected a program, got errors: ${diagnostics.map(d => d.code).join(', ')}`);
   const last = program.stmts[program.stmts.length - 1]!;
   assert.equal(last.kind, 'expr', 'last statement must be an expression');

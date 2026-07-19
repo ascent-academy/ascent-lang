@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue. Output goes to a sink we discard — these
 // tests assert on the structured value, not the emitted text.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -18,7 +18,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 // The "value must go somewhere" rule (whitepaper §2): a real value left in a
@@ -100,7 +100,7 @@ describe('void and the discard rule', () => {
     it('void still evaluates its operand (a crash inside it surfaces)', async () => {
       // Out-of-bounds indexing crashes at run time — proof void ran the expr
       // rather than skipping it.
-      const { program } = parse('void [1, 2][5];');
+      const { program } = parse('void [1, 2][5];', testCapabilities);
       assert.ok(program !== null);
       const result = await executeProgram(program, testHost());
       assert.equal(result.kind, 'error');

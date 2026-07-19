@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 import { optionalOf, STRING_TYPE, INT_TYPE } from '../src/types/types.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its last
 // statement's RuntimeValue. Mirrors the harness in optional.test.ts.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -18,7 +18,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 describe('parenthesized types (end-to-end)', () => {
@@ -69,7 +69,7 @@ describe('parenthesized types (end-to-end)', () => {
     it("a written 'String??' collapses to 'String?' and is usable as one", async () => {
       // It still reports T0047 (see below), but the resulting slot type is the
       // collapsed 'String?', so '??' defaults it like any Optional.
-      const { program } = parse('fix pick = fn(): String?? { None }; pick() ?? "default";');
+      const { program } = parse('fix pick = fn(): String?? { None }; pick() ?? "default";', testCapabilities);
       assert.ok(program !== null);
       const result = await executeProgram(program, testHost());
       assert.equal(result.kind, 'ok');

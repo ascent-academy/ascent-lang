@@ -8,7 +8,7 @@ import { Diagnostics } from './diagnostics.js';
 import { typeFromExpr, BUILTIN_TYPE_NAMES } from './formation.js';
 import { synth } from './synth.js';
 import { check } from './check.js';
-import { moduleExists, moduleHasExport } from './stdlib.js';
+import { moduleExists, moduleHasExport, MODULE_REQUIRES_CAPABILITY } from './stdlib.js';
 import { iterableElement } from './traits.js';
 
 // The built-in type names (formation.ts) are what a 'type' declaration can't
@@ -809,16 +809,25 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
 
     case 'import': {
       // Resolve a stdlib import against the compiler-known registry (whitepaper
-      // §10 — no filesystem). An unknown module is N0014; a named export the
-      // module doesn't have is N0015 — checked across both the sync (MODULE_SIGS)
-      // and async (ASYNC_MODULE_SIGS) registries, since an import doesn't care
-      // which one an export lives in. Every resolved name is registered in its
-      // own env namespace (never colliding with slots/types), so a later
-      // 'min(…)'/'math.min(…)' or 'readLines!(…)' call finds it. The typed node
-      // carries no runtime effect — uses were rewritten to 'call'/'asyncCall'
-      // nodes — so the interpreter no-ops it.
+      // §10 — no filesystem). An unknown module is N0014; a required Host
+      // capability this program isn't being checked against (docs/host.md §6) is
+      // N0018 — checked before any per-name validation, since a module without
+      // its capability isn't usable at all, no matter which export is named; a
+      // named export the module doesn't have is N0015 — checked across both the
+      // sync (MODULE_SIGS) and async (ASYNC_MODULE_SIGS) registries, since an
+      // import doesn't care which one an export lives in. Every resolved name is
+      // registered in its own env namespace (never colliding with slots/types),
+      // so a later 'min(…)'/'math.min(…)' or 'readLines!(…)' call finds it. The
+      // typed node carries no runtime effect — uses were rewritten to
+      // 'call'/'asyncCall' nodes — so the interpreter no-ops it.
+      const requiredCapability = MODULE_REQUIRES_CAPABILITY[stmt.module];
       if (!moduleExists(stmt.module)) {
         diagnostics.error({ code: 'N0014', span: stmt.moduleSpan, data: { module: stmt.module } });
+      } else if (requiredCapability !== undefined && env.getCapabilities()[requiredCapability] === undefined) {
+        diagnostics.error({
+          code: 'N0018', span: stmt.moduleSpan,
+          data: { module: stmt.module, capability: requiredCapability },
+        });
       } else if (stmt.clause.kind === 'named') {
         for (const { name, span } of stmt.clause.names) {
           if (!moduleHasExport(stmt.module, name)) {

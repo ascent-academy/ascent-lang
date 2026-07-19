@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 import { elaborate } from '../src/errors/elaborate.js';
 import type { Marker } from '../src/lexer/token.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its last
 // statement's RuntimeValue. Mirrors the harness in result.test.ts / string-methods.test.ts.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -22,7 +22,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 // RuntimeError marker (code + data), so a test can assert on both the code and
 // the values it will render (the reason, the reported error, the context).
 async function evalCrash(src: string): Promise<Marker> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -32,7 +32,7 @@ async function evalCrash(src: string): Promise<Marker> {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 // A tiny error type reused across the Result tests.

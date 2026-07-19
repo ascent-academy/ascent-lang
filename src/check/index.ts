@@ -1,6 +1,7 @@
 import type { Program } from '../parser/ast.js';
 import type { TypedProgram, TypedStatement } from '../parser/typed-ast.js';
 import type { Diagnostic } from '../errors/elaborate.js';
+import type { Capabilities } from '../host.js';
 import { TypeEnv } from './env.js';
 import { Diagnostics } from './diagnostics.js';
 import { typeFromName } from './formation.js';
@@ -13,6 +14,14 @@ export interface TypedResult {
   diagnostics: Diagnostic[];
 }
 
+// `capabilities` is which Host capabilities this program is being checked
+// against (docs/host.md §6/§9) — required, never defaulted, so a caller must
+// say what it's checking against rather than silently allowing every stdlib
+// module. It only matters for a *fresh* root: when `parentEnv` is given (the
+// REPL, carrying state across lines), that scope's own root already has one,
+// so this argument is unused — still required, for a signature that doesn't
+// change shape between a program's first line and its fifth.
+//
 // parentEnv lets a caller (the REPL) carry name bindings across separate
 // typecheck() calls: each call type-checks into a child scope, and only
 // promotes its new bindings into parentEnv once the whole program's
@@ -27,9 +36,9 @@ export interface TypedResult {
 // `diagnostics.length === 0` (as every caller in this codebase already
 // does), never on `program` being non-null, since a broken program's tree
 // still contains Invalid nodes that must never reach the interpreter.
-export const typecheck = (program: Program, source: string, parentEnv?: TypeEnv): TypedResult => {
+export const typecheck = (program: Program, source: string, capabilities: Capabilities, parentEnv?: TypeEnv): TypedResult => {
   const diagnostics = new Diagnostics();
-  const env = parentEnv !== undefined ? parentEnv.child() : new TypeEnv();
+  const env = parentEnv !== undefined ? parentEnv.child() : new TypeEnv(capabilities);
 
   // The inputs bind right before the body begins (whitepaper §11, revised rule),
   // so they're in scope only from `bodyStart` on — the leading setup statements

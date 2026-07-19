@@ -1,4 +1,4 @@
-import type { Host, IoResult } from '../../src/host.js';
+import type { Host, Capabilities, IoResult } from '../../src/host.js';
 import { askByRetrying, tryParseInt, tryParseFloat, tryParseBool } from '../../src/scalar-input.js';
 import { linesOf } from '../../src/text-lines.js';
 
@@ -44,3 +44,11 @@ export const testHost = (
     },
   };
 };
+
+// A representative capability set for parse()/typecheck()'s now-required
+// capabilities argument. Every test host in this suite has the same shape
+// (console + fs) regardless of its onWrite/input/files behaviour, so one
+// shared instance suffices for typecheck-time gating (N0018) across the whole
+// test suite; a test that specifically wants a *restricted* set (no fs) builds
+// its own `{ console: ... }`-shaped object instead.
+export const testCapabilities: Capabilities = testHost().capabilities;

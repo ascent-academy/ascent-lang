@@ -4,12 +4,12 @@ import { Lexer } from '../src/lexer/index.js';
 import { typecheck, TypeEnv } from '../src/check/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its last
 // statement's RuntimeValue. Mirrors the harness in the other end-to-end suites.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -19,7 +19,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 }
 
 async function evalCrash(src: string): Promise<string> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -29,7 +29,7 @@ async function evalCrash(src: string): Promise<string> {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 const int = (v: bigint): RuntimeValue => ({ type: 'Int', value: v });
@@ -163,17 +163,17 @@ describe('stdlib module system (end-to-end)', () => {
     // directly, since piped multi-line REPL input isn't exercised by the CLI.
     const checkLine = (src: string, env: TypeEnv): string[] => {
       const { program } = parseTokens(new Lexer(src).tokenize().tokens);
-      return typecheck(program!, src, env).diagnostics.map(d => d.code);
+      return typecheck(program!, src, testCapabilities, env).diagnostics.map(d => d.code);
     };
 
     it('a named import stays in scope on a later line', async () => {
-      const env = new TypeEnv();
+      const env = new TypeEnv(testCapabilities);
       assert.deepEqual(checkLine('import { max } from "math";', env), []);
       assert.deepEqual(checkLine('max(3, 9);', env), []);
     });
 
     it('a namespace import stays in scope on a later line', async () => {
-      const env = new TypeEnv();
+      const env = new TypeEnv(testCapabilities);
       assert.deepEqual(checkLine('import math from "math";', env), []);
       assert.deepEqual(checkLine('math.min(3, 9);', env), []);
     });

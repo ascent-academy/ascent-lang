@@ -254,6 +254,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'{name}' is one of the language's built-in async functions, so it can only be prepared into a task with '!' and then run with 'await' — like 'await {name}!(\"...\")' — not passed around as a value or stored in a slot."
   },
   {
+    "code": "N0018",
+    "name": "capability-not-available",
+    "category": "name",
+    "summary": "An import names a real module, but the environment running the program doesn't provide what it needs.",
+    "message": "The \"{module}\" module isn't available here — it needs '{capability}', which this environment doesn't provide.",
+    "explanation": "Some built-in modules depend on something the environment running the program has to provide — \"{module}\" needs '{capability}'. This program is running somewhere that doesn't offer it, so \"{module}\" can't be imported here, even though it's a real built-in module elsewhere."
+  },
+  {
     "code": "R0001",
     "name": "int-overflow",
     "category": "runtime",

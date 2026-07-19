@@ -2,13 +2,17 @@
 // The `ascent` CLI (see index.ts) is the primary entry point. Embedders
 // wanting source-to-typed-AST in one call should use parse():
 //
-//   const { program, diagnostics } = parse(src);
+//   const { program, diagnostics } = parse(src, terminalHost.capabilities);
 //   if (diagnostics.length > 0) { /* report them; do not execute */ }
 //   const inputs = new ProgramInputs(program!.args).set('name', { type: 'String', value: 'Ada' });
 //   const result = executeProgram(program!, terminalHost, inputs);
 //
-// A non-terminal embedder passes its own Host instead — see src/host.ts's
-// Console shape and src/terminal-host.ts for a reference implementation.
+// parse()'s capabilities argument is which Host capabilities the program will
+// actually run under — required so an import the eventual Host can't satisfy
+// (e.g. "fs" with no real filesystem) is rejected at check time (N0018), not
+// discovered as a crash mid-run. A non-terminal embedder passes its own Host
+// instead — see src/host.ts's Console/Capabilities shapes and
+// src/terminal-host.ts for a reference implementation.
 //
 // The program's output — every `print` call and its final value, each already
 // rendered to text by the interpreter — is streamed to the Host's console

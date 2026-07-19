@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram, ProgramInputs } from '../src/interpreter.js';
 import type { RuntimeValue, ScalarValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Runs a program with the given input values bound, returning its last
 // statement's RuntimeValue. `args` maps each declared input name to the value
 // the run should see (mirroring what the CLI's --flag binding produces).
 async function evalWithArgs(src: string, args: Record<string, ScalarValue>): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const inputs = new ProgramInputs(program.args);
@@ -20,7 +20,7 @@ async function evalWithArgs(src: string, args: Record<string, ScalarValue>): Pro
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 describe('program inputs (program (…) { … } header)', () => {
@@ -157,7 +157,7 @@ describe('program inputs (program (…) { … } header)', () => {
 
     it('runs an effectful statement before program, then the body', async () => {
       const output: string[] = [];
-      const { program, diagnostics } = parse('print("setup"); program (n: Int) { n }');
+      const { program, diagnostics } = parse('print("setup"); program (n: Int) { n }', testCapabilities);
       assert.deepEqual(diagnostics, []);
       assert.ok(program !== null);
       const inputs = new ProgramInputs(program.args);

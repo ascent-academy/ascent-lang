@@ -110,7 +110,7 @@ const runFile = async (filePath: string): Promise<void> => {
     process.exit(1);
   }
 
-  const parseResult = parse(src);
+  const parseResult = parse(src, terminalHost.capabilities);
   if (parseResult.diagnostics.length > 0) {
     for (const diagnostic of parseResult.diagnostics) {
       process.stderr.write(renderTerminal(diagnostic, src, filePath) + '\n\n');
@@ -138,7 +138,7 @@ const runRepl = async (): Promise<void> => {
   // each line's own value is still echoed separately below (the '=> …'
   // inspection line), so a bare expression isn't routed through the console.
   const env = new Environment(terminalHost);
-  const typeEnv = new TypeEnv();
+  const typeEnv = new TypeEnv(terminalHost.capabilities);
 
   try {
     while (true) {
@@ -173,7 +173,7 @@ const runRepl = async (): Promise<void> => {
           process.stdout.write(renderTerminal(elaborate(marker, line), line, null) + '\n');
         }
       } else if (parseResult.program !== null) {
-        const typeResult = typecheck(parseResult.program, line, typeEnv);
+        const typeResult = typecheck(parseResult.program, line, terminalHost.capabilities, typeEnv);
         const typeDiagnostics = typeResult.diagnostics;
 
         if (typeDiagnostics.length > 0) {

@@ -1,4 +1,5 @@
 import type { Span } from '../lexer/token.js';
+import type { Capabilities } from '../host.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE,
   leastCommonType, isAssignableTo, typeToString, listOfType, resultOf,
@@ -124,3 +125,11 @@ export const moduleExists = (module: string): boolean =>
 // which table" merge, for the import statement's per-name validation (N0015).
 export const moduleHasExport = (module: string, name: string): boolean =>
   MODULE_SIGS[module]?.[name] !== undefined || ASYNC_MODULE_SIGS[module]?.[name] !== undefined;
+
+// Which Host capability a module needs to be usable at all (docs/host.md §6) —
+// checked at the import statement (N0018) against whatever capabilities the
+// caller declared typecheck() runs under. A module absent from this map needs
+// none: math and assert are pure computation, no Host capability involved.
+export const MODULE_REQUIRES_CAPABILITY: Partial<Record<string, keyof Capabilities>> = {
+  fs: 'fs',
+};

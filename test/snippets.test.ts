@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Runs every *.asc file under test/snippets/, recursively — each
 // subdirectory becomes a nested describe(), each file becomes one it().
@@ -49,7 +49,7 @@ const parseExpectation = (relPath: string, firstLine: string): Expectation => {
 };
 
 const runSnippet = async (src: string, expectation: Expectation): Promise<void> => {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
 
   if (expectation.kind === 'errors') {
     assert.deepEqual(diagnostics.map(d => d.code), expectation.codes);

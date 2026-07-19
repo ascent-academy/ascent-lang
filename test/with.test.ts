@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 import { typeToString } from '../src/types/types.js';
 
 // The 'with' update form (whitepaper §6) — v1 scope: records only, single-field
@@ -11,7 +11,7 @@ import { typeToString } from '../src/types/types.js';
 // Runs a program expected to typecheck and evaluate cleanly, returning its
 // last statement's RuntimeValue.
 async function evalOk(src: string): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost());
@@ -22,7 +22,7 @@ async function evalOk(src: string): Promise<RuntimeValue> {
 
 // The inferred type of a program's last statement (which must be an expression).
 function typeOfLast(src: string): string {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const last = program.stmts[program.stmts.length - 1]!;
@@ -32,7 +32,7 @@ function typeOfLast(src: string): string {
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 const PERSON = 'type Person = { name: String, age: Int };';
@@ -190,7 +190,7 @@ describe("'with' record update (end-to-end)", () => {
     });
 
     it('crashes (R0005) on an out-of-range index', async () => {
-      const { program } = parse('fix xs = [1, 2]; xs with [5] = 0;');
+      const { program } = parse('fix xs = [1, 2]; xs with [5] = 0;', testCapabilities);
       assert.ok(program !== null);
       const result = await executeProgram(program!, testHost());
       assert.equal(result.kind, 'error');
@@ -256,7 +256,7 @@ describe("'with' record update (end-to-end)", () => {
     });
 
     it('crashes (R0005) on an out-of-range index anywhere along the path', async () => {
-      const { program } = parse(`${M} m with users[9].home.city = "x";`);
+      const { program } = parse(`${M} m with users[9].home.city = "x";`, testCapabilities);
       assert.ok(program !== null);
       const result = await executeProgram(program!, testHost());
       assert.equal(result.kind, 'error');

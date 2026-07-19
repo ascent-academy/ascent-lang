@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import { testHost } from './support/test-host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Structural '==' / '!=' across the compound types (design.md §5/§7). Regression
 // suite: list equality used to be silently broken — valuesEqual had no List case,
@@ -10,7 +10,7 @@ import { testHost } from './support/test-host.js';
 // True and '[1] != [2]' False (and corrupting records/Results that carry lists).
 // Only '[] == []' was ever tested, which passed even with the bug.
 async function evalBool(src: string): Promise<boolean> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null);
   const result = await executeProgram(program, testHost());

@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
-import type { Host } from '../src/host.js';
-import { testHost } from './support/test-host.js';
+import type { Host, Capabilities } from '../src/host.js';
+import { testHost, testCapabilities } from './support/test-host.js';
 
 // Same harness as prelude.test.ts, extended with testHost's in-memory `files`
 // (path -> content) so 'readLines' can be exercised without touching disk.
 async function run(src: string, files: Readonly<Record<string, string>> = {}): Promise<RuntimeValue> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost(() => { }, [], files));
@@ -18,7 +18,7 @@ async function run(src: string, files: Readonly<Record<string, string>> = {}): P
 }
 
 async function evalCrash(src: string, files: Readonly<Record<string, string>> = {}): Promise<string> {
-  const { program, diagnostics } = parse(src);
+  const { program, diagnostics } = parse(src, testCapabilities);
   assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
   assert.ok(program !== null, 'expected the program to typecheck');
   const result = await executeProgram(program, testHost(() => { }, [], files));
@@ -28,7 +28,7 @@ async function evalCrash(src: string, files: Readonly<Record<string, string>> = 
 }
 
 function errorCodes(src: string): string[] {
-  return parse(src).diagnostics.map(d => d.code);
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
 }
 
 const strList = (...values: string[]): RuntimeValue => ({ type: 'List', elements: values.map(value => ({ type: 'String', value })) });
@@ -85,7 +85,7 @@ describe('fs module — readLines (end-to-end)', () => {
           fs: { readLines: async () => { calls++; return { ok: true, value: [] }; } },
         },
       };
-      const { program, diagnostics } = parse(`${IMPORT}fix t = readLines!("a.txt"); print("prepared");`);
+      const { program, diagnostics } = parse(`${IMPORT}fix t = readLines!("a.txt"); print("prepared");`, testCapabilities);
       assert.deepEqual(diagnostics, []);
       assert.ok(program !== null);
       await executeProgram(program, host);
@@ -93,20 +93,49 @@ describe('fs module — readLines (end-to-end)', () => {
     });
   });
 
-  describe('the host has no fs capability', () => {
+  describe('a runtime host missing fs, despite being declared available at check time', () => {
     it('crashes (R0014) rather than a raw property-access error', async () => {
       const bareHost: Host = {
         capabilities: {
           console: { write: () => { }, writeInline: () => { }, askText: async () => null, askInt: async () => null, askFloat: async () => null, askBool: async () => null },
         },
       };
-      const { program, diagnostics } = parse(`${IMPORT}await readLines!("a.txt");`);
+      const { program, diagnostics } = parse(`${IMPORT}await readLines!("a.txt");`, testCapabilities);
       assert.deepEqual(diagnostics, []);
       assert.ok(program !== null);
       const result = await executeProgram(program, bareHost);
       assert.equal(result.kind, 'error');
       if (result.kind !== 'error') throw new Error('unreachable');
       assert.equal(result.error.marker.code, 'R0014');
+    });
+  });
+
+  describe('capability gating at check time (N0018)', () => {
+    // A capability set with no 'fs' at all — what parse()/typecheck() are
+    // told this program will run under, independent of any actual Host.
+    const noFsCapabilities: Capabilities = { console: testCapabilities.console };
+
+    it('rejects importing "fs" when the declared capabilities do not include it', () => {
+      // A later use of the unregistered name cascades into T0013 ("no such
+      // function") — the same cascade an unknown module (N0014) already
+      // produces; N0018 is still the first, load-bearing diagnostic.
+      const { diagnostics } = parse(`${IMPORT}fix t = readLines!("a.txt");`, noFsCapabilities);
+      assert.deepEqual(diagnostics.map(d => d.code), ['N0018', 'T0013']);
+    });
+
+    it('reports only N0018 when nothing afterward tries to use the import', () => {
+      const { diagnostics } = parse(IMPORT, noFsCapabilities);
+      assert.deepEqual(diagnostics.map(d => d.code), ['N0018']);
+    });
+
+    it('still resolves "fs" cleanly when the declared capabilities do include it', () => {
+      const { diagnostics } = parse(`${IMPORT}fix t = readLines!("a.txt");`, testCapabilities);
+      assert.deepEqual(diagnostics, []);
+    });
+
+    it('does not gate a module with no required capability (math)', () => {
+      const { diagnostics } = parse('import { min } from "math"; min(1, 2);', noFsCapabilities);
+      assert.deepEqual(diagnostics, []);
     });
   });
 

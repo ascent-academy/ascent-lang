@@ -1,5 +1,6 @@
 import type { Span } from '../lexer/token.js';
 import type { AscentType } from '../types/types.js';
+import type { Capabilities } from '../host.js';
 
 // origin records how the name was created — 'fix'/'mut' declarations, or a
 // program 'arg' input — so the three reassignment mistakes get distinct errors.
@@ -59,7 +60,14 @@ export class TypeEnv {
   // the scope a function body runs in (childForFunction). At the root it is
   // undefined, and enclosingAsync() treats that as *async*: the program body and
   // each REPL line are the root async context, so top-level 'await' is allowed.
+  //
+  // `capabilities` is the Host capability set this program is being checked
+  // against (docs/host.md §6/§9) — required (never a silent default) at every
+  // call site, `null` everywhere except the root: a fresh scope's `child()`/
+  // `childForFunction()` always pass `null` and let `getCapabilities()` walk up
+  // to the root that actually carries it, exactly like `funcReturn`/`funcAsync`.
   public constructor(
+    private readonly capabilities: Capabilities | null,
     private readonly parent: TypeEnv | null = null,
     private readonly funcReturn: AscentType | null = null,
     private readonly funcAsync: boolean | null = null,
@@ -117,7 +125,7 @@ export class TypeEnv {
   }
 
   public child(): TypeEnv {
-    return new TypeEnv(this);
+    return new TypeEnv(null, this);
   }
 
   // The scope a function body is checked in: a child that also records the
@@ -125,7 +133,7 @@ export class TypeEnv {
   // (a nested function overrides it with its own). Separate from child() so only
   // a real function boundary establishes a return target.
   public childForFunction(returnType: AscentType, async = false): TypeEnv {
-    return new TypeEnv(this, returnType, async);
+    return new TypeEnv(null, this, returnType, async);
   }
 
   // The declared return type of the nearest enclosing function, or null when not
@@ -141,6 +149,19 @@ export class TypeEnv {
   // REPL line are the root async context, so top-level 'await' works.
   public enclosingAsync(): boolean {
     return this.funcAsync ?? this.parent?.enclosingAsync() ?? true;
+  }
+
+  // The Host capability set this program is being checked against — used only
+  // by the 'import' statement judgment (stmt.ts), to reject a module whose
+  // required capability isn't present (N0018). Unlike enclosingReturn/Async,
+  // there is no sensible default to fall back to at the root: every root is
+  // required to carry a real one (typecheck()'s own required parameter), so
+  // reaching a root with none is an internal invariant violation, not a
+  // legitimate "no restriction" case.
+  public getCapabilities(): Capabilities {
+    if (this.capabilities !== null) return this.capabilities;
+    if (this.parent === null) throw new Error('internal: TypeEnv root constructed with no capabilities');
+    return this.parent.getCapabilities();
   }
 
   // The bindings declared directly in this scope (not inherited from a
