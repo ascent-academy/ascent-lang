@@ -150,7 +150,7 @@ describe('program inputs (program (…) { … } header)', () => {
 
     it('defines a helper function before program and calls it in the body', async () => {
       assert.deepEqual(
-        await evalWithArgs('fix dbl = fn(x: Int): Int { x * 2 }; program (n: Int) { dbl(n) }', { n: { type: 'Int', value: 7n } }),
+        await evalWithArgs('fix dbl = fn(x: Int): Int => { x * 2 }; program (n: Int) { dbl(n) }', { n: { type: 'Int', value: 7n } }),
         { type: 'Int', value: 14n },
       );
     });

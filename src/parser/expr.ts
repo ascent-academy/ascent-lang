@@ -623,35 +623,23 @@ function parseAwait(ts: TokenStream): Expr | null {
   return { kind: 'await', task, span: { start: awaitTok.span.start, end: task.span.end } };
 }
 
-// The body of a function value — a '{ … }' block, or the single-expression
-// '=> expr' sugar (whitepaper §5). The arrow form is desugared here into a
-// one-statement block '{ expr }', so everything downstream (checker, printer,
-// interpreter) sees a single body shape and the block-value rule does the rest.
-// '=> { … }' is redundant — the arrow already promises an expression — so a '{'
-// straight after '=>' is rejected (S0027); a body that is neither '{' nor '=>'
-// is S0026.
+// The body of a function value — always introduced by '=>' (whitepaper §5),
+// then either a '{ … }' block or the single-expression sugar. The expression
+// form is desugared here into a one-statement block '{ expr }', so everything
+// downstream (checker, printer, interpreter) sees a single body shape. A
+// missing '=>' after the return type is S0026.
 function parseFnBody(ts: TokenStream): Block | null {
-  const tok = ts.peek();
+  if (ts.expect('FAT_ARROW', 'S0026') === null) return null;
 
+  const tok = ts.peek();
   if (tok.kind === 'LBRACE') {
     return parseBlock(ts, ts.advance());
   }
 
-  if (tok.kind === 'FAT_ARROW') {
-    ts.advance(); // consume '=>'
-    if (ts.peek().kind === 'LBRACE') {
-      ts.report('S0027', ts.peek().span);
-      return null;
-    }
+  const expr = parseExpr(ts);
+  if (expr === null) return null;
 
-    const expr = parseExpr(ts);
-    if (expr === null) return null;
-
-    return { kind: 'block', stmts: [{ kind: 'expr', expr, span: expr.span }], span: expr.span };
-  }
-
-  ts.report('S0026', tok.span);
-  return null;
+  return { kind: 'block', stmts: [{ kind: 'expr', expr, span: expr.span }], span: expr.span };
 }
 
 // A String's chunks and holes: 'STR_PART' text, then an expression, then the

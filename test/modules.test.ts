@@ -181,7 +181,7 @@ describe('stdlib module system (end-to-end)', () => {
 
   describe('placement — imports lead the file, never inside a body', () => {
     it('rejects an import inside a function body (S0042)', async () => {
-      assert.ok(errorCodes('fix f = fn(): Int { import { max } from "math"; max(2, 9) };').includes('S0042'));
+      assert.ok(errorCodes('fix f = fn(): Int => { import { max } from "math"; max(2, 9) };').includes('S0042'));
     });
 
     it('rejects an import inside a program body (S0042)', async () => {

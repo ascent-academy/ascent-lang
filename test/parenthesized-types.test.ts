@@ -69,7 +69,7 @@ describe('parenthesized types (end-to-end)', () => {
     it("a written 'String??' collapses to 'String?' and is usable as one", async () => {
       // It still reports T0047 (see below), but the resulting slot type is the
       // collapsed 'String?', so '??' defaults it like any Optional.
-      const { program } = parse('fix pick = fn(): String?? { None }; pick() ?? "default";', testCapabilities);
+      const { program } = parse('fix pick = fn(): String?? => { None }; pick() ?? "default";', testCapabilities);
       assert.ok(program !== null);
       const result = await executeProgram(program, testHost());
       assert.equal(result.kind, 'ok');

@@ -64,7 +64,7 @@ describe('a block is not a value (S0044)', () => {
     });
 
     it('a function body is a block', async () => {
-      assert.deepEqual(await evalOk('fix f = fn(n: Int): Int { fix r = n + 1; r }; f(4);'),
+      assert.deepEqual(await evalOk('fix f = fn(n: Int): Int => { fix r = n + 1; r }; f(4);'),
         { type: 'Int', value: 5n });
     });
   });

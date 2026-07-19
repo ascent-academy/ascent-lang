@@ -63,14 +63,14 @@ describe('fs module — readLines (end-to-end)', () => {
 
     it("composes with 'try' inside an async fn, per the whitepaper's own example", async () => {
       const src = `${IMPORT}`
-        + 'fix f = async fn(): List<String> orfail String { fix lines = try await readLines!("a.txt"); Success{ value: lines } };'
+        + 'fix f = async fn(): List<String> orfail String => { fix lines = try await readLines!("a.txt"); Success{ value: lines } };'
         + 'match await f!() { Success{ value } -> value, Failure{ error } -> [] };';
       assert.deepEqual(await run(src, { 'a.txt': 'x\ny\n' }), strList('x', 'y'));
     });
 
     it("'try' propagates a Failure out of the async fn unchanged", async () => {
       const src = `${IMPORT}`
-        + 'fix f = async fn(): List<String> orfail String { fix lines = try await readLines!("missing.txt"); Success{ value: lines } };'
+        + 'fix f = async fn(): List<String> orfail String => { fix lines = try await readLines!("missing.txt"); Success{ value: lines } };'
         + 'match await f!() { Success{ value } -> "ok", Failure{ error } -> error };';
       assert.deepEqual(await run(src, {}), { type: 'String', value: 'no such file: missing.txt' });
     });

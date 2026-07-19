@@ -77,7 +77,7 @@
     A name is needed here — after 'fix' or 'mut' to create one
     ('fix count = 0'), as the name of a program input
     ('program (age: Int) { … }'), or as a function parameter
-    ('fn(x: Int): Int { … }'). A name starts with a lowercase letter.
+    ('fn(x: Int): Int => { … }'). A name starts with a lowercase letter.
 
 - code: S0008
   name: expected-equals
@@ -107,8 +107,8 @@
   explanation: >-
     An 'if' or 'while' condition, the inputs listed after 'program', and a
     function's parameters all go inside '( )' — like 'if (age >= 18) { … }',
-    'program (age: Int) { … }', or 'fn(x: Int): Int { … }'. This is where that
-    opening '(' should be.
+    'program (age: Int) { … }', or 'fn(x: Int): Int => { … }'. This is where
+    that opening '(' should be.
 
 - code: S0011
   name: expected-colon
@@ -118,7 +118,7 @@
   explanation: >-
     A program input and a function parameter are each written as a name, then
     ':', then its type — like 'program (age: Int) { … }' or
-    'fn(x: Int): Int { … }'. This is where the ':' should be.
+    'fn(x: Int): Int => { … }'. This is where the ':' should be.
 
 - code: S0012
   name: expected-type
@@ -245,9 +245,10 @@
   message: "I expected ':' and a return type here."
   explanation: >-
     A function states its return type right after its parameters, like
-    'fn(x: Int): Int { … }' — a ':' and then the type the function gives back,
-    the same ':' its parameters use. Every function says what it returns; one
-    that returns nothing returns 'Done'. Add ': Type' after the ')'.
+    'fn(x: Int): Int => { … }' — a ':' and then the type the function gives
+    back, the same ':' its parameters use. Every function says what it
+    returns; one that returns nothing returns 'Done'. Add ': Type' after the
+    ')'.
 
 - code: S0025
   name: expected-fn-type-arrow
@@ -257,19 +258,20 @@
   explanation: >-
     A function *type* is written with its parameter types in '( )', then '->',
     then the type it produces — like 'Fn(Int) -> String'. (A function *value*
-    instead uses a ':' before its return type: 'fn(x: Int): String { … }'.) This
-    is where the '->' should be.
+    instead uses a ':' before its return type: 'fn(x: Int): String => { … }'.)
+    This is where the '->' should be.
 
 - code: S0026
   name: expected-fn-body
   category: syntactic
-  summary: "A function's return type wasn't followed by a body."
-  message: "I expected a '{' or '=>' here."
+  summary: "A function's return type wasn't followed by '=>' and a body."
+  message: "I expected '=>' here."
   explanation: >-
-    A function's body comes right after its return type, in one of two shapes: a
-    '{ … }' block when it runs several statements ('fn(x: Int): Int { fix y = x +
-    1; y * 2 }'), or '=> ' and a single expression for the short case
-    ('fn(x: Int): Int => x + 1'). This is where that '{' or '=>' should be.
+    A function's body always starts right after its return type with '=>', in
+    one of two shapes: '=> ' and a single expression for the short case
+    ('fn(x: Int): Int => x + 1'), or '=> { … }' with a block when it runs
+    several statements ('fn(x: Int): Int => { fix y = x + 1; y * 2 }'). This is
+    where that '=>' should be.
 
 - code: S0027
   name: redundant-arrow-block
@@ -282,6 +284,10 @@
     its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for
     both at once. Drop the '=>' to keep the block, or drop the braces to keep the
     single expression.
+  # A function body is now always introduced by '=>' (block or single
+  # expression alike), so '=> { … }' is the required block form, not a
+  # redundant duplicate — this code can no longer fire.
+  retired: true
 
 - code: S0028
   name: empty-program-inputs
@@ -386,7 +392,7 @@
   message: "'async' must be followed by 'fn'."
   explanation: >-
     'async' marks a function as asynchronous, so it comes right before 'fn', like
-    'async fn(id: Int): User { … }'. There is nothing else it can attach to.
+    'async fn(id: Int): User => { … }'. There is nothing else it can attach to.
 
 - code: S0038
   name: async-call-missing-args
@@ -456,7 +462,7 @@
   message: "A '{ … }' block can't be used as a value here."
   explanation: >-
     A '{ … }' block groups statements as the body of something — an 'if', a
-    'while' or 'for' loop, a function ('fn(…): T { … }'), or a 'match' arm. It is
+    'while' or 'for' loop, a function ('fn(…): T => { … }'), or a 'match' arm. It is
     not a value on its own, so it can't be given a name, passed to a function, or
     placed inside a larger expression. A '{' here has no body to belong to. To
     pick a value, use an 'if' ('fix x = if (c) { 1 } else { 2 }') or a 'match';

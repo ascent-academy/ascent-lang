@@ -88,11 +88,11 @@ describe('Never / List<Never> (end-to-end)', () => {
     });
 
     it('reports T0004 for a diverging return initializer', async () => {
-      assert.deepEqual(errorCodes('fix f = fn(): Int { fix x = return 5; x };'), ['T0004']);
+      assert.deepEqual(errorCodes('fix f = fn(): Int => { fix x = return 5; x };'), ['T0004']);
     });
 
     it('reports T0004 when every branch of the initializer diverges', async () => {
-      const src = 'fix f = fn(b: Bool): Int { fix x = match b { True -> abort "a", False -> abort "b" }; x };';
+      const src = 'fix f = fn(b: Bool): Int => { fix x = match b { True -> abort "a", False -> abort "b" }; x };';
       assert.deepEqual(errorCodes(src), ['T0004']);
     });
 
@@ -102,7 +102,7 @@ describe('Never / List<Never> (end-to-end)', () => {
     });
 
     it('still allows an annotated diverging init as a deliberate stub', async () => {
-      assert.deepEqual(errorCodes('fix f = fn(): Int { fix x: Int = abort "todo"; x };'), []);
+      assert.deepEqual(errorCodes('fix f = fn(): Int => { fix x: Int = abort "todo"; x };'), []);
     });
   });
 });

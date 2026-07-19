@@ -219,7 +219,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "name",
     "summary": "A built-in function is used as a value instead of being called.",
     "message": "'{name}' is a built-in function; call it as '{name}(…)'.",
-    "explanation": "'{name}' is one of the language's built-in functions, and a built-in can only be called — like '{name}(\"hi\")' — not passed around as a value or stored in a slot. Call it directly, or wrap it in a function where a function value is needed, like 'fn(x: String): Done { print(x) }'."
+    "explanation": "'{name}' is one of the language's built-in functions, and a built-in can only be called — like '{name}(\"hi\")' — not passed around as a value or stored in a slot. Call it directly, or wrap it in a function where a function value is needed, like 'fn(x: String): Done => { print(x) }'."
   },
   {
     "code": "N0014",
@@ -461,7 +461,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A name was expected after 'fix' or 'mut', as a program input, or as a function parameter.",
     "message": "I expected a name here.",
-    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), as the name of a program input ('program (age: Int) { … }'), or as a function parameter ('fn(x: Int): Int { … }'). A name starts with a lowercase letter."
+    "explanation": "A name is needed here — after 'fix' or 'mut' to create one ('fix count = 0'), as the name of a program input ('program (age: Int) { … }'), or as a function parameter ('fn(x: Int): Int => { … }'). A name starts with a lowercase letter."
   },
   {
     "code": "S0008",
@@ -485,7 +485,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A '(' was expected to open a condition, a 'program' input list, or a function's parameters.",
     "message": "I expected a '(' here.",
-    "explanation": "An 'if' or 'while' condition, the inputs listed after 'program', and a function's parameters all go inside '( )' — like 'if (age >= 18) { … }', 'program (age: Int) { … }', or 'fn(x: Int): Int { … }'. This is where that opening '(' should be."
+    "explanation": "An 'if' or 'while' condition, the inputs listed after 'program', and a function's parameters all go inside '( )' — like 'if (age >= 18) { … }', 'program (age: Int) { … }', or 'fn(x: Int): Int => { … }'. This is where that opening '(' should be."
   },
   {
     "code": "S0011",
@@ -493,7 +493,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A ':' was expected between a program input's or function parameter's name and its type.",
     "message": "I expected a ':' here.",
-    "explanation": "A program input and a function parameter are each written as a name, then ':', then its type — like 'program (age: Int) { … }' or 'fn(x: Int): Int { … }'. This is where the ':' should be."
+    "explanation": "A program input and a function parameter are each written as a name, then ':', then its type — like 'program (age: Int) { … }' or 'fn(x: Int): Int => { … }'. This is where the ':' should be."
   },
   {
     "code": "S0012",
@@ -597,7 +597,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A function's parameters weren't followed by ':' and a return type.",
     "message": "I expected ':' and a return type here.",
-    "explanation": "A function states its return type right after its parameters, like 'fn(x: Int): Int { … }' — a ':' and then the type the function gives back, the same ':' its parameters use. Every function says what it returns; one that returns nothing returns 'Done'. Add ': Type' after the ')'."
+    "explanation": "A function states its return type right after its parameters, like 'fn(x: Int): Int => { … }' — a ':' and then the type the function gives back, the same ':' its parameters use. Every function says what it returns; one that returns nothing returns 'Done'. Add ': Type' after the ')'."
   },
   {
     "code": "S0025",
@@ -605,15 +605,15 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A function type's parameter list wasn't followed by '->' and a result type.",
     "message": "I expected '->' and a result type here.",
-    "explanation": "A function *type* is written with its parameter types in '( )', then '->', then the type it produces — like 'Fn(Int) -> String'. (A function *value* instead uses a ':' before its return type: 'fn(x: Int): String { … }'.) This is where the '->' should be."
+    "explanation": "A function *type* is written with its parameter types in '( )', then '->', then the type it produces — like 'Fn(Int) -> String'. (A function *value* instead uses a ':' before its return type: 'fn(x: Int): String => { … }'.) This is where the '->' should be."
   },
   {
     "code": "S0026",
     "name": "expected-fn-body",
     "category": "syntactic",
-    "summary": "A function's return type wasn't followed by a body.",
-    "message": "I expected a '{' or '=>' here.",
-    "explanation": "A function's body comes right after its return type, in one of two shapes: a '{ … }' block when it runs several statements ('fn(x: Int): Int { fix y = x + 1; y * 2 }'), or '=> ' and a single expression for the short case ('fn(x: Int): Int => x + 1'). This is where that '{' or '=>' should be."
+    "summary": "A function's return type wasn't followed by '=>' and a body.",
+    "message": "I expected '=>' here.",
+    "explanation": "A function's body always starts right after its return type with '=>', in one of two shapes: '=> ' and a single expression for the short case ('fn(x: Int): Int => x + 1'), or '=> { … }' with a block when it runs several statements ('fn(x: Int): Int => { fix y = x + 1; y * 2 }'). This is where that '=>' should be."
   },
   {
     "code": "S0027",
@@ -621,7 +621,8 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A '=>' function body was followed by a '{ … }' block.",
     "message": "A '=>' body is a single expression, not a block.",
-    "explanation": "The '=>' body form is for one expression, written straight after the arrow — 'fn(x: Int): Int => x + 1'. A '{ … }' block is the other form and stands on its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for both at once. Drop the '=>' to keep the block, or drop the braces to keep the single expression."
+    "explanation": "The '=>' body form is for one expression, written straight after the arrow — 'fn(x: Int): Int => x + 1'. A '{ … }' block is the other form and stands on its own, with no arrow — 'fn(x: Int): Int { … }'. Writing '=> { … }' asks for both at once. Drop the '=>' to keep the block, or drop the braces to keep the single expression.",
+    "retired": true
   },
   {
     "code": "S0028",
@@ -701,7 +702,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "'async' is not followed by 'fn'.",
     "message": "'async' must be followed by 'fn'.",
-    "explanation": "'async' marks a function as asynchronous, so it comes right before 'fn', like 'async fn(id: Int): User { … }'. There is nothing else it can attach to."
+    "explanation": "'async' marks a function as asynchronous, so it comes right before 'fn', like 'async fn(id: Int): User => { … }'. There is nothing else it can attach to."
   },
   {
     "code": "S0038",
@@ -757,7 +758,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "syntactic",
     "summary": "A block ('{ … }') was written where a value belongs.",
     "message": "A '{ … }' block can't be used as a value here.",
-    "explanation": "A '{ … }' block groups statements as the body of something — an 'if', a 'while' or 'for' loop, a function ('fn(…): T { … }'), or a 'match' arm. It is not a value on its own, so it can't be given a name, passed to a function, or placed inside a larger expression. A '{' here has no body to belong to. To pick a value, use an 'if' ('fix x = if (c) { 1 } else { 2 }') or a 'match'; to run several statements, put them in the body of the construct they belong to."
+    "explanation": "A '{ … }' block groups statements as the body of something — an 'if', a 'while' or 'for' loop, a function ('fn(…): T => { … }'), or a 'match' arm. It is not a value on its own, so it can't be given a name, passed to a function, or placed inside a larger expression. A '{' here has no body to belong to. To pick a value, use an 'if' ('fix x = if (c) { 1 } else { 2 }') or a 'match'; to run several statements, put them in the body of the construct they belong to."
   },
   {
     "code": "T0001",
@@ -911,7 +912,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A name that isn't a function is being called.",
     "message": "'{name}' has type {type}, which isn't a function, so it can't be called.",
-    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a value of type {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…): … { … }'."
+    "explanation": "Only a function can be called with '(…)'. Here '{name}' holds a value of type {type}, which isn't a function, so 'name(…)' has nothing to call. Check that '{name}' is the name you meant, or that it was created as a function with 'fn(…): … => { … }'."
   },
   {
     "code": "T0017",
@@ -1157,7 +1158,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A 'return' was written outside any function.",
     "message": "'return' can only be used inside a function.",
-    "explanation": "'return' leaves the function it is in, handing back a value — so it only makes sense inside one, like 'fn(x: Int): Int { return x }'. Here there is no enclosing function to return from. At the top level, a program's value is simply its last statement (no 'return' needed)."
+    "explanation": "'return' leaves the function it is in, handing back a value — so it only makes sense inside one, like 'fn(x: Int): Int => { return x }'. Here there is no enclosing function to return from. At the top level, a program's value is simply its last statement (no 'return' needed)."
   },
   {
     "code": "T0044",

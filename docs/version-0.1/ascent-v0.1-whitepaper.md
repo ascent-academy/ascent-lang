@@ -153,11 +153,11 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
 
 ### Functions
 
-- **Two body forms — a `{ }` block, or `=> expr`.** A block body's value is its last statement (§2), so no `return` is needed; the lighter `=> expr` form drops the braces for a single expression. `=> { … }` is redundant and rejected (`S0027`).
+- **Every body starts with `=>`, then either a `{ }` block or a single expression.** A block body's value is its last statement (§2), so no `return` is needed; the lighter `=> expr` form drops the braces for a single expression. A body with no arrow at all is `S0026`.
 
   ```ascent
   fix inc    = fn(x: Int): Int => x + 1;
-  fix double = fn(x: Int): Int { fix y = x + 1; y * 2 };
+  fix double = fn(x: Int): Int => { fix y = x + 1; y * 2 };
   ```
 
 - **Return type sits after a colon** (`: Int`), matching the ordinary annotation colon. A **function *type*** is written with an arrow and capitalized `Fn`: `Fn(Int) -> String` — the split (declaration colon, function-type arrow) is exactly TypeScript's, and keeps higher-order signatures legible when they nest (`map(f: Fn(T) -> U): List<U>`).
@@ -242,7 +242,7 @@ The checker mainly answers one question — *“are these two named types the sa
 **Colored `async` / `await` — the convergent mainstream surface** shared by JS, TypeScript, Python, Rust, and Swift. An `async` function is marked at its definition, and async-ness propagates. The color is *true, transferable knowledge* — a graduate meets exactly this everywhere.
 
 ```ascent
-fix fetchUser = async fn(id: Int): User {
+fix fetchUser = async fn(id: Int): User => {
     fix response = await httpGet!("/users/${id}");
     parseUser(response)
 };
@@ -361,7 +361,7 @@ program (age: Int, name: String) {
 - **`program` is terminal — nothing may follow it** (`S0030`). Everything *before* it is unrestricted (imports, `type`s, function bindings, input-independent setup, run top-to-bottom); its body is the input-dependent finale, and its block value is the program's output. Assigning to a program input is `N0004`; an empty body is `S0029`.
 - **Empty parentheses are an error — `program ()` is banned** (`S0028`). The parens hold the parameter list, so they appear only when there *is* one; a program with no inputs is the bare statement sequence, not `program () { … }` and not `program { … }`. (This is the one place the implementation is stricter than the full whitepaper's prose, which floats a no-input `program { … }` form that the parser does not accept — semicolons terminate every statement, §2, so a brace-delimited `program` head only exists paired with an input list.)
 - **Inputs are gathered and validated at the boundary before the body runs** — the environment (or the CLI, via `--flag value` pairs) builds one input per parameter and validates each to its declared type, so the body never runs with a bad value and stays synchronous and pure. **v0.1 admits the four scalars** — `String` → text, `Int`/`Float` → number field (re-asks on `"abc"`), `Bool` → checkbox.
-- **`program` over `main`, and the graduation it sets up.** `main` is jargon (main *what*?). And because `program (params) { body }` is *exactly* a function shape, a learner who later writes `fix f = fn(params) { body }` already knows the form — the entry point was their first function all along.
+- **`program` over `main`, and the graduation it sets up.** `main` is jargon (main *what*?). And because `program (params) { body }` echoes a function's shape, a learner who later writes `fix f = fn(params) => { body }` already recognizes the params-then-block pattern — the entry point was close to their first function all along, short the return type and the `=>` that a function's body always needs.
 
 > **Not in v0.1:** the browser canvas and the **UI / MVU model** — `Element`, `Command`, `view`/`update`, message values, subscriptions. Structured inputs (records, unions → dropdown, `T?`, `List<T>`) beyond the four scalars are also deferred.
 

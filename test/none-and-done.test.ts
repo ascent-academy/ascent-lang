@@ -65,7 +65,7 @@ describe('None vs Done — standalone-value status', () => {
     });
 
     it('is not a function return type — a value-less function returns Done (S0012)', async () => {
-      assert.deepEqual(errorCodes('fix f = fn(): None { None };'), ['S0012']);
+      assert.deepEqual(errorCodes('fix f = fn(): None => { None };'), ['S0012']);
     });
 
     it('rejects None assigned to a non-Optional slot (T0001)', async () => {
@@ -187,7 +187,7 @@ describe('None vs Done — standalone-value status', () => {
     });
 
     it('is a function return type — the value-less function form', async () => {
-      const result = await evalOk('fix f = fn(): Done { Done }; f();');
+      const result = await evalOk('fix f = fn(): Done => { Done }; f();');
       assert.deepEqual(result, { type: 'Done' });
     });
 

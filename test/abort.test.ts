@@ -43,30 +43,30 @@ describe('abort (end-to-end)', () => {
     it("satisfies its neighbour's type in a match arm", async () => {
       // The abort arm is Never, which is assignable to the Int the other arm
       // yields — so the whole match is Int (whitepaper §7).
-      const src = 'fix pick = fn(b: Bool): Int { match b { True -> 1, False -> abort "unreachable" } }; pick(True);';
+      const src = 'fix pick = fn(b: Bool): Int => { match b { True -> 1, False -> abort "unreachable" } }; pick(True);';
       assert.deepEqual(await evalOk(src), { type: 'Int', value: 1n });
     });
 
     it('satisfies its neighbour in an if branch', async () => {
-      const src = 'fix f = fn(n: Int): Int { if (n > 0) { n } else { abort "must be positive" } }; f(7);';
+      const src = 'fix f = fn(n: Int): Int => { if (n > 0) { n } else { abort "must be positive" } }; f(7);';
       assert.deepEqual(await evalOk(src), { type: 'Int', value: 7n });
     });
 
     it('lets a value-position abort stand where any type is expected', async () => {
-      const src = 'fix label = fn(b: Bool): String { if (b) { "yes" } else { abort "no case" } }; label(True);';
+      const src = 'fix label = fn(b: Bool): String => { if (b) { "yes" } else { abort "no case" } }; label(True);';
       assert.deepEqual(await evalOk(src), { type: 'String', value: 'yes' });
     });
   });
 
   describe('runtime crash (R0008)', () => {
     it('aborts with the written reason', async () => {
-      const marker = await evalCrash('fix f = fn(b: Bool): Int { if (b) { 1 } else { abort "hit the impossible branch" } }; f(False);');
+      const marker = await evalCrash('fix f = fn(b: Bool): Int => { if (b) { 1 } else { abort "hit the impossible branch" } }; f(False);');
       assert.equal(marker.code, 'R0008');
       assert.equal(marker.data?.reason, 'hit the impossible branch');
     });
 
     it('reports an interpolated reason with its runtime values filled in', async () => {
-      const marker = await evalCrash('fix f = fn(n: Int): Int { if (n > 0) { n } else { abort "n was ${n}, expected positive" } }; f(0);');
+      const marker = await evalCrash('fix f = fn(n: Int): Int => { if (n > 0) { n } else { abort "n was ${n}, expected positive" } }; f(0);');
       assert.equal(marker.code, 'R0008');
       assert.equal(marker.data?.reason, 'n was 0, expected positive');
     });
@@ -80,18 +80,18 @@ describe('abort (end-to-end)', () => {
 
   describe('reason must be a String (T0060)', () => {
     it('rejects a non-String reason', async () => {
-      assert.ok(errorCodes('fix f = fn(b: Bool): Int { if (b) { 1 } else { abort 42 } }; f(True);').includes('T0060'));
+      assert.ok(errorCodes('fix f = fn(b: Bool): Int => { if (b) { 1 } else { abort 42 } }; f(True);').includes('T0060'));
     });
 
     it('accepts an interpolated String reason', async () => {
-      const src = 'fix f = fn(n: Int): Int { if (n > 0) { n } else { abort "bad: ${n}" } }; f(1);';
+      const src = 'fix f = fn(n: Int): Int => { if (n > 0) { n } else { abort "bad: ${n}" } }; f(1);';
       assert.deepEqual(errorCodes(src), []);
     });
   });
 });
 
 describe('.orAbort() on Result / Optional (end-to-end)', () => {
-  const parseFn = `${E}fix parse = fn(ok: Bool): Int orfail E { if (ok) { Success{ value: 42 } } else { Failure{ error: E{ msg: "bad input" } } } };\n`;
+  const parseFn = `${E}fix parse = fn(ok: Bool): Int orfail E => { if (ok) { Success{ value: 42 } } else { Failure{ error: E{ msg: "bad input" } } } };\n`;
 
   describe('Result', () => {
     it('unwraps a Success to its value', async () => {
