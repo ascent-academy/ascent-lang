@@ -105,7 +105,8 @@ const runFile = async (filePath: string): Promise<void> => {
   let src: string;
   try {
     src = await readFile(filePath, 'utf8');
-  } catch {
+  } catch (e) {
+    console.error(e);
     process.stderr.write(`Cannot read file '${filePath}'\n`);
     process.exit(1);
   }

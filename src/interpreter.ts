@@ -357,10 +357,13 @@ export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<R
     }
     case 'try': {
       // 'try' (whitepaper §9). Evaluate the subject: on the good case yield the
-      // unwrapped value; on the bad case early-return from the enclosing function
-      // via a ReturnSignal, exactly as the desugared 'Failure/None -> return …'
-      // arm would. The bad value is 'None' (an Optional) or a 'Failure' record (a
-      // Result); anything else is a present Optional value or a 'Success'.
+      // unwrapped value; on the bad case either early-return from the enclosing
+      // function via a ReturnSignal, exactly as the desugared 'Failure/None ->
+      // return …' arm would, or — at the top level, where 'expr.returnType' is
+      // null because there is no enclosing function to return to — stop the
+      // program directly with a RuntimeError (R0015/R0016). The bad value is
+      // 'None' (an Optional) or a 'Failure' record (a Result); anything else is
+      // a present Optional value or a 'Success'.
       const v = await evaluateExpr(expr.subject, env);
       const isBad = v.type === 'None' || (v.type === 'Record' && v.name === 'Failure');
       if (!isBad) {
@@ -369,12 +372,21 @@ export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<R
         return v.type === 'Record' && v.name === 'Success' ? v.fields.get('value')! : v;
       }
 
-      // Bad: propagate. The plain form re-returns the failure/None unchanged; the
-      // 'else' form maps the error to a new value and returns 'Failure{ error }'.
-      // Either way the propagated value is coerced into the function's return type.
+      // Bad, plain form: propagate the failure/None unchanged.
       if (expr.elseClause === null) {
+        if (expr.returnType === null) {
+          if (v.type === 'None') throw new RuntimeError({ code: 'R0016', span: expr.span });
+          throw new RuntimeError({
+            code: 'R0015', span: expr.span,
+            data: { error: valueToString((v as Extract<RuntimeValue, { type: 'Record' }>).fields.get('error')!) },
+          });
+        }
         throw new ReturnSignal(coerce(v, expr.propagateType, expr.returnType));
       }
+
+      // Bad, 'else' form: map the error to a new value and propagate it as a
+      // 'Failure' — at the top level, that Failure's error is what crashes the
+      // program instead of being returned.
       let armEnv = env;
       if (expr.elseClause.binding !== null) {
         // A binding only appears on a Result (the checker guarantees it), so `v`
@@ -383,6 +395,9 @@ export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<R
         armEnv.declare(expr.elseClause.binding, (v as Extract<RuntimeValue, { type: 'Record' }>).fields.get('error')!, false);
       }
       const mapped = await evaluateExpr(expr.elseClause.body, armEnv);
+      if (expr.returnType === null) {
+        throw new RuntimeError({ code: 'R0015', span: expr.span, data: { error: valueToString(mapped) } });
+      }
       const failure = recordVal('Failure', new Map([['error', mapped]]));
       throw new ReturnSignal(coerce(failure, expr.propagateType, expr.returnType));
     }

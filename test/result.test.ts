@@ -3,6 +3,7 @@ import { parse } from '../src/parser/index.js';
 import { executeProgram } from '../src/interpreter.js';
 import type { RuntimeValue } from '../src/interpreter.js';
 import { testHost, testCapabilities } from './support/test-host.js';
+import type { Marker } from '../src/lexer/token.js';
 
 // Runs a program expected to typecheck and evaluate cleanly, returning its last
 // statement's RuntimeValue. Mirrors the harness in optional.test.ts / records.test.ts.
@@ -14,6 +15,18 @@ async function evalOk(src: string): Promise<RuntimeValue> {
   assert.equal(result.kind, 'ok');
   if (result.kind !== 'ok') throw new Error('unreachable');
   return result.value;
+}
+
+// Runs a program expected to typecheck but crash at runtime, returning the raw
+// RuntimeError marker (code + data). Mirrors the harness in abort.test.ts.
+async function evalCrash(src: string): Promise<Marker> {
+  const { program, diagnostics } = parse(src, testCapabilities);
+  assert.deepEqual(diagnostics, [], `unexpected errors: ${diagnostics.map(d => d.code).join(', ')}`);
+  assert.ok(program !== null, 'expected the program to typecheck');
+  const result = await executeProgram(program, testHost());
+  assert.equal(result.kind, 'error');
+  if (result.kind !== 'error') throw new Error('unreachable');
+  return result.error.marker;
 }
 
 function errorCodes(src: string): string[] {
@@ -207,11 +220,6 @@ describe('try / try … else (end-to-end)', () => {
   });
 
   describe('rejections', () => {
-    it('reports T0049 — try outside any function', async () => {
-      const src = `${E}fix g = fn(): Int orfail E { Success{ value: 1 } }; fix x = try g();`;
-      assert.deepEqual(errorCodes(src), ['T0049']);
-    });
-
     it('reports T0050 — try on a value that cannot fail', async () => {
       assert.deepEqual(errorCodes('fix f = fn(x: Int): Int { fix y = try x; y };'), ['T0050']);
     });
@@ -231,5 +239,53 @@ describe('try / try … else (end-to-end)', () => {
       const src = `${E}fix f = fn(s: String): String orfail E { fix c = try s.first() else e -> E{ msg: "x" }; Success{ value: c } };`;
       assert.deepEqual(errorCodes(src), ['T0052']);
     });
+  });
+});
+
+describe('top-level try (end-to-end)', () => {
+  // A fallible helper reused across these tests: Success{ value: n } unless b,
+  // else Failure{ error: E }.
+  const helper = `${E}fix g = fn(b: Bool, n: Int): Int orfail E `
+    + '{ if (b) { Failure{ error: E{ msg: "bad" } } } else { Success{ value: n } } };\n';
+
+  it('typechecks with no T0049 — try is allowed outside any function', async () => {
+    const src = `${E}fix g = fn(): Int orfail E { Success{ value: 1 } }; fix x = try g();`;
+    assert.deepEqual(errorCodes(src), []);
+  });
+
+  it('unwraps a Success/present value and continues, same as inside a function', async () => {
+    assert.deepEqual(await evalOk(`${helper}(try g(False, 5)) * 2;`), { type: 'Int', value: 10n });
+    assert.deepEqual(await evalOk('try "hi".first();'), { type: 'String', value: 'h' });
+  });
+
+  it('crashes (R0015) on a Failure, reporting the carried error', async () => {
+    const marker = await evalCrash(`${helper}try g(True, 5);`);
+    assert.equal(marker.code, 'R0015');
+    assert.equal(marker.data?.error, 'E{ msg: bad }');
+  });
+
+  it('crashes (R0016) on a None', async () => {
+    const marker = await evalCrash('try "".first();');
+    assert.equal(marker.code, 'R0016');
+  });
+
+  it("crashes (R0015) on a 'try … else', reporting the mapped error", async () => {
+    const src = helper + 'try g(True, 5) else e -> "mapped: ${e.msg}";';
+    const marker = await evalCrash(src);
+    assert.equal(marker.code, 'R0015');
+    assert.equal(marker.data?.error, 'mapped: bad');
+  });
+
+  it('crashes (R0015) on a None through a try … else (no binding)', async () => {
+    const src = 'try "".first() else -> "was empty";';
+    const marker = await evalCrash(src);
+    assert.equal(marker.code, 'R0015');
+    assert.equal(marker.data?.error, 'was empty');
+  });
+
+  it('works nested inside top-level control flow (if), not just at the very top', async () => {
+    const src = `${helper}if (True) { try g(True, 5) } else { 0 };`;
+    const marker = await evalCrash(src);
+    assert.equal(marker.code, 'R0015');
   });
 });

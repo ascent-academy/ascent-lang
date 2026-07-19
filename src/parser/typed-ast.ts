@@ -103,11 +103,14 @@ export type TypedTryElse = { binding: string | null; body: TypedExpr };
 // and `propagateType` is the static type of the value returned on the bad path
 // (a 'Result<Never, E>' or 'None'); the interpreter coerces the propagated value
 // from `propagateType` into `returnType`, exactly as a 'return' coerces its value.
+// `returnType` is null for a top-level 'try' (no enclosing function to return
+// to) — there the bad case has nowhere to propagate, so the interpreter stops
+// the program with a runtime error instead of a coerced early-return.
 export type TypedTry = {
   kind: 'try';
   subject: TypedExpr;
   elseClause: TypedTryElse | null;
-  returnType: AscentType;
+  returnType: AscentType | null;
   propagateType: AscentType;
   type: AscentType;
   span: Span;

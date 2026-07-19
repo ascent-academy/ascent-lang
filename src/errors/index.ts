@@ -374,6 +374,22 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "'readLines' (and the rest of the 'fs' module) need the host running the program to provide real file access. This one doesn't, so there is nothing to read from and the program stops."
   },
   {
+    "code": "R0015",
+    "name": "top-level-try-on-failure",
+    "category": "runtime",
+    "summary": "A 'try' outside any function propagated a Result that turned out to be a Failure.",
+    "message": "'try' stopped the program on a Failure: {error}",
+    "explanation": "'try' outside any function has no enclosing function to hand a failure back to, so it stops the program here and reports the Failure's error rather than carry on with nothing to unwrap. Handle the Failure with 'match' if it can really happen, or move this 'try' into a function that returns a matching 'T orfail E' so the failure propagates there instead."
+  },
+  {
+    "code": "R0016",
+    "name": "top-level-try-on-none",
+    "category": "runtime",
+    "summary": "A 'try' outside any function propagated an Optional that turned out to be None.",
+    "message": "'try' stopped the program: this value is None.",
+    "explanation": "'try' outside any function has no enclosing function to hand a 'None' back to, so it stops the program here rather than carry on with nothing to unwrap. Handle the 'None' with 'match' or '??' if it can really happen, or move this 'try' into a function that returns a matching '?' optional so the 'None' propagates there instead."
+  },
+  {
     "code": "S0001",
     "name": "unclosed-paren",
     "category": "syntactic",
@@ -1195,7 +1211,8 @@ export const ERRORS: ErrorEntry[] = [
     "category": "type",
     "summary": "A 'try' is used outside any function.",
     "message": "'try' can only be used inside a function.",
-    "explanation": "'try' hands a failure back to the function it's in — it unwraps the value on success, or leaves the function early with the failure. Out here there's no function to leave, so there's nowhere for the failure to go. Move this into a function whose return type is an optional or a 'T orfail E'."
+    "explanation": "'try' hands a failure back to the function it's in — it unwraps the value on success, or leaves the function early with the failure. Out here there's no function to leave, so there's nowhere for the failure to go. Move this into a function whose return type is an optional or a 'T orfail E'.",
+    "retired": true
   },
   {
     "code": "T0050",

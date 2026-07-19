@@ -541,6 +541,9 @@
     success, or leaves the function early with the failure. Out here there's no
     function to leave, so there's nowhere for the failure to go. Move this into a
     function whose return type is an optional or a 'T orfail E'.
+  # Top-level 'try' is now allowed — its bad case stops the program at
+  # runtime (R0015/R0016) instead of being a checker error.
+  retired: true
 
 - code: T0050
   name: try-not-fallible

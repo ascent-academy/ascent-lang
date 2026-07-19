@@ -140,13 +140,16 @@ const synthResultConstruct = (
 
 // whitepaper §9: 'try expr' / 'try expr else [e] -> mapExpr'. `try` unwraps the
 // good case of an Optional/Result and continues, or early-returns the bad case
-// from the enclosing function — so it must sit inside a function (T0049) whose
-// declared return type can carry that bad case (T0051). The plain form
-// propagates the failure/None unchanged; the 'else' form maps the error to a new
-// value and propagates it as a 'Failure'. The whole expression's type is the
-// unwrapped good value's type T (the bad path diverges via return, so it doesn't
-// contribute a type). Modeled on 'return': the propagated value is coerced into
-// the return type at runtime, so the typed node carries both.
+// from the enclosing function, whose declared return type can carry that bad
+// case (T0051). At the top level (no enclosing function) there is nowhere to
+// return to, so the bad case instead stops the program directly as a runtime
+// error (R0015/R0016) — the same "nowhere to go" shape 'await' resolves the
+// other way (top level is always the async context). The plain form propagates
+// the failure/None unchanged; the 'else' form maps the error to a new value and
+// propagates it as a 'Failure'. The whole expression's type is the unwrapped
+// good value's type T (the bad path diverges, so it doesn't contribute a type).
+// Modeled on 'return': the propagated value is coerced into the return type at
+// runtime, so the typed node carries both.
 const synthTry = (
   expr: Extract<Expr, { kind: 'try' }>,
   env: TypeEnv,
@@ -173,11 +176,10 @@ const synthTry = (
     diagnostics.error({ code: 'T0050', span: expr.subject.span, data: { actual: typeToString(st) } });
   }
 
-  // 'try' hands the bad case to the enclosing function; outside one there is
-  // nowhere for it to go (the same shape as a 'return' outside a function, T0043).
-  if (returnType === null) {
-    diagnostics.error({ code: 'T0049', span: expr.span });
-  }
+  // 'try' hands the bad case to the enclosing function; at the top level
+  // (returnType === null) there is none, so the bad case instead crashes the
+  // program directly at runtime (R0015/R0016) rather than being an error here —
+  // unlike 'return' outside a function (T0043), which truly has nowhere to go.
 
   // The value returned on the bad path, and a human phrase for the diagnostic.
   let propagateType: AscentType = INVALID_TYPE;
@@ -212,7 +214,8 @@ const synthTry = (
   // The enclosing function's return type has to be able to hold the propagated
   // bad case (whitepaper §9: "a function that uses 'try' must itself return a
   // compatible Optional/Result"). Quiet when the subject was already invalid or
-  // there is no function at all — those failures are reported above.
+  // there is no enclosing function — a top-level 'try' has no return type to
+  // check against, since its bad case crashes the program instead.
   if (returnType !== null && subjectShape !== null && !isInvalidType(propagateType)
     && !isAssignableTo(propagateType, returnType)) {
     diagnostics.error({
@@ -225,7 +228,7 @@ const synthTry = (
     kind: 'try',
     subject: typedSubject,
     elseClause: typedElse,
-    returnType: returnType ?? INVALID_TYPE,
+    returnType,
     propagateType,
     type: goodType,
     span: expr.span,
