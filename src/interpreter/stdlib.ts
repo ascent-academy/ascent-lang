@@ -1,9 +1,10 @@
 import type { Span } from '../lexer/token.js';
 import type { AscentType } from '../types/types.js';
 import { RuntimeError } from '../errors/runtime-error.js';
+import type { Environment } from './env.js';
 import {
-  coerce, asFloat, valuesEqual, intVal, floatVal, DONE,
-  type RuntimeValue, type Numeric, type FloatValue,
+  coerce, asFloat, valuesEqual, intVal, floatVal, strVal, recordVal, DONE,
+  type RuntimeValue, type Numeric, type FloatValue, type StringValue,
 } from './values.js';
 import { checkFiniteFloat, checkIntOverflow } from './arithmetic.js';
 import { valueToString } from '../parser/printer.js';
@@ -98,5 +99,43 @@ export const evalModuleCall = (
 ): RuntimeValue => {
   const impl = MODULE_IMPLS[module]?.[name];
   if (impl === undefined) throw new Error(`internal: no stdlib impl for '${module}.${name}'`);
+  return impl(args, ctx);
+};
+
+// ---- Stdlib module registry: ASYNC implementations ---------------------
+//
+// The runtime peer of check/stdlib.ts's ASYNC_MODULE_SIGS — kept separate
+// from ModuleFnImpl above because an async export's "work" is a real Host
+// capability call (fs.readLines), which needs the Environment to reach it
+// (env.fs()), not just the already-evaluated args a sync export gets.
+export type AsyncModuleFnCtx = { span: Span; env: Environment };
+type AsyncModuleFnImpl = (args: RuntimeValue[], ctx: AsyncModuleFnCtx) => Promise<RuntimeValue>;
+
+const FS_IMPLS: Record<string, AsyncModuleFnImpl> = {
+  readLines: async (args, ctx) => {
+    const fs = ctx.env.fs();
+    if (fs === undefined) throw new RuntimeError({ code: 'R0014', span: ctx.span });
+    const path = (args[0] as StringValue).value;
+    const result = await fs.readLines(path);
+    // A read failure is data, not a crash (whitepaper §9) — built directly as
+    // the Success/Failure record 'readLines(path): List<String> orfail String'
+    // promises, the same shape a 'Success{…}'/'Failure{…}' construction in
+    // Ascent source would produce.
+    if (!result.ok) return recordVal('Failure', new Map([['error', strVal(result.error)]]));
+    const lines: RuntimeValue = { type: 'List', elements: result.value.map(strVal) };
+    return recordVal('Success', new Map([['value', lines]]));
+  },
+};
+
+export const ASYNC_MODULE_IMPLS: Record<string, Record<string, AsyncModuleFnImpl>> = {
+  fs: FS_IMPLS,
+};
+
+// The async twin of evalModuleCall — same total-by-construction lookup.
+export const evalAsyncModuleCall = async (
+  module: string, name: string, args: RuntimeValue[], ctx: AsyncModuleFnCtx,
+): Promise<RuntimeValue> => {
+  const impl = ASYNC_MODULE_IMPLS[module]?.[name];
+  if (impl === undefined) throw new Error(`internal: no async stdlib impl for '${module}.${name}'`);
   return impl(args, ctx);
 };

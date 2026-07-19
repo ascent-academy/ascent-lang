@@ -9,7 +9,7 @@ import {
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
 import { methodCallType, FUNCTIONS, ASYNC_FUNCTIONS, paramAccepts, isTraitBound } from './signatures.js';
-import { MODULE_SIGS, moduleCallType } from './stdlib.js';
+import { MODULE_SIGS, ASYNC_MODULE_SIGS, moduleCallType } from './stdlib.js';
 import { BUILTIN_TYPE_NAMES, typeFromExpr } from './formation.js';
 import { freeVariables } from './captures.js';
 import { satisfies } from './traits.js';
@@ -298,17 +298,22 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const binding = env.get(expr.name);
       if (binding === null) {
         // A bare built-in / imported / namespace name in value position, not a
-        // call. A namespace ('math') is reached qualified, so it's N0016; a
-        // built-in async function (the 'prompt' family) can only be prepared
+        // call. A namespace ('math') is reached qualified, so it's N0016; an
+        // async function — a built-in (the 'prompt' family) or an imported
+        // stdlib export (readLines, the 'fs' module) — can only be prepared
         // with '!' and awaited, so it gets its own message (N0017); an ambient
-        // sync builtin (print) or imported stdlib function (min) has no
+        // sync builtin (print) or imported sync stdlib function (min) has no
         // first-class type yet — it can only be called — so it's N0013,
         // clearer than "undefined name". A call 'print(x)' never reaches here
         // (it's a 'call' node). Otherwise the name simply isn't declared (N0001).
+        const importedModule = env.getImportedFn(expr.name);
         let code = 'N0001';
         if (env.getNamespace(expr.name) !== null) code = 'N0016';
-        else if (ASYNC_FUNCTIONS[expr.name] !== undefined) code = 'N0017';
-        else if (FUNCTIONS[expr.name] !== undefined || env.getImportedFn(expr.name) !== null) code = 'N0013';
+        else if (
+          ASYNC_FUNCTIONS[expr.name] !== undefined
+          || (importedModule !== null && ASYNC_MODULE_SIGS[importedModule]?.[expr.name] !== undefined)
+        ) code = 'N0017';
+        else if (FUNCTIONS[expr.name] !== undefined || importedModule !== null) code = 'N0013';
         diagnostics.error({ code, span: expr.span, data: { name: expr.name } });
         return { ...expr, type: INVALID_TYPE };
       }
@@ -359,6 +364,13 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       // interpreter dispatches every stdlib call through.
       const importedModule = env.getImportedFn(expr.callee);
       if (importedModule !== null) {
+        // A bare call of an async stdlib export (readLines) is the same
+        // mistake as a bare call of the prompt family — must be prepared
+        // with '!' and awaited (T0053).
+        if (ASYNC_MODULE_SIGS[importedModule]?.[expr.callee] !== undefined) {
+          diagnostics.error({ code: 'T0053', span: expr.span });
+          return invalid();
+        }
         if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
         const result = moduleCallType(importedModule, expr.callee, typedArgs.map(a => a.type), diagnostics, expr.span);
         return { kind: 'call', callee: expr.callee, module: importedModule, args: typedArgs, type: result, span: expr.span };
@@ -445,6 +457,34 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
           }
         }
         return { kind: 'asyncCall', callee: expr.callee, args: typedArgs, type: taskOf(asyncBuiltin.result), span: expr.span };
+      }
+
+      // A stdlib async export brought in bare by a named import ('import
+      // { readLines } from "fs"') — checked against its own signature, then
+      // rewritten to carry its `module`, mirroring the sync 'call' judgment's
+      // imported-function path above.
+      const importedModule = env.getImportedFn(expr.callee);
+      if (importedModule !== null) {
+        const asyncExport = ASYNC_MODULE_SIGS[importedModule]?.[expr.callee];
+        if (asyncExport !== undefined) {
+          if (typedArgs.some(a => isInvalidType(a.type))) return invalid();
+          if (!requireArity(asyncExport.params.length, typedArgs.length, diagnostics, expr.span)) return invalid();
+          for (let i = 0; i < asyncExport.params.length; i++) {
+            if (!typesEqual(typedArgs[i]!.type, asyncExport.params[i]!)) {
+              typeMismatch('T0015', diagnostics, expr.span, asyncExport.params[i]!, typedArgs[i]!.type);
+              return invalid();
+            }
+          }
+          return {
+            kind: 'asyncCall', callee: expr.callee, module: importedModule, args: typedArgs,
+            type: taskOf(asyncExport.result), span: expr.span,
+          };
+        }
+        // A *sync* stdlib export (min, assert) can't be prepared with '!'
+        // either. Falls through to the T0013 "no such function" below — the
+        // same message a sync export used with '!' already got before async
+        // exports existed at all (it isn't a slot binding, so env.get finds
+        // nothing) — not worth a new message for this narrow a mistake.
       }
 
       const binding = env.get(expr.callee);

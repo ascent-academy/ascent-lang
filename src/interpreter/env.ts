@@ -1,4 +1,4 @@
-import { Host } from '../host.js';
+import { Host, type FileSystem } from '../host.js';
 import type { RuntimeValue } from './values.js';
 
 // The runtime scope chain — the interpreter's twin of check/env.ts's TypeEnv.
@@ -79,6 +79,13 @@ export class Environment {
 
   public askBool(message: string): Promise<boolean | null> {
     return this.host.capabilities.console.askBool(message);
+  }
+
+  // The fs capability, if this host provides one — undefined otherwise, which
+  // an async stdlib 'fs' call turns into a clean crash (R0014) rather than a
+  // raw property-access error on a missing capability.
+  public fs(): FileSystem | undefined {
+    return this.host.capabilities.fs;
   }
 
   public declare(name: string, value: RuntimeValue, mutable: boolean): void {

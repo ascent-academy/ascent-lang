@@ -46,6 +46,13 @@ export type RuntimeValue = (
   // just carries which builtin and the already-evaluated message, same
   // capture-args-now/run-on-await shape as the user-function Task above.
   | { type: 'Task'; builtin: PreludeAsyncFn; message: string }
+  // An async stdlib export (readLines, the 'fs' module) — its "work" is a
+  // real Host capability call, run through evalAsyncModuleCall on 'await';
+  // args are already evaluated at '!'-time, same as every other Task here.
+  // `resultType` is carried along (rather than looked up from a table, the
+  // 'prompt' family's approach) purely for the printer to render an
+  // unawaited one as 'Task<…>' without a check/ dependency.
+  | { type: 'Task'; module: string; callee: string; args: RuntimeValue[]; resultType: AscentType }
   | { type: 'None' }
   | { type: 'Done' }
 );

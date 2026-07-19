@@ -1,6 +1,8 @@
 import { readSync } from 'node:fs';
-import type { Host } from './host.js';
+import { readFile } from 'node:fs/promises';
+import type { Host, IoResult } from './host.js';
 import { askByRetrying, tryParseInt, tryParseFloat, tryParseBool } from './scalar-input.js';
+import { linesOf } from './text-lines.js';
 
 // Blocks on fd 0 one byte at a time until a line terminator or end-of-input,
 // so a line's worth of stdin is consumed atomically and no byte past it is
@@ -50,6 +52,15 @@ export const terminalHost: Host = {
       askInt: message => ask(message, tryParseInt),
       askFloat: message => ask(message, tryParseFloat),
       askBool: message => ask(message, tryParseBool),
+    },
+    fs: {
+      async readLines(path: string): Promise<IoResult<string[]>> {
+        try {
+          return { ok: true, value: linesOf(await readFile(path, 'utf8')) };
+        } catch (e) {
+          return { ok: false, error: (e as Error).message };
+        }
+      },
     },
   },
 };

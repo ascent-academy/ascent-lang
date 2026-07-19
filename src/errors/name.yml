@@ -159,8 +159,9 @@
   message: "There's no built-in module named \"{module}\"."
   explanation: >-
     An import can only bring in one of the built-in library modules. This release
-    has 'math' (min, max, sqrt, floor, ceil, round) and 'assert' (assert,
-    assertEqual). Check the spelling of "{module}", or import one of those.
+    has 'math' (min, max, sqrt, floor, ceil, round), 'assert' (assert,
+    assertEqual), and 'fs' (readLines). Check the spelling of "{module}", or
+    import one of those.
 
 - code: N0015
   name: unknown-export

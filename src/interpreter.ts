@@ -13,7 +13,7 @@ import {
 import { checkIntOverflow, checkFiniteFloat, evaluateBinary, isInt64 } from './interpreter/arithmetic.js';
 import { Environment, type AssignResult } from './interpreter/env.js';
 import { evalMethodCall } from './interpreter/builtins.js';
-import { evalModuleCall } from './interpreter/stdlib.js';
+import { evalModuleCall, evalAsyncModuleCall } from './interpreter/stdlib.js';
 import { runPromptTask } from './interpreter/prelude.js';
 import { Host } from './host.js';
 
@@ -136,6 +136,14 @@ export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<R
         const message = (args[0] as Extract<RuntimeValue, { type: 'String' }>).value;
         return { type: 'Task', builtin: expr.callee, message };
       }
+      // An async stdlib export (readLines) — the checker marked it with
+      // `module`, so its Task carries that plus its own result type (for the
+      // printer, which has no user-fn `fn.result` to read off this Task).
+      if (expr.module !== undefined) {
+        const args = await evaluateAll(expr.args, env);
+        const resultType = expr.type.kind === 'Task' ? expr.type.result : expr.type;
+        return { type: 'Task', module: expr.module, callee: expr.callee, args, resultType };
+      }
       const fn = env.get(expr.callee);
       if (fn === undefined || fn.type !== 'Function') {
         throw new Error(`internal: async call of non-function '${expr.callee}'`);
@@ -152,6 +160,7 @@ export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<R
       const task = await evaluateExpr(expr.task, env);
       if (task.type !== 'Task') throw new Error('internal: await of a non-task value');
       if ('builtin' in task) return await runPromptTask(task.builtin, task.message, env, expr.span);
+      if ('module' in task) return await evalAsyncModuleCall(task.module, task.callee, task.args, { span: expr.span, env });
       return await applyFunction(task.fn, task.args, task.argTypes);
     }
     case 'fn': {

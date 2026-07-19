@@ -1,7 +1,7 @@
 import type { Span } from '../lexer/token.js';
 import {
-  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, DONE_TYPE, INVALID_TYPE,
-  leastCommonType, isAssignableTo, typeToString,
+  AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE,
+  leastCommonType, isAssignableTo, typeToString, listOfType, resultOf,
 } from '../types/types.js';
 import { Diagnostics, requireArity, typeMismatch } from './diagnostics.js';
 import { satisfies } from './traits.js';
@@ -90,3 +90,37 @@ export const moduleCallType = (
   if (!requireArity(sig.arity, args.length, diagnostics, span)) return INVALID_TYPE;
   return sig.resolve(args, diagnostics, span);
 };
+
+// ---- Stdlib module registry: ASYNC signatures -------------------------
+//
+// A stdlib export that genuinely waits on the world (disk, network, …) is
+// async — prepared with '!' and run through 'await', exactly like a
+// user-defined 'async fn' (whitepaper §8). Kept as its own table, not folded
+// into MODULE_SIGS: synth's 'call' judgment must reject a *bare* call of one
+// (T0053, the same mistake as calling a user-defined async fn without '!'),
+// while only 'asyncCall' may resolve one. Monomorphic (fixed params/result)
+// is enough so far — nothing here needs a join like min/max does.
+export interface AsyncModuleFnSig {
+  params: readonly AscentType[];
+  result: AscentType;
+}
+
+export const ASYNC_MODULE_SIGS: Record<string, Record<string, AsyncModuleFnSig>> = {
+  fs: {
+    // Reads a whole file and splits it into lines; a read failure (the file
+    // doesn't exist, isn't readable, …) is the Failure case, not a crash —
+    // the caller decides whether that's exceptional (whitepaper §9).
+    readLines: { params: [STRING_TYPE], result: resultOf(listOfType(STRING_TYPE), STRING_TYPE) },
+  },
+};
+
+// Whether `module` names a real stdlib module at all, sync or async — the
+// import statement's validation doesn't care which table an export lives in,
+// only that the module exists (N0014 otherwise).
+export const moduleExists = (module: string): boolean =>
+  MODULE_SIGS[module] !== undefined || ASYNC_MODULE_SIGS[module] !== undefined;
+
+// Whether `module.name` is a real export, sync or async — same "don't care
+// which table" merge, for the import statement's per-name validation (N0015).
+export const moduleHasExport = (module: string, name: string): boolean =>
+  MODULE_SIGS[module]?.[name] !== undefined || ASYNC_MODULE_SIGS[module]?.[name] !== undefined;

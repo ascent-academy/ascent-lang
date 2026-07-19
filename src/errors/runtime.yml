@@ -139,3 +139,13 @@
     'prompt' and its typed versions wait for a line of input from whoever runs the
     program. Here there was none left to give — the input source closed (for
     example, stdin ended) — so there is nothing to read and the program stops.
+
+- code: R0014
+  name: fs-not-available
+  category: runtime
+  summary: "A 'fs' module function was called, but this host doesn't provide file access."
+  message: "The filesystem isn't available here."
+  explanation: >-
+    'readLines' (and the rest of the 'fs' module) need the host running the
+    program to provide real file access. This one doesn't, so there is nothing
+    to read from and the program stops.

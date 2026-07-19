@@ -55,7 +55,10 @@ export type TypedExpr = (
   // 'fetchUser!(id)' — prepares an inert Task (whitepaper §8). `type` is
   // 'Task<result>'; the interpreter evaluates the arguments (binding them) and
   // captures the function value, but does not run the body until 'await'.
-  | { kind: 'asyncCall'; callee: string; args: TypedExpr[]; type: AscentType; span: Span }
+  // `module` mirrors 'call''s: present for an async stdlib export
+  // (readLines), absent for a user-defined async fn or a prelude builtin
+  // (the 'prompt' family).
+  | { kind: 'asyncCall'; callee: string; module?: string; args: TypedExpr[]; type: AscentType; span: Span }
   // 'await task' — runs the Task and yields its value (whitepaper §8). `type` is
   // the awaited result T (the task's result type). The interpreter runs the
   // task's body synchronously here (no scheduler in v1) and returns its value.

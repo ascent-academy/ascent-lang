@@ -135,9 +135,10 @@ export interface Random {
 }
 
 export interface FileSystem {                       // async + fallible: I/O is both
-  read(path: string): Promise<Result<string, IoError>>;
-  write(path: string, data: string): Promise<Result<Done, IoError>>;
-  exists(path: string): Promise<boolean>;
+  readLines(path: string): Promise<IoResult<string[]>>;  // only member built so far — the
+                                                          // stdlib 'fs' module's 'readLines'
+                                                          // needs nothing more; grows the
+                                                          // way the stdlib itself grows
 }
 
 export interface Network {
@@ -258,11 +259,30 @@ natively-validated widget that may never need to retry). `terminalHost` and
 input.ts`'s `askByRetrying`, a convenience only a terminal-like host needs —
 never part of the `Console` contract itself).
 
+**Landed since:** `fs` is a real, if narrow, `Capabilities` member now —
+`readLines(path)` only, not the fuller `read`/`write`/`exists` sketch above
+(grown from nothing, the same "one curated capability at a time" way `ask*`
+did). This is also §6's own worked example landing, in a narrower shape than
+sketched there: `import { readLines } from "fs"` resolves against the stdlib
+registry exactly like `math`/`assert` (§10) — **not** yet gated on
+`host.capabilities.fs` being present, since typechecking has no host to check
+against (it runs before one exists); a host lacking `fs` instead crashes at
+`await` time (R0014), the same tier `abort` does. `readLines` is `async`
+(prepared with `!`, run through `await`) and fallible (`List<String> orfail
+String`) — the checker's stdlib registry (`check/stdlib.ts`) grew a second,
+parallel `ASYNC_MODULE_SIGS` table alongside the sync `MODULE_SIGS`, for the
+same reason the prelude's `ASYNC_FUNCTIONS` sits apart from `FUNCTIONS`: a
+*bare* call of an async export must be rejected (T0053), which only a
+separate table lets `synth.ts`'s `call` judgment check for cheaply.
+
 ## 9. Open decisions
 
 - **Reach path.** Do *scripts* get effects via `import … from "fs"` (capabilities
   surfaced as modules), via the §11 `Command` runtime, or both? Current lean:
   imports→capabilities for scripts, `Command`s for UI, the Host underneath both.
+  **Partly landed:** `import { readLines } from "fs"` is exactly this for
+  scripts now — still not capability-gated at the import site (see §8's `fs`
+  note above), so the "or both" and the gating mechanism are still open.
 - **`clock` / `random`: optional vs always-on.** Optional permits a *fully*
   timeless, deterministic host; always-on is simpler for authors.
 - **Fuel granularity.** Per-node step, per-call, or per-loop-iteration — trades

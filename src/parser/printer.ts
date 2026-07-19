@@ -6,9 +6,10 @@ import { typeToString, functionType } from '../types/types.js';
 
 // A Task's result type for display: a user async call's Task carries the
 // function it will apply ('fn.result'); a builtin prompt Task carries no
-// function, so its result type comes from the fixed prelude table instead.
+// function, so its result type comes from the fixed prelude table instead;
+// an async stdlib export's Task carries its own 'resultType' directly.
 const taskResultType = (value: Extract<RuntimeValue, { type: 'Task' }>) =>
-  'fn' in value ? value.fn.result : PRELUDE_ASYNC_RESULT[value.builtin];
+  'fn' in value ? value.fn.result : 'builtin' in value ? PRELUDE_ASYNC_RESULT[value.builtin] : value.resultType;
 
 // How a 'match' arm's pattern shows in the AST dump — the constant it compares
 // against, a variant tag (with its bound fields), or 'else'. Shared by both

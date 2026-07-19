@@ -227,7 +227,7 @@ export const ERRORS: ErrorEntry[] = [
     "category": "name",
     "summary": "An import names a module the standard library doesn't have.",
     "message": "There's no built-in module named \"{module}\".",
-    "explanation": "An import can only bring in one of the built-in library modules. This release has 'math' (min, max, sqrt, floor, ceil, round) and 'assert' (assert, assertEqual). Check the spelling of \"{module}\", or import one of those."
+    "explanation": "An import can only bring in one of the built-in library modules. This release has 'math' (min, max, sqrt, floor, ceil, round), 'assert' (assert, assertEqual), and 'fs' (readLines). Check the spelling of \"{module}\", or import one of those."
   },
   {
     "code": "N0015",
@@ -356,6 +356,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'prompt' (or 'promptInt'/'promptFloat'/'promptBool') found no more input to read.",
     "message": "There's no more input to read.",
     "explanation": "'prompt' and its typed versions wait for a line of input from whoever runs the program. Here there was none left to give — the input source closed (for example, stdin ended) — so there is nothing to read and the program stops."
+  },
+  {
+    "code": "R0014",
+    "name": "fs-not-available",
+    "category": "runtime",
+    "summary": "A 'fs' module function was called, but this host doesn't provide file access.",
+    "message": "The filesystem isn't available here.",
+    "explanation": "'readLines' (and the rest of the 'fs' module) need the host running the program to provide real file access. This one doesn't, so there is nothing to read from and the program stops."
   },
   {
     "code": "S0001",
