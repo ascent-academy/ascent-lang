@@ -61,12 +61,24 @@ export class Environment {
     this.host.capabilities.console.writeInline(text);
   }
 
-  // Show `message` inline, then block for one line of input — the prompt
-  // family's read half. Null means end-of-input (a closed stdin), the only
-  // way the synchronous v1 interpreter has to signal "no more to read".
-  public readLine(message: string): string | null {
-    this.host.capabilities.console.writeInline(message);
-    return this.host.capabilities.console.readLine();
+  // Show `message` and gather one valid value of the type — the prompt
+  // family's read half. Null means none was ultimately obtainable (host-
+  // specific: a closed stdin, a cancelled dialog, …); the host owns whatever
+  // interaction (retries included) got it there, never the interpreter.
+  public askText(message: string): Promise<string | null> {
+    return this.host.capabilities.console.askText(message);
+  }
+
+  public askInt(message: string): Promise<bigint | null> {
+    return this.host.capabilities.console.askInt(message);
+  }
+
+  public askFloat(message: string): Promise<number | null> {
+    return this.host.capabilities.console.askFloat(message);
+  }
+
+  public askBool(message: string): Promise<boolean | null> {
+    return this.host.capabilities.console.askBool(message);
   }
 
   public declare(name: string, value: RuntimeValue, mutable: boolean): void {

@@ -1,12 +1,11 @@
 import { readSync } from 'node:fs';
 import type { Host } from './host.js';
+import { askByRetrying, tryParseInt, tryParseFloat, tryParseBool } from './scalar-input.js';
 
 // Blocks on fd 0 one byte at a time until a line terminator or end-of-input,
 // so a line's worth of stdin is consumed atomically and no byte past it is
-// read ahead and lost (a `!` prelude prompt has no event loop to hand a
-// callback to — the interpreter runs `await` synchronously, docs/host.md §8's
-// open decision). Returns null only when no bytes were read at all (a closed
-// stdin, e.g. Ctrl+D on an empty line).
+// read ahead and lost. Returns null only when no bytes were read at all (a
+// closed stdin, e.g. Ctrl+D on an empty line).
 const readLineSync = (): string | null => {
   const byte = Buffer.alloc(1);
   const bytes: number[] = [];
@@ -29,16 +28,28 @@ const readLineSync = (): string | null => {
   return Buffer.from(bytes).toString('utf8');
 };
 
+const write = (text: string): void => {
+  process.stdout.write(text);
+};
+
+// This Host's own interaction for the ask* capabilities: reprint the message
+// and read another line whenever the last one didn't parse. A different Host
+// (a UI) is free to never retry at all — that choice belongs to the Host, not
+// the interpreter (see docs/host.md's §9 note on this).
+const ask = <T>(message: string, parse: (raw: string) => T | null): Promise<T | null> =>
+  askByRetrying(write, readLineSync, message, parse);
+
 export const terminalHost: Host = {
   capabilities: {
     console: {
       write(text: string): void {
         process.stdout.write(text + '\n');
       },
-      writeInline(text: string): void {
-        process.stdout.write(text);
-      },
-      readLine: readLineSync,
+      writeInline: write,
+      askText: message => ask(message, raw => raw),
+      askInt: message => ask(message, tryParseInt),
+      askFloat: message => ask(message, tryParseFloat),
+      askBool: message => ask(message, tryParseBool),
     },
   },
 };

@@ -151,7 +151,7 @@ export const evaluateExpr = async (expr: TypedExpr, env: Environment): Promise<R
       // captured function to apply — it runs through the host instead.
       const task = await evaluateExpr(expr.task, env);
       if (task.type !== 'Task') throw new Error('internal: await of a non-task value');
-      if ('builtin' in task) return runPromptTask(task.builtin, task.message, env, expr.span);
+      if ('builtin' in task) return await runPromptTask(task.builtin, task.message, env, expr.span);
       return await applyFunction(task.fn, task.args, task.argTypes);
     }
     case 'fn': {

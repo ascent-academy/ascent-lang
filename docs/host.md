@@ -114,7 +114,15 @@ export interface Capabilities {
 export interface Console {
   write(text: string): void;                        // a whole line — print
   writeInline(text: string): void;                   // no line break — printInline
-  readLine(): string | null;                         // one line of input, or null at end-of-input — the prompt family
+  // Shows the message, resolves to ONE valid value (or null, nothing
+  // obtainable) — the prompt family. The host owns validation AND any
+  // re-asking: a terminal reprints on bad input, a UI can hand this to a
+  // natively-validated widget (a checkbox, a number spinner) that may
+  // never need to retry at all.
+  askText(message: string): Promise<string | null>;
+  askInt(message: string): Promise<bigint | null>;
+  askFloat(message: string): Promise<number | null>;
+  askBool(message: string): Promise<boolean | null>;
 }
 
 export interface Clock {
@@ -233,14 +241,22 @@ Everything after that (clock, random, fs, net, limits, tracer) is added one
 curated capability at a time, exactly the way the stdlib grows.
 
 **Landed since:** `console` grew its other half — `writeInline` (no line break,
-backs `printInline`) and `readLine` (blocks for one line, backs the `prompt`
-family) — needed to ship docs/version-0.1/stdlib/prelude.md in full. `readLine`
-returns `string | null` rather than the `Promise<Result<…>>` shape §4.2 gives
-`fs`/`net`: the prelude's prompts are ambient (no `import`), so there's no
-Result type in scope to fail into at the call site the way a stdlib module
-export has one; "no more input" (a closed stdin) is the one failure mode, and
-it surfaces as a runtime crash (R0013) instead, the same tier `abort` and
-`.orAbort()` already crash through.
+backs `printInline`) and four `ask*` capabilities, one per prelude scalar
+(backs `prompt`/`promptInt`/`promptFloat`/`promptBool`) — needed to ship
+docs/version-0.1/stdlib/prelude.md in full. Each resolves to `T | null` rather
+than the `Promise<Result<…>>` shape §4.2 gives `fs`/`net`: the prelude's
+prompts are ambient (no `import`), so there's no Result type in scope to fail
+into at the call site the way a stdlib module export has one; "nothing
+obtainable" (a closed stdin) is the one failure mode, and it surfaces as a
+runtime crash (R0013) instead, the same tier `abort` and `.orAbort()` already
+crash through. Deliberately **not** `readLine()` + the interpreter looping
+over it (an earlier, since-revised shape): validation and any re-asking now
+happen entirely *inside* the host's own `ask*` call, since that is exactly the
+thing that differs between a terminal (reprint the message) and a UI (a
+natively-validated widget that may never need to retry). `terminalHost` and
+`testHost` both implement this the "reprint and re-ask" way (`src/scalar-
+input.ts`'s `askByRetrying`, a convenience only a terminal-like host needs —
+never part of the `Console` contract itself).
 
 ## 9. Open decisions
 
@@ -251,7 +267,10 @@ it surfaces as a runtime crash (R0013) instead, the same tier `abort` and
   timeless, deterministic host; always-on is simpler for authors.
 - **Fuel granularity.** Per-node step, per-call, or per-loop-iteration — trades
   overhead against how tightly a runaway is caught.
-- **Async today.** v1 runs `await` synchronously (§8), yet fs/net are shaped
-  `Promise<…>` so the interfaces don't churn when a real scheduler lands. Confirm
-  the interpreter can drive a synchronous-resolution Promise cleanly in the
-  meantime.
+- ~~**Async today.** v1 runs `await` synchronously (§8), yet fs/net are shaped
+  `Promise<…>` so the interfaces don't churn when a real scheduler lands.~~
+  **Resolved:** `await` is genuinely async now — `evaluateExpr`/`executeStmt`/
+  `executeProgram` all return Promises, so a suspending Host capability (the
+  `ask*` family above, eventually `fs`/`net`) really can suspend. JS's own
+  event loop is the scheduler; no bespoke one was needed. The language's
+  colored-async surface didn't change — this was runtime plumbing only.
