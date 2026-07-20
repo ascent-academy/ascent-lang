@@ -17,6 +17,10 @@
 > yet shipped**, this document says so in a **“Not in v0.1”** note rather than pretending
 > it exists. The layer split and shipping boundary are argued in `core-v0.1.md`; the
 > design principles in `principles.md`; forward design in `ascent-frontiers.md`.
+> The standard library — every module, its functions and methods — is specified in the
+> **stdlib module docs** (`prelude.md`, `scalars.md`, …), **not here**: this reference
+> covers the *language*, and names stdlib only where a language rule (dispatch, imports,
+> the intrinsic-trait welds) requires it.
 >
 > Section numbers (§1–§13) match the full whitepaper so the two read side by side.
 > Error codes (`L####`/`S####`/`N####`/`T####`/`R####`) reference the live registry in
@@ -51,7 +55,7 @@ The lexer is hand-written, **lossless**, and **total**: whitespace and comments 
 - **Naming & casing — bidirectional and enforced.** **Uppercase (`UpperCamel`) names are exactly those a `type` introduces** — the type *and* all of its constructors — with no exceptions. **Lowercase (`lowerCamel`) names are bindings** — variables, functions, fields, parameters — and a binding *may not* begin with a capital. So an initial capital *always* means “type or constructor” and an initial lowercase *always* means “binding”, with no ambiguity ever (Haskell's discipline). Position disambiguates the harmless type/constructor overlap (`Color`/`Red`): a type appears only after `:` or `->`, a constructor only in value/pattern position. *Graduation note:* capitalized `True`/`False`/`None` match Python but diverge from the C family — a named, deliberate false friend, accepted because internal consistency wins (`Bool` and `Optional` are ordinary tagged unions, so their constructors are uppercase like every other).
 - **Type names use the dominant canonical spelling, not the shortest:** `Int` (over `Integer`), `Float`, `Bool` (over `Boolean`), `String` (over `Str`). `Str` is rejected because `str` denotes a *different, advanced* thing in Rust — a false friend, not a tidy abbreviation.
 - **Mandatory braces** on every `if` / `for` / `while`, even single-line (no dangling-else, no goto-fail class of bug). The **test** of `if` / `while` / `match` is **parenthesized** — `if (cond) { … }` — easing the move to TypeScript and the C family; `for` takes no parens (it has no test).
-- **Expression-oriented: every block yields the value of its last statement** — a branch, a loop body, a function body, and the whole program alike (one rule, no special cases). The trailing `;` is optional exactly as a list's trailing comma is — never load-bearing for the value. A last statement that is not a value (a declaration, an assignment) yields `Done`.
+- **Expression-oriented: every block yields the value of its last statement** — a branch, a loop body, a function body, and the whole program alike (one rule, no special cases). The trailing `;` is optional exactly as a list's trailing comma is — never load-bearing for the value. A last statement that is not a value (a declaration, an assignment) yields `Done`. **A block is not itself a first-class value** — it is the *interior* of a construct (`fn` body, `if`/`else` branch, `while`/`for` body, `program` body, `match` arm), never a standalone expression. So `{` never begins a primary expression: in value position a leading `{` is only construction (`TypeName{ … }`), and a bare `{ … }` does not parse. The thing you can name is what a *construct* yields (`fix x = if (c) { a } else { b }`), not a naked block.
 - **Discarding a value is explicit — `void` — and the rule is about *position*.** The unifying principle: **a value must go somewhere — consumed, or explicitly discarded, never silently dropped.** Some positions are **`Done`-required**, because nothing consumes the block's value:
   - **A non-final statement** of a block — another statement follows (`T0057`). In `foo(); bar()`, if `foo()` returns non-`Done` you write `void foo();`.
   - **A loop body** (`for`/`while`) — the loop as a whole yields `Done`, so it ignores whatever its body yields (`T0058`). `for x in xs { x + 1 }` is an error; write `void x + 1`, or — if you meant to *collect* — that is what a mapping operation is for. The error doubles as the lesson that a `for` loop does not build a value.
@@ -90,7 +94,7 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
 - **`Float`** — 64-bit IEEE 754, written `3.14`; a digit is **required on both sides** of the point (no `3.` or `.5` — `L0003`). **`NaN` / `Infinity` are runtime errors** (`R0004`), not values, so every `Float` is a real, ordered number.
 - **`Bool`** — `True` / `False`. **No truthiness** — a condition must be `Bool` (`T0009`).
 - **`String`** — immutable Unicode sequence, double-quoted, with `${expr}` interpolation. A plain `"…"` is **strictly single-line** (`L0004` on a missing close), so the commonest typo is caught at end of line rather than swallowing the rest of the file. **No integer indexing** (below); no `Char` type — a character is a length-1 string.
-- **No integer indexing on strings — the Rust/Swift way, with named methods that don't lie.** `s[i]` does not exist, because “the *i*-th character” has no honest answer over Unicode: a byte gives you half of `é`, a code unit gives you half an emoji, and even a code point is not a grapheme; worse, under UTF-8 `[i]` would *look* like O(1) random access while secretly being O(i). This bites hardest on non-English text and on beginners — `name[0]` is intuitive and *wrong* on `"Dvořák"`. So the honest operations are **named and explicit about their unit**: `s.chars()`, `s.first()` / `s.last()` (returning `String?`), `s.slice(range)`. This gives “first character”, “loop the characters”, and “substring” with none of the half-a-character trap.
+- **No integer indexing on strings — the Rust/Swift way, with named methods that don't lie.** `s[i]` does not exist, because “the *i*-th character” has no honest answer over Unicode: a byte gives you half of `é`, a code unit gives you half an emoji, and even a code point is not a grapheme; worse, under UTF-8 `[i]` would *look* like O(1) random access while secretly being O(i). This bites hardest on non-English text and on beginners — `name[0]` is intuitive and *wrong* on `"Dvořák"`. So the honest operations are **named and explicit about their unit** (a `.chars()` sequence, first/last as `String?`, substring by range), giving “first character”, “loop the characters”, and “substring” with none of the half-a-character trap. *(The exact method set is the `string` module doc.)*
 
 ### Strings — building and interpolation
 
@@ -102,12 +106,12 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
       Ascent is small.
       """      # → "Roses are red,\nAscent is small."
   ```
-- **What can go in a `${}` hole — a `Display`-bounded position.** Interpolation must turn the hole's value into a `String`, so the hole requires a value with a canonical string form. The **built-in scalars have one** (`Int` → decimal digits, `Float` → digits *with the point always shown* — `3.0`, never `3` — `Bool` → `"True"`/`"False"`, `String` → itself). **Structured types have no canonical string form**, so `"${user}"` is a compile error (`T0018`) directing you to a scalar field (`"${user.name}"`) or an explicit conversion (`"${money.toString()}"`). There is deliberately **no universal `toString`** on every type — that would be an `Any`-supertype by another name, producing dishonest field-dump output. Formally the hole is a `T: Display` position; **today `Display` is hard-coded to the scalars** (🔒 — see §7's intrinsic traits), and generalises to a real trait later with no change to any existing program.
-- **No arithmetic operator works on strings.** `+` stays purely numeric — overloading it for concatenation is the doorway to JavaScript's `1 + "2"` → `"12"` disaster, and `"hi" * 5` is a *pun*, not a meaning. **Building** a string is `${}` interpolation or a named method; **repetition/padding/trimming** are self-naming methods (`.repeat(5)`, `.padLeft(n)`, `.trim()`), each reading as what it does. Extra interpolation content in one hole (`"${a b}"`) is `S0014`.
+- **What can go in a `${}` hole — a `Display`-bounded position.** Interpolation must turn the hole's value into a `String`, so the hole requires a value with a canonical string form. The **built-in scalars have one** (`Int` → decimal digits, `Float` → digits *with the point always shown* — `3.0`, never `3` — `Bool` → `"True"`/`"False"`, `String` → itself). **Structured types have no canonical string form**, so `"${user}"` is a compile error (`T0018`) directing you to a scalar field (`"${user.name}"`) or an explicit conversion you wrote. There is deliberately **no universal `toString`** on every type — that would be an `Any`-supertype by another name, producing dishonest field-dump output. Formally the hole is a `T: Display` position; **today `Display` is hard-coded to the scalars** (🔒 — see §7's intrinsic traits), and generalises to a real trait later with no change to any existing program.
+- **No arithmetic operator works on strings.** `+` stays purely numeric — overloading it for concatenation is the doorway to JavaScript's `1 + "2"` → `"12"` disaster, and `"hi" * 5` is a *pun*, not a meaning. **Building** a string is `${}` interpolation or a named method; repetition, padding, and trimming are self-naming methods (specified in the `string` module doc), each reading as what it does. Extra interpolation content in one hole (`"${a b}"`) is `S0014`.
 
 ### The “no information” value
 
-- **`Done`** — the unit type, the value of statements and side-effecting calls (`print : Fn(String) -> Done`). It has exactly one value, written `{}` (an empty block). There is **no `done` keyword**, so `done` stays free as a name.
+- **`Done`** — the unit type, the value of statements and side-effecting calls. It has exactly one value, **written `Done`** — a non-shadowable built-in constructor (§2), spelled like `True` / `None`. There is **no `{}` / empty-block literal for it**: a block is not a first-class value (§2), so `Done` is the *only* way to write the unit value. There is **no `done` keyword** (lowercase), so `done` stays free as a name.
 
 ### Absence
 
@@ -145,7 +149,7 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
 - **`while (cond) { }`** for condition loops. **`for x in xs`** iterates values and takes **no parens** — parenthesizing it would mimic TypeScript's *key*-iterating `for…in`, the false friend the choice avoids. There is **no C-style three-part `for`**. Both loops are statements that **yield `Done`**; producing a value *from* a sequence is a collection operation's job, not loop-return — which keeps the block-value rule special-case-free (a loop body is a `Done`-required position, §2). The iterable must be a `List` or a `Range` (`T0021`) — see the `Iterable` weld in §7.
 - **Operators are words:** `and` / `or` / `not`, on `Bool` only.
 - **`==`** is **structural**; operands must share a type, except that `Int` and `Float` compare as numbers (`1 == 1.0` is `True`). Other cross-type comparison is `T0008`. **`< > <= >=`** work on `Int` / `Float` / `String`, with the same `Int`/`Float` mixing.
-- **Numbers promote one way — `Int` → `Float`, never back.** `+`, `-`, `*` yield an `Int` only when *every* operand is an `Int`, and a `Float` the moment any operand is one. A `Float` is never silently narrowed — that needs an explicit `.toInt()`.
+- **Numbers promote one way — `Int` → `Float`, never back.** `+`, `-`, `*` yield an `Int` only when *every* operand is an `Int`, and a `Float` the moment any operand is one. A `Float` is never silently narrowed — that needs an explicit conversion (a named rounding method, per the `scalars` module doc).
 - **Division & modulo.** `/` **always yields a `Float`** (`10 / 2` is `5.0`, `7 / 2` is `3.5`), so the silent integer-truncation bug cannot occur. **`div`** is floor division on `Int` operands only; **`mod`** is its floored partner (result takes the **sign of the divisor** — `-7 mod 3` is `2`), so `(a div b) * b + (a mod b) == a` always holds. Using either on a `Float` is a type error; division by zero is the loud crash `R0002`. Both are words, not `//` / `%` (which are false friends, §2).
 - **Exponentiation `**`** follows the promotion of `*`, not the always-`Float` of `/`: **`Int ** Int` is an `Int`** (`2 ** 10` is `1024`, exact), and a `Float` operand makes it `Float`. A **negative integer exponent** (`2 ** -1`) is a loud crash (`R0003`) whose message says to use a `Float` base — the operation stays exact-or-errors rather than truncating to `0`. Right-associative, and binds tighter than unary minus (`-2 ** 2` is `-4`).
 - **`??`** is Optional-coalescing (`opt ?? fallback`), **right-associative**, and **allowed on `Optional` only** — a `Result`'s error must be acknowledged, not silently defaulted (`T0044`; a mistyped default is `T0045`).
@@ -227,8 +231,8 @@ The checker mainly answers one question — *“are these two named types the sa
 
   | Trait 🔒 | Capability | Where it is consumed | Hard-coded implementors (today) |
   |---|---|---|---|
-  | `Display` | “has a canonical text form” | `${}` holes, `print`'s argument | `Int`, `Float`, `Bool`, `String` |
-  | `Comparable` | “can be ordered” | stdlib `math.min`/`max` | `Int`, `Float`, `String` |
+  | `Display` | “has a canonical text form” | `${}` holes, the prelude's output functions | `Int`, `Float`, `Bool`, `String` |
+  | `Comparable` | “can be ordered” | stdlib ordering (min / max) | `Int`, `Float`, `String` |
   | `Iterable` | “can be walked one element at a time” | `for x in xs` | `List<T>`, `Range` |
 
   `Iterable` additionally carries an **associated type** `Item` (the element `for` binds) — the projection a real trait system writes `<T as Iterable>::Item`, hard-coded here (`List<T>` → `T`, `Range` → `Int`). So v2 buys user-defined *implementors*, not the mechanism — nothing to solve now, only to label. A trait is a **bound on a type parameter, not a type**: `fn(x: Display)` (trait-as-type / a boxed dynamic dispatch) is unsupported; traits are static-only, resolved per concrete `T`.
@@ -299,44 +303,28 @@ Ascent's built-ins split into two layers with different lifecycles, and the code
 - **Layer 1 — the Language** (closed): the lexer, parser, checker rules, evaluator, *and* the built-in **vocabulary** — the types, their literal syntax, the constructors, and the operators. This is *not* a function prelude; it is the language itself, ambient like grammar. You no more import `Int` than you import `+`.
 - **Layer 2 — the Standard Library** (growable): the **methods** on built-in types and the **free functions**. Members are added as catalog entries without touching the core.
 
-**A minimal prelude — just `print` — is ambient; every other function is imported.** `print<T: Display>(value: T) -> Done` (§4, 🔒 `Display`) is the one ambient exception, because it is useful in the window after a learner wants line output but before the module system is taught. Using it as a value rather than calling it is `N0013`.
+> **The stdlib catalog lives in the module docs, not here.** Which functions and methods exist — the prelude, `math`, the per-type method sets — is specified per-module (`prelude.md`, `scalars.md`, …). This section documents only the *language-level* machinery: the ambient prelude, the import system, and method dispatch.
+
+**A minimal, ambient prelude is in scope with no import; every other function is imported.** The prelude is the small set of console output/input a learner needs in the window *after* they want line output but *before* the module system is taught — deliberately tiny, closed, and non-shadowable, the same category as the built-in constructors, never an open global soup. Its specific functions are specified in `prelude.md`. Using a prelude function as a value rather than calling it is `N0013`.
 
 ### The module system (v0.1 — stdlib import only)
 
-`import` reaches the free-function stdlib, in the two whitepaper forms:
+`import` reaches the free-function stdlib, in the two whitepaper forms — distinguished by the braces:
 
 ```ascent
-import { min, max } from "math";     # named — used bare:      min(a, b)
-import math from "math";             # namespace — used qualified: math.min(a, b)
+import { name } from "module";     # named — used bare:          name(...)
+import module from "module";       # namespace — used qualified:  module.name(...)
 ```
 
-They are distinguished by the braces (`{ … }` is named, a bare name is the namespace binding), unambiguous *precisely because there are no default exports*. Both forms resolve to **one typed `call` node carrying its `module`**, so the interpreter dispatches every stdlib call through one path. Module specifiers name entries in a **compiler-known registry** — a fixed, blessed set of names, no filesystem and no path resolution. An unknown module is `N0014`, an unknown export `N0015`, a namespace misused as a bare value `N0016`. Imports must lead the file (`S0042` inside a body, `S0043` after other code); the registry tables (`MODULE_SIGS` / `MODULE_IMPLS`) mirror the methods' two-table pattern, pinned by a parity meta-test.
-
-**Free-function stdlib catalog (initial — growable):**
-
-| Module | Members |
-|---|---|
-| `math` | `min`, `max` (🔒 `Comparable`, `T0061` on unorderable) · `sqrt` → `Float` · `floor`, `ceil`, `round` → `Int` |
-| `assert` | `assert(cond: Bool) -> Done` (`R0011` on false) · `assertEqual(a, b) -> Done` (`T0062` on unrelated types, `R0012` on inequality) |
-
-> **Not in v0.1:** user-authored modules — `export`, relative-path files (`"./x.ascent"`), the path-is-identity resolver, circular-import handling, external/bare-specifier packages, and wildcard imports (refused on principle). These all arrive later, reusing the same `import` and adding only `export` + file resolution.
+`{ … }` is named, a bare name is the namespace binding — unambiguous *precisely because there are no default exports*. Both forms resolve to **one typed `call` node carrying its `module`**, so the interpreter dispatches every stdlib call through one path. Module specifiers name entries in a **compiler-known registry** — a fixed, blessed set of names, no filesystem and no path resolution. An unknown module is `N0014`, an unknown export `N0015`, a namespace misused as a bare value `N0016`. Imports must lead the file (`S0042` inside a body, `S0043` after other code). *(Which modules and members the registry contains is the module docs' business, not this reference's.)*
 
 ### Built-in methods (ambient on their type)
 
-Collection/string/conversion operations stay **built-in methods** (Option A — chaining survives): `xs.append(y)`, `s.trim()`, `n.toString()`. The method half is a `METHODS` signature table (`src/check/signatures.ts`) mirrored by `METHOD_IMPLS`, kept in sync by a parity meta-test — growing the catalog is a table entry, not new control flow.
-
-| Receiver | Methods (implemented today) |
-|---|---|
-| `Int` | `toString → String` · `toFloat → Float` · `abs → Int` |
-| `Float` | `toString → String` · `toInt → Int` · `abs → Float` |
-| `String` | `length → Int` · `first`/`last → String?` · `chars → List<String>` · `slice(Range) → String` (`R0006` on a bad bound) · `repeat(Int) → String` (`R0007` on negative) · `trim → String` · `padLeft(Int) → String` |
-| `List<T>` | `length → Int` · `isEmpty → Bool` · `reverse → List<T>` · `append(T)`/`prepend(T) → List<T>` (widening to the join) · `concat(List<T>) → List<T>` |
-| `Range` | `length → Int` · `toList → List<Int>` · `contains(Int) → Bool` |
-| `Optional` / `Result` | `.orAbort(msg?)` → the unwrapped good type (§9) |
+Collection, string, and conversion operations are **built-in methods** on their receiver type (Option A — chaining survives): `xs.append(y)`, `s.trim()`, `n.toStr()`. Growing this catalog is a signature-table entry, not new control flow — so the *mechanism* is a language concern (below) while the *catalog* is a module-doc concern.
 
 **Method dispatch.** `x.f()` resolves to exactly one target — a method on `x`'s concrete type, or an error — with no hidden free-function call, no overloading, no inheritance chain. Real chaining (`xs.reverse().concat(ys)`) is genuine, not sugar; no pipe operator is needed. Indexing (`xs[i]`) is language syntax, not a method — it returns `T` and crashes out of bounds (`R0005`), while the maybe-absent form is `T?`. `T0011` fires when a type has no methods at all, `T0012` when it has methods but not this one.
 
-> **Near-term catalog growth (not yet shipped):** `List.map`/`filter`/`reduce`/`find`/`at`/`contains`, `sort`/`min`/`max` (🔒 `Comparable`), and the `toString` → `toStr` rename are the next planned additions — pure table growth, no language change. They are documented here as *planned*, not as present.
+> **Not in v0.1:** user-authored modules — `export`, relative-path files (`"./x.ascent"`), the path-is-identity resolver, circular-import handling, external/bare-specifier packages, and wildcard imports (refused on principle). These all arrive later, reusing the same `import` and adding only `export` + file resolution.
 
 ---
 
@@ -378,7 +366,7 @@ source → Lexer → tokens → Parser → Program (untyped AST)
 
 - **Hand-written lexer and recursive-descent parser — no generators**, because error messages are the product and generated parsers produce poor ones. The lexer is stateful (string interpolation flips between string- and expression-mode; `#[ … ]#` nests), lossless, and total. Expression precedence uses **Pratt parsing**. Every parser production is a free function over a `TokenStream` (which filters trivia so the grammar sees only significant tokens), and parsing uses **panic-mode recovery** — a malformed statement can be skipped so one pass surfaces several errors, so a non-null `Program` does not by itself mean error-free; the diagnostic list is authoritative.
 - **The type checker is a separate pass** producing a parallel fully-typed tree, organised around bidirectional-typing judgments (synthesis `⇒`, checking `⇐`, per-statement inference) with a `Diagnostics` accumulator and a `TypeEnv` scope chain reusable across REPL lines.
-- **The interpreter is a tree-walking evaluator** over the typed program; `Environment` is a parent-chained scope, and method dispatch switches on receiver type into per-type `eval*Method` functions, mirroring the checker's `METHODS` table.
+- **The interpreter is a tree-walking evaluator** over the typed program; `Environment` is a parent-chained scope, and method dispatch switches on receiver type into per-type `eval*Method` functions, mirroring the checker's method table.
 - **Value semantics is the whole runtime model** — no value mutates; “change” is rebinding a `mut` slot. (In production this rests on persistent data structures with structural sharing; the current prototype keeps the semantics, which is what the language guarantees.)
 
 > **Design intent beyond the prototype** (from the full whitepaper, not v0.1 code): a single Rust core (lexer → parser → typechecker → bytecode → VM) compiled to WASM and a native CLI, with a fuel-based VM for friendly infinite-loop messages, stepping, and VM-scheduled async.
@@ -388,7 +376,7 @@ source → Lexer → tokens → Parser → Program (untyped AST)
 ## 13. Tooling
 
 - **REPL** — a terminal read-eval-print loop that **auto-prints each expression's value**, reusing one checker/interpreter environment across lines. It is the “inspect a value mid-development” affordance that keeps most functions late (with `program` inputs for input and the block-value rule for output, a beginner rarely needs an imported function early).
-- **`assert` / `assertEqual`** (via `import … from "assert"`, §10) — the built-in on-ramp to “is my code correct?”, needing no installs.
+- **Built-in assertions** (imported from the stdlib — see the module docs) — the on-ramp to “is my code correct?”, needing no installs.
 - **Type inspection** is understood as a *tooling* concern, not a language operator — a type is a compile-time fact the tool reports, never a runtime value program source can interrogate (a runtime `typeof` would contradict the no-runtime-type-interrogation basis of the nominal type system, §6/§7). A learner can also *assert* a type actively with an annotation (`fix x: Float = a / b`), the static, checked counterpart.
 
 > **Not in v0.1:** the zero-config formatter, the `:type` REPL meta-command, `:doc`/`:load`/`:reload`, and a dedicated test runner.
@@ -447,9 +435,9 @@ Ada is a pro
 | `match`, destructuring, `with`, `try` / `try…else` / `??` / `abort` / `.orAbort` | trait-gated auto error conversion (`From`) |
 | `async fn` / `!` / `await` (single task) | Nurseries, combinators, channels, cancellation |
 | `program (…)` entry + CLI arg binding | UI / MVU / `Element` / `Command` / subscriptions |
-| `import` from the stdlib registry (`math`, `assert`) | `export`, user-authored files, external packages |
-| Built-in method catalog + ambient `print` | `List.map`/`filter`/`sort`/…, `toStr` rename |
+| `import` from the stdlib registry | `export`, user-authored files, external packages |
+| Built-in methods + ambient prelude *(catalog in the module docs)* | stdlib catalog growth (per the module docs) |
 | Nominal types, narrow widening, `Never`/`Invalid`, bidirectional checking, narrowing-by-binding | User-definable **generics & traits** (the three 🔒 welds generalize here) |
 | Full diagnostics (`L`/`S`/`N`/`T`/`R`); REPL (auto-print) | Formatter, `:type`, test runner, Rust/WASM VM |
 
-*The three 🔒 welds — `for` → `Iterable`, `${}`/`print` → `Display`, `math.min`/`max` → `Comparable` — ship hard-coded in v0.1 and generalize to user-implementable traits in v2 with no change to what any existing program means. That is the whitepaper's stated guarantee, and it is why Layer 1 can be frozen now while Layer 2 keeps growing.*
+*The three 🔒 welds — `for` → `Iterable`, `${}`/prelude output → `Display`, ordering (min/max) → `Comparable` — ship hard-coded in v0.1 and generalize to user-implementable traits in v2 with no change to what any existing program means. That is the whitepaper's stated guarantee, and it is why Layer 1 can be frozen now while Layer 2 keeps growing.*
