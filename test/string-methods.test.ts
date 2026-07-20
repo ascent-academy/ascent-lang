@@ -88,29 +88,165 @@ describe('String methods (end-to-end)', () => {
     });
   });
 
-  describe('.slice(range)', () => {
+  describe('.slice(from, to)', () => {
     it('takes a half-open substring', async () => {
-      assert.deepEqual(await evalOk('"hello".slice(1..4);'), { type: 'String', value: 'ell' });
+      assert.deepEqual(await evalOk('"hello".slice(1, 4);'), { type: 'String', value: 'ell' });
     });
 
-    it('returns the whole String when the range spans it', async () => {
-      assert.deepEqual(await evalOk('"hello".slice(0..5);'), { type: 'String', value: 'hello' });
+    it('returns the whole String when the bounds span it', async () => {
+      assert.deepEqual(await evalOk('"hello".slice(0, 5);'), { type: 'String', value: 'hello' });
     });
 
-    it('returns an empty String when start equals end', async () => {
-      assert.deepEqual(await evalOk('"hello".slice(2..2);'), { type: 'String', value: '' });
+    it('returns an empty String when from equals to', async () => {
+      assert.deepEqual(await evalOk('"hello".slice(2, 2);'), { type: 'String', value: '' });
     });
 
-    it('crashes with R0006 when the end exceeds the length', async () => {
-      assert.equal(await evalCrash('"hello".slice(0..6);'), 'R0006');
+    it('crashes with R0006 when to exceeds the length', async () => {
+      assert.equal(await evalCrash('"hello".slice(0, 6);'), 'R0006');
     });
 
-    it('crashes with R0006 when the start is negative', async () => {
-      assert.equal(await evalCrash('"hello".slice(-1..3);'), 'R0006');
+    it('crashes with R0006 when from is negative', async () => {
+      assert.equal(await evalCrash('"hello".slice(-1, 3);'), 'R0006');
     });
 
-    it('crashes with R0006 when the start exceeds the end', async () => {
-      assert.equal(await evalCrash('"hello".slice(3..1);'), 'R0006');
+    it('crashes with R0006 when from exceeds to', async () => {
+      assert.equal(await evalCrash('"hello".slice(3, 1);'), 'R0006');
+    });
+  });
+
+  describe('.isEmpty()', () => {
+    it('is True for an empty String', async () => {
+      assert.deepEqual(await evalOk('"".isEmpty();'), { type: 'Bool', value: true });
+    });
+
+    it('is False for a non-empty String', async () => {
+      assert.deepEqual(await evalOk('"hi".isEmpty();'), { type: 'Bool', value: false });
+    });
+  });
+
+  describe('.drop(n) / .take(n)', () => {
+    it('drop returns all but the first n graphemes', async () => {
+      assert.deepEqual(await evalOk('"hello".drop(2);'), { type: 'String', value: 'llo' });
+    });
+
+    it('take returns the first n graphemes', async () => {
+      assert.deepEqual(await evalOk('"hello".take(2);'), { type: 'String', value: 'he' });
+    });
+
+    it('drop saturates to "" past the end', async () => {
+      assert.deepEqual(await evalOk('"hi".drop(10);'), { type: 'String', value: '' });
+    });
+
+    it('take saturates to the whole String past the end', async () => {
+      assert.deepEqual(await evalOk('"hi".take(10);'), { type: 'String', value: 'hi' });
+    });
+  });
+
+  describe('.contains() / .startsWith() / .endsWith()', () => {
+    it('contains finds a substring anywhere', async () => {
+      assert.deepEqual(await evalOk('"hello".contains("ell");'), { type: 'Bool', value: true });
+      assert.deepEqual(await evalOk('"hello".contains("xyz");'), { type: 'Bool', value: false });
+    });
+
+    it('startsWith / endsWith test the ends', async () => {
+      assert.deepEqual(await evalOk('"hello".startsWith("he");'), { type: 'Bool', value: true });
+      assert.deepEqual(await evalOk('"hello".startsWith("lo");'), { type: 'Bool', value: false });
+      assert.deepEqual(await evalOk('"hello".endsWith("lo");'), { type: 'Bool', value: true });
+      assert.deepEqual(await evalOk('"hello".endsWith("he");'), { type: 'Bool', value: false });
+    });
+  });
+
+  describe('.toUpper() / .toLower()', () => {
+    it('changes case', async () => {
+      assert.deepEqual(await evalOk('"Hello".toUpper();'), { type: 'String', value: 'HELLO' });
+      assert.deepEqual(await evalOk('"Hello".toLower();'), { type: 'String', value: 'hello' });
+    });
+  });
+
+  describe('.toTitle()', () => {
+    it('capitalizes the first letter of each word', async () => {
+      assert.deepEqual(await evalOk('"hello world".toTitle();'), { type: 'String', value: 'Hello World' });
+    });
+
+    it('lowercases the rest of each word', async () => {
+      assert.deepEqual(await evalOk('"HELLO WORLD".toTitle();'), { type: 'String', value: 'Hello World' });
+    });
+
+    it('treats a hyphenated word as one word, capitalizing only its start', async () => {
+      assert.deepEqual(await evalOk('"hello-world".toTitle();'), { type: 'String', value: 'Hello-world' });
+    });
+
+    it('preserves surrounding and internal whitespace runs', async () => {
+      assert.deepEqual(await evalOk('"  hi   there  ".toTitle();'), { type: 'String', value: '  Hi   There  ' });
+    });
+
+    it('is unchanged for an empty String', async () => {
+      assert.deepEqual(await evalOk('"".toTitle();'), { type: 'String', value: '' });
+    });
+  });
+
+  describe('.trimStart() / .trimEnd()', () => {
+    it('strips only the named end', async () => {
+      assert.deepEqual(await evalOk('"  hi  ".trimStart();'), { type: 'String', value: 'hi  ' });
+      assert.deepEqual(await evalOk('"  hi  ".trimEnd();'), { type: 'String', value: '  hi' });
+    });
+  });
+
+  describe('.padRight(n)', () => {
+    it('pads with spaces on the right up to length n', async () => {
+      assert.deepEqual(await evalOk('"7".padRight(3);'), { type: 'String', value: '7  ' });
+    });
+
+    it('returns the String unchanged when it is already at least n characters', async () => {
+      assert.deepEqual(await evalOk('"hello".padRight(3);'), { type: 'String', value: 'hello' });
+    });
+  });
+
+  describe('.split()', () => {
+    it('splits on a separator', async () => {
+      assert.deepEqual(await evalOk('"a,b,c".split(",");'), {
+        type: 'List',
+        elements: [
+          { type: 'String', value: 'a' },
+          { type: 'String', value: 'b' },
+          { type: 'String', value: 'c' },
+        ],
+      });
+    });
+  });
+
+  describe('.lines()', () => {
+    it('splits on line breaks', async () => {
+      assert.deepEqual(await evalOk('"a\\nb\\r\\nc".lines();'), {
+        type: 'List',
+        elements: [
+          { type: 'String', value: 'a' },
+          { type: 'String', value: 'b' },
+          { type: 'String', value: 'c' },
+        ],
+      });
+    });
+  });
+
+  describe('.codePoints() / .bytes()', () => {
+    it('codePoints returns Unicode scalar values', async () => {
+      assert.deepEqual(await evalOk('"ab".codePoints();'), {
+        type: 'List',
+        elements: [
+          { type: 'Int', value: 97n },
+          { type: 'Int', value: 98n },
+        ],
+      });
+    });
+
+    it('bytes returns UTF-8 bytes, more than one per code point for non-ASCII', async () => {
+      assert.deepEqual(await evalOk('"é".bytes();'), {
+        type: 'List',
+        elements: [
+          { type: 'Int', value: 195n },
+          { type: 'Int', value: 169n },
+        ],
+      });
     });
   });
 

@@ -74,14 +74,16 @@ const BOOL_IMPLS: Record<string, MethodImpl<BoolValue>> = {
   toString: (r: BoolValue) => strVal(scalarToString(r)),
 };
 
-// design.md §4/§9: no integer indexing on String — first/last/slice work in
-// graphemes and crash (bug tier, like list '[ ]') rather than lie about what
-// they return, exactly the reasoning that already governs List indexing.
+// stdlib/string.md §4/§9: no integer indexing on String — first/last/slice
+// work in graphemes and crash (bug tier, like list '[ ]') rather than lie
+// about what they return, exactly the reasoning that already governs List
+// indexing.
 const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
   length: r => intVal(BigInt(graphemesOf(r.value).length)),
+  isEmpty: r => boolVal(r.value.length === 0),
   first: r => {
-    // design.md §4: returns String? — None on an empty String, never a crash,
-    // since an empty receiver is an expected case here, not a bug.
+    // stdlib/string.md: returns String? — None on an empty String, never a
+    // crash, since an empty receiver is an expected case here, not a bug.
     const chars = graphemesOf(r.value);
     return chars.length === 0 ? NONE : strVal(chars[0]!);
   },
@@ -91,12 +93,12 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
   },
   chars: r => ({ type: 'List', elements: graphemesOf(r.value).map((c): RuntimeValue => strVal(c)) }),
   slice: (r, args, { span }) => {
-    // design.md §4: slice takes one Range; its bounds are the start (low)
-    // and end (high, exclusive) of the substring.
-    const range = args[0] as RangeValue;
+    // stdlib/string.md: slice takes two grapheme indices, 'from' and 'to'
+    // (half-open) — not a Range, kept off this one call for a concept a
+    // beginner would otherwise meet nowhere else.
     const chars = graphemesOf(r.value);
-    const start = Number(range.lo);
-    const end = Number(range.hi);
+    const start = Number((args[0] as IntValue).value);
+    const end = Number((args[1] as IntValue).value);
     if (start < 0 || end > chars.length || start > end) {
       throw new RuntimeError({
         code: 'R0006', span,
@@ -105,6 +107,35 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
     }
     return strVal(chars.slice(start, end).join(''));
   },
+  // stdlib/string.md: drop/take cover the open ends — "the rest, from n" and
+  // "the first n" — and saturate rather than crash (n past the end is
+  // clamped, negative n clamps to 0), since both describe "up to n", not an
+  // assertion about length.
+  drop: (r, args) => {
+    const chars = graphemesOf(r.value);
+    const n = Math.min(Math.max(Number((args[0] as IntValue).value), 0), chars.length);
+    return strVal(chars.slice(n).join(''));
+  },
+  take: (r, args) => {
+    const chars = graphemesOf(r.value);
+    const n = Math.min(Math.max(Number((args[0] as IntValue).value), 0), chars.length);
+    return strVal(chars.slice(0, n).join(''));
+  },
+  contains: (r, args) => boolVal(r.value.includes((args[0] as StringValue).value)),
+  startsWith: (r, args) => boolVal(r.value.startsWith((args[0] as StringValue).value)),
+  endsWith: (r, args) => boolVal(r.value.endsWith((args[0] as StringValue).value)),
+  toUpper: r => strVal(r.value.toUpperCase()),
+  toLower: r => strVal(r.value.toLowerCase()),
+  // stdlib/string.md: words are whitespace-delimited runs; the split point
+  // (not the case-folding) is where the grapheme unit matters, so only the
+  // first grapheme is pulled out before upper/lowercasing each half.
+  toTitle: r => strVal(r.value.replace(/\S+/g, word => {
+    const chars = graphemesOf(word);
+    return chars.length === 0 ? word : chars[0]!.toUpperCase() + chars.slice(1).join('').toLowerCase();
+  })),
+  trim: r => strVal(r.value.trim()),
+  trimStart: r => strVal(r.value.trimStart()),
+  trimEnd: r => strVal(r.value.trimEnd()),
   repeat: (r, args, { span }) => {
     const count = (args[0] as IntValue).value;
     if (count < 0n) {
@@ -112,12 +143,37 @@ const STRING_IMPLS: Record<string, MethodImpl<StringValue>> = {
     }
     return strVal(r.value.repeat(Number(count)));
   },
-  trim: r => strVal(r.value.trim()),
   padLeft: (r, args) => {
     const target = Number((args[0] as IntValue).value);
     const padCount = Math.max(0, target - graphemesOf(r.value).length);
     return strVal(' '.repeat(padCount) + r.value);
   },
+  padRight: (r, args) => {
+    const target = Number((args[0] as IntValue).value);
+    const padCount = Math.max(0, target - graphemesOf(r.value).length);
+    return strVal(r.value + ' '.repeat(padCount));
+  },
+  split: (r, args) => ({
+    type: 'List',
+    elements: r.value.split((args[0] as StringValue).value).map((s): RuntimeValue => strVal(s)),
+  }),
+  // stdlib/string.md: the common file-processing split — on '\n', '\r\n', or
+  // a lone '\r', so it handles both Unix and Windows line endings.
+  lines: r => ({
+    type: 'List',
+    elements: r.value.split(/\r\n|\r|\n/).map((s): RuntimeValue => strVal(s)),
+  }),
+  // stdlib/string.md: the escape hatch below graphemes. Array.from a string
+  // iterates by Unicode code point (surrogate pairs combined), unlike a plain
+  // index walk — codePointAt(0) then reads each one's scalar value.
+  codePoints: r => ({
+    type: 'List',
+    elements: Array.from(r.value, (c): RuntimeValue => intVal(BigInt(c.codePointAt(0)!))),
+  }),
+  bytes: r => ({
+    type: 'List',
+    elements: Array.from(Buffer.from(r.value, 'utf8'), (b): RuntimeValue => intVal(BigInt(b))),
+  }),
   // stdlib/scalars.md: parsing a String can fail, so each returns T? (None on
   // a bad parse) rather than crashing. Reuses scalar-input.ts's tryParse*,
   // the same validation the prompt family's ask*/CLI '--flag' parsing already

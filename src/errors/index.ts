@@ -305,9 +305,9 @@ export const ERRORS: ErrorEntry[] = [
     "code": "R0006",
     "name": "string-slice-out-of-bounds",
     "category": "runtime",
-    "summary": "'.slice(start..end)' had a start or end outside the String's valid range.",
-    "message": "'.slice({start}..{end})' is out of range for this String.",
-    "explanation": "'.slice(start..end)' counts characters from 0 and the end is exclusive, so a String with {length} character(s) only accepts a start and end between 0 and {length}, with start no greater than end. '{start}' and '{end}' don't fit that rule here."
+    "summary": "'.slice(from, to)' had a from or to outside the String's valid range.",
+    "message": "'.slice({start}, {end})' is out of range for this String.",
+    "explanation": "'.slice(from, to)' counts characters from 0 and 'to' is exclusive, so a String with {length} character(s) only accepts a 'from' and 'to' between 0 and {length}, with 'from' no greater than 'to'. '{start}' and '{end}' don't fit that rule here."
   },
   {
     "code": "R0007",

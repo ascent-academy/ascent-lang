@@ -1,6 +1,6 @@
 import type { Span } from '../lexer/token.js';
 import {
-  AscentType, TypeKind, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, RANGE_TYPE, DONE_TYPE,
+  AscentType, TypeKind, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE,
   listOfType, optionalOf, leastCommonType, typesEqual, typeToString, INVALID_TYPE,
 } from '../types/types.js';
 import { Diagnostics, requireArity, typeMismatch } from './diagnostics.js';
@@ -84,22 +84,39 @@ export const METHODS: Partial<Record<TypeKind, Record<string, MethodSig>>> = {
   Bool: {
     toString: { params: [], result: STRING_TYPE },
   },
-  // design.md §4: no integer indexing on String — these named, grapheme-aware
-  // methods replace it. length/first/last/chars/slice all count and cut on
-  // characters (Unicode graphemes), never bytes or code units. first/last
-  // return String? (None on an empty String) rather than crashing — the
-  // "expected maybe-absent" tier, now that Optional exists.
+  // stdlib/string.md: no integer indexing on String — these named,
+  // grapheme-aware methods replace it. length/first/last/chars/slice/drop/take
+  // all count and cut on characters (Unicode graphemes), never bytes or code
+  // units. first/last return String? (None on an empty String) rather than
+  // crashing — the "expected maybe-absent" tier, now that Optional exists.
   String: {
     length: { params: [], result: INT_TYPE },
+    isEmpty: { params: [], result: BOOL_TYPE },
     first: { params: [], result: optionalOf(STRING_TYPE) },
     last: { params: [], result: optionalOf(STRING_TYPE) },
     chars: { params: [], result: listOfType(STRING_TYPE) },
-    // design.md §4: slice takes a Range ('s.slice(1..4)'), not two loose
-    // Ints — the half-open bounds are one value that reads as "from…to".
-    slice: { params: [RANGE_TYPE], result: STRING_TYPE },
-    repeat: { params: [INT_TYPE], result: STRING_TYPE },
+    // stdlib/string.md: slice takes two grapheme indices, 'from' and 'to'
+    // (half-open) — not a Range, which is reserved for iteration (§5) and
+    // would teach a concept for this one use.
+    slice: { params: [INT_TYPE, INT_TYPE], result: STRING_TYPE },
+    drop: { params: [INT_TYPE], result: STRING_TYPE },
+    take: { params: [INT_TYPE], result: STRING_TYPE },
+    contains: { params: [STRING_TYPE], result: BOOL_TYPE },
+    startsWith: { params: [STRING_TYPE], result: BOOL_TYPE },
+    endsWith: { params: [STRING_TYPE], result: BOOL_TYPE },
+    toUpper: { params: [], result: STRING_TYPE },
+    toLower: { params: [], result: STRING_TYPE },
+    toTitle: { params: [], result: STRING_TYPE },
     trim: { params: [], result: STRING_TYPE },
+    trimStart: { params: [], result: STRING_TYPE },
+    trimEnd: { params: [], result: STRING_TYPE },
+    repeat: { params: [INT_TYPE], result: STRING_TYPE },
     padLeft: { params: [INT_TYPE], result: STRING_TYPE },
+    padRight: { params: [INT_TYPE], result: STRING_TYPE },
+    split: { params: [STRING_TYPE], result: listOfType(STRING_TYPE) },
+    lines: { params: [], result: listOfType(STRING_TYPE) },
+    codePoints: { params: [], result: listOfType(INT_TYPE) },
+    bytes: { params: [], result: listOfType(INT_TYPE) },
     // stdlib/scalars.md: parsing can fail — a String might not name a
     // number/Bool — so each returns T?, never a bare T, forcing the miss to
     // be handled (?? / match / try) instead of hidden.
