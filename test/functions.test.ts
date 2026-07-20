@@ -138,6 +138,17 @@ describe('functions (end-to-end)', () => {
     it('a returned closure captures its maker\'s parameter by value', async () => {
       assert.deepEqual((await run('fix make = fn(n: Int): Fn() -> Int => { fn(): Int => { n } }; fix g = make(7); fix h = make(9); g() + h();')).value, int(16n));
     });
+
+    // Regression: an outer name used *only* inside a 'return's value expression
+    // was not being counted as a free variable (captures.ts's visitExpr had no
+    // 'return' case), so the closure snapshotted an environment missing it and
+    // crashed with "internal: unbound slot" the first time the function ran.
+    it('captures an outer slot referenced only inside a return value', async () => {
+      assert.deepEqual(
+        (await run('fix base = 10; fix f = fn(x: Int): Int => { if (x > 0) { return x + base; }; base }; f(5);')).value,
+        int(15n),
+      );
+    });
   });
 
   describe('higher-order functions', () => {

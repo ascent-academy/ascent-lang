@@ -120,6 +120,9 @@ const visitExpr = (expr: Expr, bound: ReadonlySet<string>, out: Set<string>): vo
     case 'await':
       visitExpr(expr.task, bound, out);
       return;
+    case 'return':
+      if (expr.value !== null) visitExpr(expr.value, bound, out);
+      return;
     case 'abort':
       visitExpr(expr.reason, bound, out);
       return;
