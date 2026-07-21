@@ -1,3 +1,4 @@
+import type { Position } from '../lexer/token.js';
 import type { TypeExpr, FnParam, ProgramArg, ArgType } from './ast.js';
 import type { TokenStream } from './token-stream.js';
 
@@ -5,12 +6,15 @@ import type { TokenStream } from './token-stream.js';
 // Capitalized because it is a *type* (UpperCamel, like 'List'/'Optional'), and
 // it keeps the '->' arrow — the colon is the *value* literal's return separator
 // ('fn(x: T): R'), the arrow the *type*'s, so nested higher-order signatures
-// stay legible. The 'Fn' is already confirmed on lookahead by parseTypeExpr;
+// stay legible. The 'Fn' is already confirmed on lookahead by parsePostfixType;
 // it lexes as a plain TYPE_NAME. Positional parameter types (no names), then
 // '->' and the required result type. Zero parameters ('Fn() -> Done') are fine,
-// the same as a zero-input program.
-function parseFnType(ts: TokenStream): TypeExpr | null {
+// the same as a zero-input program. 'async' is a separate leading keyword
+// (whitepaper §5/§8) — 'startPos' lets the whole node's span start there
+// ('async Fn(...)...') rather than at 'Fn' when the caller already consumed it.
+function parseFnType(ts: TokenStream, async: boolean, startPos?: Position): TypeExpr | null {
   const fnTok = ts.advance(); // consume 'Fn'
+  const start = startPos ?? fnTok.span.start;
 
   const open = ts.expect('LPAREN', 'S0010');
   if (open === null) return null;
@@ -23,7 +27,7 @@ function parseFnType(ts: TokenStream): TypeExpr | null {
   const result = parseTypeExpr(ts);
   if (result === null) return null;
 
-  return { kind: 'FnType', params: parsed.items, result, span: { start: fnTok.span.start, end: result.span.end } };
+  return { kind: 'FnType', params: parsed.items, result, async, span: { start, end: result.span.end } };
 }
 
 // 'Int', 'Float', 'Bool', 'String', 'List<Type>', 'Fn(T) -> R', or any of those
@@ -35,7 +39,22 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
   const tok = ts.peek();
 
   let base: TypeExpr;
-  if (tok.kind === 'LPAREN') {
+  if (tok.kind === 'KW_ASYNC') {
+    // 'async Fn(...) -> R' — the type-level echo of an 'async fn' literal
+    // (whitepaper §5/§8): the color lives in the type, not bolted on as
+    // 'Fn(...) -> Task<R>'. 'async' must be immediately followed by 'Fn',
+    // mirroring the identical rule at the value level ('async fn') — reusing
+    // S0037 rather than a type-specific twin, since it's the same mistake.
+    const asyncTok = ts.advance(); // consume 'async'
+    const next = ts.peek();
+    if (next.kind !== 'TYPE_NAME' || next.value !== 'Fn') {
+      ts.report('S0037', next.span);
+      return null;
+    }
+    const fnType = parseFnType(ts, true, asyncTok.span.start);
+    if (fnType === null) return null;
+    base = fnType;
+  } else if (tok.kind === 'LPAREN') {
     // A parenthesized group — pure precedence grouping, so that a loose 'orfail'
     // can sit under a tighter operator: '(Int orfail String)?' is an Optional of
     // a Result (which the bare 'Int orfail String?' can't spell — that binds the
@@ -60,7 +79,7 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
   } else if (tok.value === 'Fn') {
     // 'Fn(...) -> R' — a function type. Like 'List', it lexes as a plain
     // TYPE_NAME whose text happens to be a reserved built-in type name.
-    const fnType = parseFnType(ts);
+    const fnType = parseFnType(ts, false);
     if (fnType === null) return null;
     base = fnType;
   } else if (tok.value === 'List') {

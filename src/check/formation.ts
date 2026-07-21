@@ -69,9 +69,10 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
     case 'FnType': return functionType(
       te.params.map(p => typeFromExpr(p, env, diagnostics)),
       typeFromExpr(te.result, env, diagnostics),
+      te.async,
     );
-    // 'Task<T>' — the inert async result (whitepaper §8). Only a 'Fn(...)' type
-    // is ever written 'async'; a Task carries just its awaited result type.
+    // 'Task<T>' — the inert async result (whitepaper §8). A 'Fn(...)' type
+    // carries its own 'async' flag; a Task carries just its awaited result type.
     case 'TaskType': return taskOf(typeFromExpr(te.elem, env, diagnostics));
   }
 };

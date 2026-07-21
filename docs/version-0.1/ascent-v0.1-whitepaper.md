@@ -167,7 +167,7 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
   fix double = fn(x: Int): Int => { fix y = x + 1; y * 2 };
   ```
 
-- **Return type sits after a colon** (`: Int`), matching the ordinary annotation colon. A **function *type*** is written with an arrow and capitalized `Fn`: `Fn(Int) -> String` — the split (declaration colon, function-type arrow) is exactly TypeScript's, and keeps higher-order signatures legible when they nest (`map(f: Fn(T) -> U): List<U>`).
+- **Return type sits after a colon** (`: Int`), matching the ordinary annotation colon. A **function *type*** is written with an arrow and capitalized `Fn`: `Fn(Int) -> String` — the split (declaration colon, function-type arrow) is exactly TypeScript's, and keeps higher-order signatures legible when they nest (`map(f: Fn(T) -> U): List<U>`). An **async** function's type is `async Fn(Int) -> User` — the `async` color lives in the type, and such a value is invoked with `!`, not `()` (§8).
 - **Closures capture by value** — a closure *snapshots* the values of the outer names it uses at creation time, so the famous loop-capture footgun cannot occur. This is value semantics (§3) extended to closures: one rule everywhere.
 - **`return`** is **early-exit only** — reaching the end is the normal path, and the body's value is its last statement. `return` outside a function is `T0043`.
 - **Type grammar:** parentheses group; the postfix **`?`** binds tighter than `orfail` and than an `Fn` arrow; **`?` is idempotent** (`T?? ≡ T?`, since one global `None` and no `Some` wrapper mean both have the same inhabitants) — writing `String??` explicitly earns a redundancy warning (`T0047`). **`orfail` does *not* collapse** — `Success`/`Failure` are real wrappers, so `(T orfail E)?` is a genuine three-way.
@@ -258,7 +258,12 @@ fix fetchUser = async fn(id: Int): User => {
 };
 ```
 
-- **An async function is not called — it is *prepared into a task*.** Calling a normal function runs its body; an `async` function's body suspends partway, so “call it and get the `User`” is impossible. What you get is a **`Task<User>`**: the work with its arguments bound, *not yet running*. Python hides this behind ordinary call syntax (a secret un-run coroutine); Ascent makes it **visible with the `!` sigil**:
+- **The *type* of an async function is `async Fn(Args) -> T`, not `Fn(Args) -> Task<T>`.** The color lives *in the type*: `fetchUser : async Fn(Int) -> User`. Two things follow, both making the model consistent rather than special-cased:
+  - **The declared return type is the type's return type.** You write `async fn(id: Int): User`, and the type says `-> User` — they match. The `Task` appears *only* when `!` runs the function, never as the function's own result; `async Fn(Int) -> Task<User>` would be a silent mismatch between what you annotate (`User`) and what the type says.
+  - **“No direct call” becomes a *type* fact, not a bolted-on rule.** A plain `Fn` is what `()` applies to; an **`async Fn` has no `()` application**, so `fetchUser(id)` failing (`T0053`) is simply "you applied `()` to something that is not a plain `Fn`," not a hand-written exception. `!` is the operator that takes an `async Fn(A) -> T` (with its args) and produces `Task<T>` — literally "turn this async function into a running task."
+
+  (The casing is your rule at work: `Fn` is capitalized because it is the *type*; `async` stays lowercase because it is a *modifier keyword*, exactly as in the `async fn` declaration — `async Fn` is the type-level echo of `async fn`. Note also that `async Fn(A) -> T` and a plain `Fn(A) -> Task<T>` are two distinct, both-legal types: the first is an async function invoked with `!`; the second is an *ordinary* function, called with `()`, whose body happens to build and return a `Task`. No coercion between them.)
+- **An async function is not called — it is *prepared into a task*.** Calling a normal function runs its body; an `async` function's body suspends partway, so “call it and get the `User`” is impossible. What `!` gives you is a **`Task<User>`**: the work with its arguments bound, *not yet running*. Python hides this behind ordinary call syntax (a secret un-run coroutine); Ascent makes it **visible with the `!` sigil**:
 
   ```ascent
   fix userTask = fetchUser!(id);   # Task<User> — bound, body NOT run, nothing happening yet

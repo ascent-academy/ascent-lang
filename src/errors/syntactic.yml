@@ -388,11 +388,13 @@
 - code: S0037
   name: async-without-fn
   category: syntactic
-  summary: "'async' is not followed by 'fn'."
-  message: "'async' must be followed by 'fn'."
+  summary: "'async' is not followed by 'fn' (a function value) or 'Fn' (a function type)."
+  message: "'async' must be followed by 'fn' or 'Fn'."
   explanation: >-
-    'async' marks a function as asynchronous, so it comes right before 'fn', like
-    'async fn(id: Int): User => { … }'. There is nothing else it can attach to.
+    'async' marks something asynchronous — a function value ('async fn(id:
+    Int): User => { … }') or a function *type* ('async Fn(Int) -> User'), the
+    type-level echo of the same keyword. So it always comes right before 'fn'
+    or 'Fn'. There is nothing else it can attach to.
 
 - code: S0038
   name: async-call-missing-args

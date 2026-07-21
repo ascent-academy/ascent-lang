@@ -170,6 +170,68 @@ describe('async / await (end-to-end)', () => {
     });
   });
 
+  describe('async function types (async Fn(...) -> T, whitepaper §5/§8)', () => {
+    it('accepts an async function passed to a parameter typed async Fn(...) -> T, called with ! inside', async () => {
+      assert.deepEqual(
+        (await run([
+          'fix fetchUser = async fn(id: Int): Int => { id };',
+          'fix runner = fn(getUser: async Fn(Int) -> Int): Task<Int> => getUser!(5);',
+          'await runner(fetchUser);',
+        ].join('\n'))).value,
+        int(5n),
+      );
+    });
+
+    it('the declared result is the function\'s own type, not Task<T> — the parameter is called with ! (not ()), the same "no direct call" rule as an async fn (T0053)', async () => {
+      assert.deepEqual(
+        errorCodes([
+          'fix fetchUser = async fn(id: Int): Int => { id };',
+          'fix runner = fn(getUser: async Fn(Int) -> Int): Int => getUser(5);',
+          'runner(fetchUser);',
+        ].join('\n')),
+        ['T0053'],
+      );
+    });
+
+    it('rejects passing a plain function where async Fn(...) -> T is expected (T0015)', async () => {
+      assert.deepEqual(
+        errorCodes([
+          'fix plainFn = fn(id: Int): Int => id;',
+          'fix runner = fn(getUser: async Fn(Int) -> Int): Task<Int> => getUser!(5);',
+          'runner(plainFn);',
+        ].join('\n')),
+        ['T0015'],
+      );
+    });
+
+    it('rejects passing an async function where plain Fn(...) -> T is expected (T0015)', async () => {
+      assert.deepEqual(
+        errorCodes([
+          'fix fetchUser = async fn(id: Int): Int => { id };',
+          'fix runner = fn(getUser: Fn(Int) -> Int): Int => getUser(5);',
+          'runner(fetchUser);',
+        ].join('\n')),
+        ['T0015'],
+      );
+    });
+
+    it("rejects 'async' in type position not followed by 'Fn' (S0037)", async () => {
+      assert.deepEqual(errorCodes('fix f = fn(g: async Int): Int => 5;'), ['S0037']);
+    });
+
+    it('nests inside a List element type (a list of async functions)', async () => {
+      assert.deepEqual(
+        (await run([
+          'fix a = async fn(id: Int): Int => { id };',
+          'fix b = async fn(id: Int): Int => { id * 2 };',
+          'fix handlers: List<async Fn(Int) -> Int> = [a, b];',
+          'handlers.length();',
+        ].join('\n'))).value,
+        int(2n),
+      );
+    });
+  });
+
   describe('async / await surface syntax', () => {
     it("rejects '!' without an argument list (S0038)", async () => {
       assert.deepEqual(errorCodes('fix f = async fn(): Int => { 1 }; f!;'), ['S0038']);

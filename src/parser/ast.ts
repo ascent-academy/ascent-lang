@@ -20,8 +20,11 @@ export type ResultType = { kind: 'ResultType'; ok: TypeExpr; err: TypeExpr; span
 // *literal* is lowercase and colon-separated. The parameter types are
 // positional (no names, unlike a literal's params), and the result is required
 // — a function that "returns nothing" returns 'Done', so there is always a
-// result to write.
-export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; span: Span };
+// result to write. 'async Fn(...) -> T' (async true) is the type-level echo of
+// an 'async fn' literal: the color lives in the type, so the declared result is
+// the function's own result, never a 'Fn(...) -> Task<T>' — 'Task' appears only
+// where '!' runs the function (whitepaper §5/§8).
+export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; async: boolean; span: Span };
 // 'Task<T>' — the type of an inert async result (whitepaper §8). The same
 // angle-bracket form as 'List<T>'; usually inferred (a slot bound to 'f!(x)'),
 // but writable so a slot holding a prepared task can be annotated.
