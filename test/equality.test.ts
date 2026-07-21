@@ -22,6 +22,10 @@ async function evalBool(src: string): Promise<boolean> {
   return v.value;
 }
 
+function errorCodes(src: string): string[] {
+  return parse(src, testCapabilities).diagnostics.map(d => d.code);
+}
+
 describe('structural equality (==) on compound values', () => {
   describe('lists', () => {
     it('equal lists are equal, differing lists are not', async () => {
@@ -88,6 +92,27 @@ describe('structural equality (==) on compound values', () => {
       assert.equal(await evalBool('fix a: Int? = 5; fix b: Int? = 5; a == b;'), true);
       assert.equal(await evalBool('fix a: Int? = 5; a == None;'), false);
       assert.equal(await evalBool('fix a: Int? = None; a == None;'), true);
+    });
+  });
+
+  // A function has no equality (whitepaper §5) — and that carve-out has to
+  // reach a function wherever it's hiding, not just a bare 'f == g', or two
+  // records/lists that merely happen to carry the same function would slip
+  // past the checker and silently compare "not equal" at runtime instead of
+  // being rejected (T0064).
+  describe('functions have no equality, even nested (T0064)', () => {
+    it('rejects a function buried in a record field', () => {
+      assert.deepEqual(
+        errorCodes('type H = { run: Fn(Int) -> Int }; fix f = fn(x: Int): Int => x; fix a = H{ run: f }; fix b = H{ run: f }; a == b;'),
+        ['T0064'],
+      );
+    });
+
+    it('rejects a function buried in a list element', () => {
+      assert.deepEqual(
+        errorCodes('fix f = fn(x: Int): Int => x; [f] == [f];'),
+        ['T0064'],
+      );
     });
   });
 });

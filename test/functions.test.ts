@@ -254,8 +254,8 @@ describe('functions (end-to-end)', () => {
       assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => { "no" };'), ['T0042']);
     });
 
-    it('rejects comparing functions with == (T0008)', async () => {
-      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => { x }; f == f;'), ['T0008']);
+    it('rejects comparing functions with == (T0064)', async () => {
+      assert.deepEqual(errorCodes('fix f = fn(x: Int): Int => { x }; f == f;'), ['T0064']);
     });
 
     it('rejects a signature with no return type (S0024)', async () => {

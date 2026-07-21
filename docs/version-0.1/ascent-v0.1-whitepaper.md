@@ -86,7 +86,7 @@ count = count + 1;   # fine; would be N0002 on a fixed slot
 
 ## 4. Values & types (the value universe)
 
-The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `None`, `Done`, `Never`, `Invalid`, `List<T>`, `Optional<T>` (`T?`), `Result<T, E>` (`T orfail E`), `Range`, `Task<T>`, function types, and user `Named` types. `Never` and `Invalid` are checker-internal (§7).
+The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `None`, `Done`, `Never`, `Invalid`, `List<T>`, `Dict<K, V>`, `Set<T>`, `Optional<T>` (`T?`), `Result<T, E>` (`T orfail E`), `Range`, `Task<T>`, function types, and user `Named` types (including the ambient stdlib types `Pair` / `Entry` / `Ordering`). `Never` and `Invalid` are checker-internal (§7).
 
 ### Scalars
 
@@ -128,9 +128,12 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
 
 - **`List<T>`** — homogeneous: one element type `T`. A literal `[1, 2, 3]` infers `T` as the **least common type of its elements**: all `Int` → `List<Int>`; an `Int`/`Float` mix → `List<Float>` (the `Int`s promote, the same one-way rule as §5); elements with no common type (`[1, "x", True]`) are `T0005`. The empty `[]` is typed **`List<Never>`** as an expression and flows into any expected-type position (`fix xs: List<Int> = []`, a `List<T>` parameter); but a bare unannotated `fix xs = []` is `T0003` (annotate it) — resolution comes only from expected-type context, never from a later use. Growth is gated by a `mut` slot.
 - **`Range`** — `a..b`, **half-open** (`0..n` yields exactly `n` items), iterable by `for` (§5), pairs cleanly with lengths, replaces the C-style `for`. Bounds must be `Int` (`T0020`).
+- **`Dict<K, V>`** — a **hashed** keyed container (`K` → `V`); the key type must be `Hashable` (§7). Named `Dict`, not `Map`, because `.map` is the transform-each operation — one meaning per surface (§1). Iterating a `Dict` yields `Entry<K, V>` values.
+- **`Set<T>`** — a **hashed** collection of unique `T`; the element type must be `Hashable` (§7).
+- **Ambient helper types — `Pair`, `Entry`, `Ordering`.** Small types the stdlib ships **in scope** (no import), the *named-not-positional* replacements the no-tuples rule (§6) implies: **`Pair<A, B>`** (fields `first` / `second`) for two related values (e.g. what `zip` returns), **`Entry<K, V>`** (fields `key` / `value`) for a `Dict` association, and **`Ordering`** (`Less | Equal | Greater`) for a custom comparison result. They are ordinary `type`s, *consumed* like `List` / `Optional` (users cannot yet **define** generic types, §7). Their fields and the methods that use them are specified in the stdlib specs, not here.
 - **Functions** — first-class values (§5).
 
-> **Not in v0.1:** `Map<K,V>`, `Set`, `Bytes`, `Char`, tuples (use a named record), sized/unsigned ints, `Ref<T>`, and the compile-time-validated DSL literals (`json`…`` etc.). Value semantics *is* shipped: assignment is conceptually a copy, no aliasing.
+> **Not in v0.1:** `Bytes`, `Char`, positional tuples (use a named record or the ambient `Pair`), sized/unsigned ints, `Ref<T>`, and the compile-time-validated DSL literals (`json`…`` etc.). **`Dict<K, V>` and `Set<T>` are the planned next collections** — their foundation (the `Hashable` weld above, the ambient `Pair` / `Entry` / `Ordering` types) is settled now and lands with the collection work; until the containers themselves ship, treat their entries here as the fixed design, not present behaviour. Value semantics *is* shipped: assignment is conceptually a copy, no aliasing.
 
 ---
 
@@ -148,7 +151,7 @@ The type lattice (`src/types/types.ts`) is: `Int`, `Float`, `Bool`, `String`, `N
 
 - **`while (cond) { }`** for condition loops. **`for x in xs`** iterates values and takes **no parens** — parenthesizing it would mimic TypeScript's *key*-iterating `for…in`, the false friend the choice avoids. There is **no C-style three-part `for`**. Both loops are statements that **yield `Done`**; producing a value *from* a sequence is a collection operation's job, not loop-return — which keeps the block-value rule special-case-free (a loop body is a `Done`-required position, §2). The iterable must be a `List` or a `Range` (`T0021`) — see the `Iterable` weld in §7.
 - **Operators are words:** `and` / `or` / `not`, on `Bool` only.
-- **`==`** is **structural**; operands must share a type, except that `Int` and `Float` compare as numbers (`1 == 1.0` is `True`). Other cross-type comparison is `T0008`. **`< > <= >=`** work on `Int` / `Float` / `String`, with the same `Int`/`Float` mixing.
+- **`==` is structural and works on *all data*** — scalars by value, records field-by-field, unions tag-then-payload, lists element-by-element, recursively — so **no `Equatable` bound is ever needed**: equality is *defined for all data*. Operands must share a type, except that `Int` and `Float` compare as numbers (`1 == 1.0` is `True`); other cross-type comparison is `T0008`. The **one carve-out**: a **function has no honest equality** (structural identity is undecidable; reference identity is a footgun Ascent hides), so comparing functions — or any structure containing one — is a compile error (`T0064`), never a silent wrong answer. **`< > <= >=`** are narrower, ordering-only — they work on `Int` / `Float` / `String` (the `Comparable` types, §7), with the same `Int`/`Float` mixing.
 - **Numbers promote one way — `Int` → `Float`, never back.** `+`, `-`, `*` yield an `Int` only when *every* operand is an `Int`, and a `Float` the moment any operand is one. A `Float` is never silently narrowed — that needs an explicit conversion (a named rounding method, per the `scalars` module doc).
 - **Division & modulo.** `/` **always yields a `Float`** (`10 / 2` is `5.0`, `7 / 2` is `3.5`), so the silent integer-truncation bug cannot occur. **`div`** is floor division on `Int` operands only; **`mod`** is its floored partner (result takes the **sign of the divisor** — `-7 mod 3` is `2`), so `(a div b) * b + (a mod b) == a` always holds. Using either on a `Float` is a type error; division by zero is the loud crash `R0002`. Both are words, not `//` / `%` (which are false friends, §2).
 - **Exponentiation `**`** follows the promotion of `*`, not the always-`Float` of `/`: **`Int ** Int` is an `Int`** (`2 ** 10` is `1024`, exact), and a `Float` operand makes it `Float`. A **negative integer exponent** (`2 ** -1`) is a loud crash (`R0003`) whose message says to use a `Float` base — the operation stays exact-or-errors rather than truncating to `0`. Right-associative, and binds tighter than unary minus (`-2 ** 2` is `-4`).
@@ -232,10 +235,13 @@ The checker mainly answers one question — *“are these two named types the sa
   | Trait 🔒 | Capability | Where it is consumed | Hard-coded implementors (today) |
   |---|---|---|---|
   | `Display` | “has a canonical text form” | `${}` holes, the prelude's output functions | `Int`, `Float`, `Bool`, `String` |
-  | `Comparable` | “can be ordered” | stdlib ordering (min / max) | `Int`, `Float`, `String` |
-  | `Iterable` | “can be walked one element at a time” | `for x in xs` | `List<T>`, `Range` |
+  | `Comparable` | “can be ordered” | stdlib ordering (min / max), list sort | `Int`, `Float`, `String` |
+  | `Iterable` | “can be walked one element at a time” | `for x in xs` | `List<T>`, `Range` (and `Dict` / `Set` when they ship) |
+  | `Hashable` | “usable as a `Dict` key / `Set` element” | `Dict` keys, `Set` elements | structural — see below |
 
   `Iterable` additionally carries an **associated type** `Item` (the element `for` binds) — the projection a real trait system writes `<T as Iterable>::Item`, hard-coded here (`List<T>` → `T`, `Range` → `Int`). So v2 buys user-defined *implementors*, not the mechanism — nothing to solve now, only to label. A trait is a **bound on a type parameter, not a type**: `fn(x: Display)` (trait-as-type / a boxed dynamic dispatch) is unsupported; traits are static-only, resolved per concrete `T`.
+
+  **`Hashable` is structural and recursive** — unlike the other three (fixed implementor lists), it is a *predicate over a type's shape*: the **scalars** are `Hashable` (base case; `Float` included — the `NaN` ban, §4, makes float equality safe); a **record** or **union** is `Hashable` iff all its fields are; a **`List<T>`** is `Hashable` iff `T` is (hashed in order). It bottoms out at scalars. Two things are **never** `Hashable`: a **function** (no equality → no hash — the same carve-out as `==`, §5), and a **`Dict` / `Set`** (unordered, so no stable structural hash — they cannot be keys). Since Ascent's `==` is already universal over data, the `Dict`-keyable types are exactly *data with no function inside* — computed by the checker, so a user type is a valid key automatically by being made of hashable parts, with **no `implement` needed**; v2's trait system adds *manual* implementation, not this structural default.
 
 > **Not in v0.1:** user-definable **generics and traits** (the only polymorphism today is built-in operators, the built-in generic containers `List`/`Optional`/`Result`, and the three intrinsic traits above). No type-level computation.
 
@@ -292,7 +298,7 @@ A diagnostic is a **lesson**, not a scolding — a structured `Diagnostic` value
 - **`L` Lexical** (`L0001`–`L0008`) — the characters don't form valid Ascent.
 - **`S` Syntax** (`S0001`–`S0043`) — the words are fine alone but don't fit together.
 - **`N` Name & binding** (`N0001`–`N0016`) — a name/slot rule is broken.
-- **`T` Type & semantic** (`T0001`–`T0063`) — well-formed code breaks a static rule.
+- **`T` Type & semantic** (`T0001`–`T0064`) — well-formed code breaks a static rule.
 - **`R` Runtime** (`R0001`–`R0016`) — only running reveals it; thrown as a `RuntimeError`, a distinct bug-tier crash path.
 
 ---
@@ -431,14 +437,14 @@ Ada is a pro
 
 | In Core v0.1 | Deferred beyond v0.1 |
 |---|---|
-| Scalars, `List`, `Range`, `Optional`, `Result`, `Task` | `Map`, `Set`, `Ref`, `Char`, `Bytes`, tuples, DSL literals |
+| Scalars, `List`, `Range`, `Optional`, `Result`, `Task`; ambient `Pair` / `Entry` / `Ordering`; `Dict` / `Set` *(planned next)* | `Ref`, `Char`, `Bytes`, positional tuples, DSL literals |
 | `type` records / enums / unions *(pure data)* | **User `methods { }`**, `make { }`, `opaque type` |
 | `match`, destructuring, `with`, `try` / `try…else` / `??` / `?.` / `abort` / `.orAbort` | trait-gated auto error conversion (`From`) |
 | `async fn` / `!` / `await` (single task) | Nurseries, combinators, channels, cancellation |
 | `program (…)` entry + CLI arg binding | UI / MVU / `Element` / `Command` / subscriptions |
 | `import` from the stdlib registry | `export`, user-authored files, external packages |
 | Built-in methods + ambient prelude *(catalog in the module docs)* | stdlib catalog growth (per the module docs) |
-| Nominal types, narrow widening, `Never`/`Invalid`, bidirectional checking, narrowing-by-binding | User-definable **generics & traits** (the three 🔒 welds generalize here) |
+| Nominal types, narrow widening, `Never`/`Invalid`, bidirectional checking, narrowing-by-binding, universal `==` over data | User-definable **generics & traits** (the four 🔒 welds generalize here) |
 | Full diagnostics (`L`/`S`/`N`/`T`/`R`); REPL (auto-print) | Formatter, `:type`, test runner, Rust/WASM VM |
 
-*The three 🔒 welds — `for` → `Iterable`, `${}`/prelude output → `Display`, ordering (min/max) → `Comparable` — ship hard-coded in v0.1 and generalize to user-implementable traits in v2 with no change to what any existing program means. That is the whitepaper's stated guarantee, and it is why Layer 1 can be frozen now while Layer 2 keeps growing.*
+*The four 🔒 welds — `for` → `Iterable`, `${}`/prelude output → `Display`, ordering (min/max, sort) → `Comparable`, and `Dict`/`Set` keys → `Hashable` (structural) — ship hard-coded in v0.1 and generalize to user-implementable traits in v2 with no change to what any existing program means. `Hashable` is already structural (a key is any function-free data), so v2 adds only *manual* opt-in. That is the whitepaper's stated guarantee, and it is why Layer 1 can be frozen now while Layer 2 keeps growing.*

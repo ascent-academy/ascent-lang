@@ -255,6 +255,30 @@ const synthNamespaceCall = (
   return asCall(moduleCallType(module, expr.method, typedArgs.map(a => a.type), diagnostics, expr.span));
 };
 
+// Whether 'ty' is, or structurally contains, a function type — what '=='/'!='
+// rejects with T0064 (whitepaper §5): a function has no honest equality, and
+// that's just as true buried in a record field, a list element, an Optional,
+// or a Result as it is bare, so the check walks the same shapes valuesEqual
+// would recurse through at runtime. A 'Named' type's fields live in the type
+// registry rather than on the AscentType itself, so resolving one needs 'env'
+// — unlike containsNever/containsBareNone (types.ts), which is why this lives
+// here instead. 'seen' guards a self-referential type declaration from looping.
+const typeContainsFunction = (ty: AscentType, env: TypeEnv, seen: Set<string> = new Set()): boolean => {
+  switch (ty.kind) {
+    case 'Function': return true;
+    case 'List': return typeContainsFunction(ty.elem, env, seen);
+    case 'Optional': return typeContainsFunction(ty.elem, env, seen);
+    case 'Result': return typeContainsFunction(ty.ok, env, seen) || typeContainsFunction(ty.err, env, seen);
+    case 'Named': {
+      if (seen.has(ty.name)) return false;
+      seen.add(ty.name);
+      const info = env.getType(ty.name);
+      return info !== null && info.variants.some(v => v.fields.some(f => typeContainsFunction(f.type, env, seen)));
+    }
+    default: return false;
+  }
+};
+
 export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): TypedExpr => {
   switch (expr.kind) {
     case 'literal': {
@@ -663,11 +687,23 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
             break;
           }
           case '==': case '!=': {
-            // Functions have no equality — comparing them is a compile error
-            // (whitepaper §5). Caught here because two identical arrow types
-            // otherwise share a common type and would slip through as Bool. A
-            // Task is the same: inert running work with no structural sense.
-            if (lt.kind === 'Function' || rt.kind === 'Function' || lt.kind === 'Task' || rt.kind === 'Task') {
+            // Functions have no equality — comparing them, or anything built
+            // out of them (a record field, a list element, …), is a compile
+            // error (T0064, whitepaper §5) rather than a silently-wrong
+            // answer. Checked structurally, not just at the top level: two
+            // identical arrow types — or two records that happen to share a
+            // function field — would otherwise share a common type and slip
+            // through as Bool.
+            if (typeContainsFunction(lt, env) || typeContainsFunction(rt, env)) {
+              diagnostics.error({ code: 'T0064', span: expr.span, data: { op: expr.op, operands: [lt, rt].map(typeToString).join(' and ') } });
+              type = INVALID_TYPE;
+              break;
+            }
+            // A Task is the same story as a bare function: inert running work
+            // with no structural sense, so comparing it directly is rejected
+            // too — but under the generic T0008, since only functions get
+            // T0064's dedicated message.
+            if (lt.kind === 'Task' || rt.kind === 'Task') {
               type = operandError(diagnostics, expr.op, expr.span, lt, rt);
               break;
             }

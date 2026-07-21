@@ -1318,6 +1318,14 @@ export const ERRORS: ErrorEntry[] = [
     "summary": "'assertEqual' was given two values of unrelated types, which can never be equal.",
     "message": "'assertEqual' compares two values of the same kind, but these are {left} and {right}.",
     "explanation": "'assertEqual' checks that two values are equal, so they must be comparable — the same type, or an Int and a Float. {left} and {right} have unrelated types, so they could never be equal, which makes the check meaningless."
+  },
+  {
+    "code": "T0064",
+    "name": "function-equality",
+    "category": "type",
+    "summary": "'==' or '!=' compared a function, or a value built out of one — functions have no equality.",
+    "message": "'{op}' can't compare {operands} — a function has no equality.",
+    "explanation": "Two functions might compute the exact same result while being written in completely different ways, so there's no honest way to say whether they're \"equal\" — and comparing them by identity instead would be a hidden footgun. So a function can never be compared with '==', even when it's buried inside a record field or a list element rather than compared directly. Compare the specific values that do have equality instead."
   }
 ];
 
