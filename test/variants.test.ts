@@ -213,7 +213,7 @@ describe('Type variants (end-to-end)', () => {
     });
 
     it('allows two different variants to share a field name', async () => {
-      assert.equal(typeOfLast('type Pair = Left{ v: Int } | Right{ v: Int }; Left{ v: 1 };'), 'Pair');
+      assert.equal(typeOfLast('type Duo = Left{ v: Int } | Right{ v: Int }; Left{ v: 1 };'), 'Duo');
     });
   });
 

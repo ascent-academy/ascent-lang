@@ -761,6 +761,14 @@ export const ERRORS: ErrorEntry[] = [
     "explanation": "A '{ … }' block groups statements as the body of something — an 'if', a 'while' or 'for' loop, a function ('fn(…): T => { … }'), or a 'match' arm. It is not a value on its own, so it can't be given a name, passed to a function, or placed inside a larger expression. A '{' here has no body to belong to. To pick a value, use an 'if' ('fix x = if (c) { 1 } else { 2 }') or a 'match'; to run several statements, put them in the body of the construct they belong to."
   },
   {
+    "code": "S0045",
+    "name": "expected-pair-comma",
+    "category": "syntactic",
+    "summary": "A ',' was expected between Pair's or Entry's two type arguments.",
+    "message": "A ',' was expected here, between the two type arguments.",
+    "explanation": "'Pair<A, B>' and 'Entry<K, V>' always take exactly two type arguments, separated by a comma — like 'Pair<Int, String>' or 'Entry<String, Int>'."
+  },
+  {
     "code": "T0001",
     "name": "annotation-mismatch",
     "category": "type",

@@ -4,7 +4,7 @@ import type { TypedExpr, TypedTemplatePart, TypedFieldInit, TypedWithUpdate, Typ
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, NONE_TYPE, DONE_TYPE, NEVER_TYPE, INVALID_TYPE, RANGE_TYPE,
   listOfType, leastCommonType, joinTypes, typeToString, isInvalidType, namedType, functionType, isAssignableTo, resultOf, taskOf,
-  typesEqual,
+  typesEqual, pairOf, entryOf,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import { Diagnostics, requireArity, typeMismatch, operandError } from './diagnostics.js';
@@ -138,6 +138,53 @@ const synthResultConstruct = (
   return { kind: 'construct', typeName: tag, fields, type, span: expr.span };
 };
 
+// prelude.md's ambient 'Pair{ first: …, second: … }' / 'Entry{ key: …, value:
+// … }'. Like Success/Failure, neither is a user-declared type, so construction
+// is handled here rather than through env.getConstructor — but unlike
+// Success/Failure (where the *other* side is unknown and widens from Never),
+// a Pair/Entry always needs both fields together, so both component types
+// come straight from the two synthesized values, with no Never-elision trick.
+// At runtime the value is just a record named 'Pair'/'Entry' carrying both
+// fields, so the interpreter needs no Pair/Entry-specific machinery either.
+const synthTwoFieldConstruct = (
+  expr: Extract<Expr, { kind: 'construct' }>,
+  tag: 'Pair' | 'Entry',
+  fieldNames: readonly [string, string],
+  buildType: (a: AscentType, b: AscentType) => AscentType,
+  env: TypeEnv,
+  diagnostics: Diagnostics,
+): TypedExpr => {
+  const [nameA, nameB] = fieldNames;
+  let valueA: TypedExpr | null = null;
+  let valueB: TypedExpr | null = null;
+  const seen = new Set<string>();
+  for (const f of expr.fields) {
+    const typedValue = synth(f.value, env, diagnostics);
+    if (seen.has(f.name)) {
+      diagnostics.error({ code: 'T0024', span: f.nameSpan, data: { field: f.name, type: tag } });
+      continue;
+    }
+    seen.add(f.name);
+    if (f.name === nameA) {
+      valueA = typedValue;
+    } else if (f.name === nameB) {
+      valueB = typedValue;
+    } else {
+      diagnostics.error({ code: 'T0023', span: f.nameSpan, data: { field: f.name, type: tag } });
+    }
+  }
+  if (valueA === null || valueB === null) {
+    const missing = [valueA === null ? nameA : null, valueB === null ? nameB : null].filter((n): n is string => n !== null);
+    diagnostics.error({ code: 'T0022', span: expr.typeNameSpan, data: { type: tag, fields: missing.join(', ') } });
+  }
+  const typeA = valueA?.type ?? INVALID_TYPE;
+  const typeB = valueB?.type ?? INVALID_TYPE;
+  const fields: TypedFieldInit[] = [];
+  if (valueA !== null) fields.push({ name: nameA, declaredType: typeA, value: valueA });
+  if (valueB !== null) fields.push({ name: nameB, declaredType: typeB, value: valueB });
+  return { kind: 'construct', typeName: tag, fields, type: buildType(typeA, typeB), span: expr.span };
+};
+
 // whitepaper §9: 'try expr' / 'try expr else [e] -> mapExpr'. `try` unwraps the
 // good case of an Optional/Result and continues, or early-returns the bad case
 // from the enclosing function, whose declared return type can carry that bad
@@ -269,6 +316,8 @@ const typeContainsFunction = (ty: AscentType, env: TypeEnv, seen: Set<string> = 
     case 'List': return typeContainsFunction(ty.elem, env, seen);
     case 'Optional': return typeContainsFunction(ty.elem, env, seen);
     case 'Result': return typeContainsFunction(ty.ok, env, seen) || typeContainsFunction(ty.err, env, seen);
+    case 'Pair': return typeContainsFunction(ty.first, env, seen) || typeContainsFunction(ty.second, env, seen);
+    case 'Entry': return typeContainsFunction(ty.key, env, seen) || typeContainsFunction(ty.value, env, seen);
     case 'Named': {
       if (seen.has(ty.name)) return false;
       seen.add(ty.name);
@@ -860,6 +909,14 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       if (expr.typeName === 'Success' || expr.typeName === 'Failure') {
         return synthResultConstruct(expr, expr.typeName, env, diagnostics);
       }
+      // 'Pair{ … }' / 'Entry{ … }' — prelude.md's ambient two-value records,
+      // likewise not user-declared, so handled before the ordinary lookup.
+      if (expr.typeName === 'Pair') {
+        return synthTwoFieldConstruct(expr, 'Pair', ['first', 'second'], pairOf, env, diagnostics);
+      }
+      if (expr.typeName === 'Entry') {
+        return synthTwoFieldConstruct(expr, 'Entry', ['key', 'value'], entryOf, env, diagnostics);
+      }
       // A construction names a *constructor* (a variant tag), which for a record
       // equals the type name and for a union is one of its variants ('Circle').
       const ctor = env.getConstructor(expr.typeName);
@@ -1054,6 +1111,23 @@ export const synth = (expr: Expr, env: TypeEnv, diagnostics: Diagnostics): Typed
       const typedReceiver = synth(expr.receiver, env, diagnostics);
       if (isInvalidType(typedReceiver.type)) {
         return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
+      }
+      // 'Pair'/'Entry' (prelude.md) are always a single shape, so their two
+      // fields are always directly readable — the same rule an ordinary
+      // one-variant record gets, but resolved from the type's own component
+      // types rather than the TypeEnv registry (they aren't user-declared, so
+      // there's no registry entry to look up — see the Pair/Entry AscentType
+      // kind in types.ts).
+      if (typedReceiver.type.kind === 'Pair' || typedReceiver.type.kind === 'Entry') {
+        const pairOrEntry = typedReceiver.type;
+        const fieldType = pairOrEntry.kind === 'Pair'
+          ? (expr.field === 'first' ? pairOrEntry.first : expr.field === 'second' ? pairOrEntry.second : null)
+          : (expr.field === 'key' ? pairOrEntry.key : expr.field === 'value' ? pairOrEntry.value : null);
+        if (fieldType === null) {
+          diagnostics.error({ code: 'T0027', span: expr.fieldSpan, data: { field: expr.field, type: typeToString(pairOrEntry) } });
+          return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: INVALID_TYPE, span: expr.span };
+        }
+        return { kind: 'fieldAccess', receiver: typedReceiver, field: expr.field, type: fieldType, span: expr.span };
       }
       // Field access needs a value with fields to read. A non-Named type has
       // none (T0026); a Named type does, but only a *record* (one variant) — a

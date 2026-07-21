@@ -470,3 +470,12 @@
     pick a value, use an 'if' ('fix x = if (c) { 1 } else { 2 }') or a 'match';
     to run several statements, put them in the body of the construct they belong
     to.
+
+- code: S0045
+  name: expected-pair-comma
+  category: syntactic
+  summary: "A ',' was expected between Pair's or Entry's two type arguments."
+  message: "A ',' was expected here, between the two type arguments."
+  explanation: >-
+    'Pair<A, B>' and 'Entry<K, V>' always take exactly two type arguments,
+    separated by a comma — like 'Pair<Int, String>' or 'Entry<String, Int>'.

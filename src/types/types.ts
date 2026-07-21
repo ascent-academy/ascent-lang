@@ -38,6 +38,22 @@ export type AscentType =
   // concurrency are deferred (§8's structured-concurrency half), so 'await' is
   // the sole consumer.
   | { kind: 'Task'; result: AscentType }
+  // prelude.md's ambient 'Pair<A, B>' — a two-value record ('first'/'second'),
+  // the named-not-positional replacement for a 2-tuple (whitepaper §6 rejects
+  // tuples). It carries two component types like Result, but — unlike Result,
+  // whose two sides are alternatives — both are always present together; there
+  // is no built-in 'type Pair<A, B> = …' to declare, since user-defined
+  // generics are v2 (§7), so it is its own AscentType kind, hardcoded exactly
+  // like List/Optional/Result. Covariant in both components (subtype() below;
+  // sound like List/Result, since values are immutable).
+  | { kind: 'Pair'; first: AscentType; second: AscentType }
+  // prelude.md's ambient 'Entry<K, V>' — structurally a Pair ('key'/'value'
+  // instead of 'first'/'second'), kept as its own kind rather than reusing
+  // Pair because the field names are the whole point (a Dict association
+  // reads as 'entry.key'/'entry.value', not the positionally-named 'first'/
+  // 'second' a Pair would give it) — the same "names carry meaning" principle
+  // that keeps it a distinct type rather than a type alias.
+  | { kind: 'Entry'; key: AscentType; value: AscentType }
   // design.md §6/§7: a nominal reference to a user-declared type (a record —
   // and, later, a tagged union). Identity is the `name` alone — the type is a
   // lightweight handle; its structure (variants → fields) lives in the
@@ -96,6 +112,8 @@ export const listOfType = (elem: AscentType): AscentType => ({ kind: 'List', ele
 export const optionalOf = (elem: AscentType): AscentType =>
   elem.kind === 'Optional' ? elem : { kind: 'Optional', elem };
 export const resultOf = (ok: AscentType, err: AscentType): AscentType => ({ kind: 'Result', ok, err });
+export const pairOf = (first: AscentType, second: AscentType): AscentType => ({ kind: 'Pair', first, second });
+export const entryOf = (key: AscentType, value: AscentType): AscentType => ({ kind: 'Entry', key, value });
 export const namedType = (name: string): AscentType => ({ kind: 'Named', name });
 export const functionType = (params: AscentType[], result: AscentType, async = false): AscentType => ({ kind: 'Function', params, result, async });
 export const taskOf = (result: AscentType): AscentType => ({ kind: 'Task', result });
@@ -133,6 +151,15 @@ export const typeToString = (t: AscentType): string => {
   // (whitepaper §8), the same angle-bracket form as List<T>.
   if (t.kind === 'Task') {
     return `Task<${typeToString(t.result)}>`;
+  }
+  // prelude.md's ambient Pair/Entry show in their own '<A, B>' surface spelling
+  // — the same shape a user-written generic type would get, even though
+  // neither is user-declarable yet (§7).
+  if (t.kind === 'Pair') {
+    return `Pair<${typeToString(t.first)}, ${typeToString(t.second)}>`;
+  }
+  if (t.kind === 'Entry') {
+    return `Entry<${typeToString(t.key)}, ${typeToString(t.value)}>`;
   }
   // A Named type shows as the name the learner declared ('Person'), never
   // 'Named' — the 'kind' is an implementation label, not user vocabulary.
@@ -181,6 +208,11 @@ export const containsNever = (t: AscentType): boolean => {
   // practice an async function's result type is always written explicitly, so
   // this is for completeness (a slot 'fix t = ...' holding a Task<Never>).
   if (t.kind === 'Task') return containsNever(t.result);
+  // A Pair/Entry (prelude.md) carries an unresolved Never whenever either
+  // component does — 'Pair{ first: [], second: 1 }' freezes 'first' at
+  // List<Never> just as a bare '[]' would in a slot on its own.
+  if (t.kind === 'Pair') return containsNever(t.first) || containsNever(t.second);
+  if (t.kind === 'Entry') return containsNever(t.key) || containsNever(t.value);
   return false;
 };
 
@@ -197,6 +229,8 @@ export const containsBareNone = (t: AscentType): boolean => {
   if (t.kind === 'List') return containsBareNone(t.elem);
   if (t.kind === 'Result') return containsBareNone(t.ok) || containsBareNone(t.err);
   if (t.kind === 'Task') return containsBareNone(t.result);
+  if (t.kind === 'Pair') return containsBareNone(t.first) || containsBareNone(t.second);
+  if (t.kind === 'Entry') return containsBareNone(t.key) || containsBareNone(t.value);
   // A non-empty 'Optional' is deliberately opaque here — None belongs inside it.
   return false;
 };
@@ -216,6 +250,14 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
 
   if (a.kind === 'Result' && b.kind === 'Result') {
     return typesEqual(a.ok, b.ok) && typesEqual(a.err, b.err);
+  }
+
+  if (a.kind === 'Pair' && b.kind === 'Pair') {
+    return typesEqual(a.first, b.first) && typesEqual(a.second, b.second);
+  }
+
+  if (a.kind === 'Entry' && b.kind === 'Entry') {
+    return typesEqual(a.key, b.key) && typesEqual(a.value, b.value);
   }
 
   // Two Tasks are equal exactly when their result types are — Task is invariant,
@@ -248,7 +290,9 @@ export const typesEqual = (a: AscentType, b: AscentType): boolean => {
 // A coercion is the runtime witness of a subtyping edge: how to turn a value
 // of the sub-type into one of the super-type. `null` means the two types are
 // equal — no runtime conversion needed.
-export type Coercion = 'intToFloat' | { elem: Coercion } | { ok: Coercion; err: Coercion } | null;
+export type Coercion =
+  | 'intToFloat' | { elem: Coercion } | { ok: Coercion; err: Coercion }
+  | { first: Coercion; second: Coercion } | { key: Coercion; value: Coercion } | null;
 
 // S <: T — the one place widening is defined. `Never` widens to *any* T
 // (design.md §7 — it's uninhabited, so the edge is vacuously sound: there's
@@ -317,6 +361,25 @@ export const subtype = (sub: AscentType, sup: AscentType): Coercion | false => {
     return { ok: okC, err: errC };
   }
 
+  // Pair/Entry (prelude.md) are covariant in both components, the same
+  // reasoning as List/Result — both fields are always present together (no
+  // Never-elided branch to widen away, unlike Result), so this is what lets a
+  // 'Pair<Int, String>' flow into a declared 'Pair<Float, String>'.
+  if (sub.kind === 'Pair' && sup.kind === 'Pair') {
+    const firstC = subtype(sub.first, sup.first);
+    const secondC = subtype(sub.second, sup.second);
+    if (firstC === false || secondC === false) return false;
+    if (firstC === null && secondC === null) return null;
+    return { first: firstC, second: secondC };
+  }
+  if (sub.kind === 'Entry' && sup.kind === 'Entry') {
+    const keyC = subtype(sub.key, sup.key);
+    const valueC = subtype(sub.value, sup.value);
+    if (keyC === false || valueC === false) return false;
+    if (keyC === null && valueC === null) return null;
+    return { key: keyC, value: valueC };
+  }
+
   return false;
 };
 
@@ -355,6 +418,16 @@ export const leastCommonType = (a: AscentType, b: AscentType): AscentType | null
     const ok = leastCommonType(a.ok, b.ok);
     const err = leastCommonType(a.err, b.err);
     return ok !== null && err !== null ? resultOf(ok, err) : null;
+  }
+  if (a.kind === 'Pair' && b.kind === 'Pair') {
+    const first = leastCommonType(a.first, b.first);
+    const second = leastCommonType(a.second, b.second);
+    return first !== null && second !== null ? pairOf(first, second) : null;
+  }
+  if (a.kind === 'Entry' && b.kind === 'Entry') {
+    const key = leastCommonType(a.key, b.key);
+    const value = leastCommonType(a.value, b.value);
+    return key !== null && value !== null ? entryOf(key, value) : null;
   }
   return null;
 };

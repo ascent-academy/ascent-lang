@@ -52,8 +52,13 @@ const formatTypeExpr = (te: TypeExpr): string => {
     case 'ListType': return `List<${formatTypeExpr(te.elem)}>`;
     case 'OptionalType': return `${postfixType(te.elem)}?`;
     case 'ResultType': return `${postfixType(te.ok)} orfail ${postfixType(te.err)}`;
-    case 'FnType': return `Fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
+    case 'FnType': {
+      const fn = `Fn(${te.params.map(formatTypeExpr).join(', ')}) -> ${formatTypeExpr(te.result)}`;
+      return te.async ? `async ${fn}` : fn;
+    }
     case 'TaskType': return `Task<${formatTypeExpr(te.elem)}>`;
+    case 'PairType': return `Pair<${formatTypeExpr(te.first)}, ${formatTypeExpr(te.second)}>`;
+    case 'EntryType': return `Entry<${formatTypeExpr(te.key)}, ${formatTypeExpr(te.value)}>`;
   }
 };
 

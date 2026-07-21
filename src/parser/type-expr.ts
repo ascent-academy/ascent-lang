@@ -106,6 +106,40 @@ function parsePostfixType(ts: TokenStream): TypeExpr | null {
     if (gt === null) return null;
 
     base = { kind: 'TaskType', elem, span: { start: tok.span.start, end: gt.span.end } };
+  } else if (tok.value === 'Pair') {
+    // 'Pair<A, B>' — prelude.md's ambient two-value record type. Same
+    // angle-bracket shape as 'List<T>'/'Task<T>', but with two comma-separated
+    // type arguments instead of one, since a Pair always carries exactly two.
+    ts.advance(); // consume 'Pair'
+    if (ts.expect('LT', 'S0012') === null) return null;
+
+    const first = parseTypeExpr(ts);
+    if (first === null) return null;
+    if (ts.expect('COMMA', 'S0045') === null) return null;
+    const second = parseTypeExpr(ts);
+    if (second === null) return null;
+
+    const gt = ts.expect('GT', 'S0012');
+    if (gt === null) return null;
+
+    base = { kind: 'PairType', first, second, span: { start: tok.span.start, end: gt.span.end } };
+  } else if (tok.value === 'Entry') {
+    // 'Entry<K, V>' — prelude.md's ambient key/value association type. Same
+    // shape as 'Pair<A, B>', with 'key'/'value' field names instead of
+    // 'first'/'second'.
+    ts.advance(); // consume 'Entry'
+    if (ts.expect('LT', 'S0012') === null) return null;
+
+    const key = parseTypeExpr(ts);
+    if (key === null) return null;
+    if (ts.expect('COMMA', 'S0045') === null) return null;
+    const value = parseTypeExpr(ts);
+    if (value === null) return null;
+
+    const gt = ts.expect('GT', 'S0012');
+    if (gt === null) return null;
+
+    base = { kind: 'EntryType', key, value, span: { start: tok.span.start, end: gt.span.end } };
   } else {
     ts.advance(); // consume type name
     // Any other TYPE_NAME — a built-in scalar or a user-declared type. Whether

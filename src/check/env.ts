@@ -37,6 +37,27 @@ export interface TypeInfo {
   declSpan: Span;
 }
 
+// prelude.md's ambient 'Ordering' — 'Less | Equal | Greater', the honest
+// result of a custom comparison (§7's Comparable trait). It ships
+// pre-registered in every fresh root scope, in scope with no import and no
+// 'type' declaration — exactly as if an invisible first line had already
+// declared it — so match, construction, and exhaustiveness checking all fall
+// out of the ordinary Named-type machinery below with no special-casing.
+// There's no real declaration site in source, hence the zero-position
+// sentinel span; formation.ts's BUILTIN_TYPE_NAMES additionally lists
+// 'Ordering' so a user *redeclaring* it gets the same 'reuses a built-in name'
+// message (N0008) List/Result get, rather than 'already declared' (N0006)
+// pointing a related span at that meaningless sentinel. 'Pair'/'Entry'
+// (prelude.md's other two ambient types) are NOT handled this way — they're
+// generic, which this registry has no way to express (a Variant's fields are
+// always concrete AscentTypes, never parameters), so they're instead their
+// own AscentType kind (types.ts) with construction/field-access special-cased
+// in synth.ts.
+const AMBIENT_SPAN: Span = { start: { offset: 0, line: 1, column: 1 }, end: { offset: 0, line: 1, column: 1 } };
+const AMBIENT_TYPES: readonly TypeInfo[] = [
+  { name: 'Ordering', variants: ['Less', 'Equal', 'Greater'].map(tag => ({ tag, fields: [] })), declSpan: AMBIENT_SPAN },
+];
+
 // A chain of scopes mirroring Environment in the interpreter. It carries two
 // parallel namespaces — value bindings (lowercase slots) and type declarations
 // (UpperCamel names) — that never collide, since the casing rule keeps the two
@@ -71,7 +92,15 @@ export class TypeEnv {
     private readonly parent: TypeEnv | null = null,
     private readonly funcReturn: AscentType | null = null,
     private readonly funcAsync: boolean | null = null,
-  ) { }
+  ) {
+    // Only a fresh root gets the ambient types seeded directly — every other
+    // scope (child(), childForFunction()) inherits them by walking up to that
+    // root via getType()/getConstructor(), exactly like everything else scoped
+    // to the root (capabilities, the enclosing function's return type).
+    if (parent === null) {
+      for (const info of AMBIENT_TYPES) this.types.set(info.name, info);
+    }
+  }
 
   public get(name: string): Binding | null {
     return this.vars.get(name) ?? this.parent?.get(name) ?? null;

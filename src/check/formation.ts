@@ -1,7 +1,7 @@
 import type { TypeExpr, ArgType } from '../parser/ast.js';
 import {
   AscentType, INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, DONE_TYPE, INVALID_TYPE,
-  listOfType, optionalOf, resultOf, namedType, functionType, taskOf,
+  listOfType, optionalOf, resultOf, namedType, functionType, taskOf, pairOf, entryOf,
 } from '../types/types.js';
 import type { TypeEnv } from './env.js';
 import type { Diagnostics } from './diagnostics.js';
@@ -31,7 +31,16 @@ const BUILTIN_SCALARS: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'S
 // non-shadowable (whitepaper §2/§9). One source of truth: a 'type' declaration
 // can't reuse any of these (N0008), and none can be used as a bare value
 // (N0012). Shared by the checker's stmt/synth passes.
-export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List', 'Result', 'Success', 'Failure']);
+// 'Pair'/'Entry' (prelude.md's ambient two-value record types) are reserved
+// the same way — not user-shadowable, and not valid bare values — even though
+// their construction is special-cased in synth.ts rather than resolved
+// through the named-type registry (they're generic; see the Pair/Entry
+// AscentType kind in types.ts). 'Ordering' (prelude.md's third ambient type)
+// *is* registered in the registry (env.ts's AMBIENT_TYPES, since it isn't
+// generic) — it's listed here too so a redeclaration attempt reports the same
+// 'reuses a built-in name' (N0008) every other entry gets, rather than
+// 'already declared' (N0006) pointing at Ordering's meaningless sentinel span.
+export const BUILTIN_TYPE_NAMES: ReadonlySet<string> = new Set(['Int', 'Float', 'Bool', 'String', 'List', 'Result', 'Success', 'Failure', 'Pair', 'Entry', 'Ordering']);
 
 export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostics): AscentType => {
   switch (te.kind) {
@@ -74,5 +83,10 @@ export const typeFromExpr = (te: TypeExpr, env: TypeEnv, diagnostics: Diagnostic
     // 'Task<T>' — the inert async result (whitepaper §8). A 'Fn(...)' type
     // carries its own 'async' flag; a Task carries just its awaited result type.
     case 'TaskType': return taskOf(typeFromExpr(te.elem, env, diagnostics));
+    // 'Pair<A, B>' / 'Entry<K, V>' (prelude.md) — formed straight into their
+    // own AscentType kind, never through the named-type registry (neither is
+    // user-declarable; generics are v2, whitepaper §7).
+    case 'PairType': return pairOf(typeFromExpr(te.first, env, diagnostics), typeFromExpr(te.second, env, diagnostics));
+    case 'EntryType': return entryOf(typeFromExpr(te.key, env, diagnostics), typeFromExpr(te.value, env, diagnostics));
   }
 };

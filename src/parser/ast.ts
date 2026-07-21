@@ -29,7 +29,15 @@ export type FnType = { kind: 'FnType'; params: TypeExpr[]; result: TypeExpr; asy
 // angle-bracket form as 'List<T>'; usually inferred (a slot bound to 'f!(x)'),
 // but writable so a slot holding a prepared task can be annotated.
 export type TaskType = { kind: 'TaskType'; elem: TypeExpr; span: Span };
-export type TypeExpr = TypeName | ListType | OptionalType | ResultType | FnType | TaskType;
+// 'Pair<A, B>' / 'Entry<K, V>' — prelude.md's ambient two-value record types,
+// written in the same '<…>' shape as List<T>/Task<T> but with two
+// comma-separated type arguments instead of one. Neither is user-declarable
+// (generics are v2, whitepaper §7) — they're formed straight into the
+// compiler's own Pair/Entry AscentType kind (src/check/formation.ts), never
+// resolved through the ordinary named-type registry.
+export type PairType = { kind: 'PairType'; first: TypeExpr; second: TypeExpr; span: Span };
+export type EntryType = { kind: 'EntryType'; key: TypeExpr; value: TypeExpr; span: Span };
+export type TypeExpr = TypeName | ListType | OptionalType | ResultType | FnType | TaskType | PairType | EntryType;
 
 export type Literal = (
   | { kind: 'literal'; valueType: 'Int'; value: bigint; span: Span }

@@ -115,6 +115,19 @@ export const applyCoercion = (v: RuntimeValue, c: Coercion): RuntimeValue => {
     fields.set(field, applyCoercion(fields.get(field)!, inner));
     return { type: 'Record', name: rec.name, fields };
   }
+  // A Pair/Entry widening (prelude.md): unlike Result's either/or branches,
+  // both fields are always present, so both are coerced unconditionally —
+  // 'first'/'second' or 'key'/'value' by their own sub-witness.
+  if ('first' in c || 'key' in c) {
+    const rec = v as Extract<RuntimeValue, { type: 'Record' }>;
+    const [[fieldA, innerA], [fieldB, innerB]] = 'first' in c
+      ? [['first', c.first], ['second', c.second]] as const
+      : [['key', c.key], ['value', c.value]] as const;
+    const fields = new Map(rec.fields);
+    fields.set(fieldA, applyCoercion(fields.get(fieldA)!, innerA));
+    fields.set(fieldB, applyCoercion(fields.get(fieldB)!, innerB));
+    return { type: 'Record', name: rec.name, fields };
+  }
   const list = v as Extract<RuntimeValue, { type: 'List' }>;
   return { type: 'List', elements: list.elements.map(e => applyCoercion(e, c.elem)) };
 };
