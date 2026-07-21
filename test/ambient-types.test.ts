@@ -8,10 +8,14 @@ import { typeToString } from '../src/types/types.js';
 // prelude.md's ambient helper types — Pair<A, B>, Entry<K, V>, Ordering — in
 // scope with no import, since the stdlib collection types hand them back
 // (§4/§7). Pair/Entry are generic, so unlike an ordinary 'type' they're their
-// own AscentType kind (src/types/types.ts) with construction/field access
-// special-cased (src/check/synth.ts); Ordering isn't generic, so it's a real
-// pre-registered Named type (src/check/env.ts) and gets full match/
-// exhaustiveness support for free.
+// own AscentType kind (src/types/types.ts) with construction, field access,
+// fix/mut destructuring, for-loop destructuring, and match all special-cased
+// (src/check/synth.ts, src/check/stmt.ts) — since a Pair/Entry *pattern*
+// carries no type arguments, those last three resolve 'first'/'second' (or
+// 'key'/'value') from the already-known type of the value being destructured
+// (the init, the loop's element type, or the match subject) rather than from
+// a tag alone. Ordering isn't generic, so it's a real pre-registered Named
+// type (src/check/env.ts) and gets full match/exhaustiveness support for free.
 
 async function evalOk(src: string): Promise<RuntimeValue> {
   const { program, diagnostics } = parse(src, testCapabilities);
@@ -130,6 +134,54 @@ describe('ambient helper types (Pair / Entry / Ordering, prelude.md)', () => {
 
     it('is a non-shadowable name (N0008 on redeclaration)', () => {
       assert.deepEqual(errorCodes('type Entry = { x: Int };'), ['N0008']);
+    });
+  });
+
+  describe('Pair/Entry destructuring and match (fields resolved from the source value, not the pattern)', () => {
+    it('destructures a Pair in a fix binding', async () => {
+      const src = 'fix p = Pair{ first: 1, second: "one" }; fix Pair{ first, second } = p; second;';
+      assert.deepEqual(await evalOk(src), { type: 'String', value: 'one' });
+    });
+
+    it('destructures an Entry in a fix binding', async () => {
+      const src = 'fix e = Entry{ key: "score", value: 42 }; fix Entry{ key, value } = e; value;';
+      assert.deepEqual(await evalOk(src), { type: 'Int', value: 42n });
+    });
+
+    it('destructures each Pair in a for loop', async () => {
+      const src = [
+        'fix pairs = [Pair{ first: 1, second: "a" }, Pair{ first: 2, second: "b" }];',
+        'mut out = "";',
+        'for Pair{ first, second } in pairs {',
+        '  out = "${out}${first}${second} ";',
+        '};',
+        'out;',
+      ].join('\n');
+      assert.deepEqual(await evalOk(src), { type: 'String', value: '1a 2b ' });
+    });
+
+    it('matches a Pair, binding its fields (one arm is exhaustive — no else needed)', async () => {
+      const src = 'fix p = Pair{ first: 1, second: "one" }; match p { Pair{ first, second } -> "${first}-${second}" };';
+      assert.deepEqual(await evalOk(src), { type: 'String', value: '1-one' });
+    });
+
+    it('rejects destructuring a non-Pair value in a fix binding (T0001)', () => {
+      assert.deepEqual(errorCodes('fix Pair{ first, second } = 5;'), ['T0001']);
+    });
+
+    it('rejects a for-loop whose elements are not Pairs (T0001)', () => {
+      assert.deepEqual(errorCodes('for Pair{ first, second } in [1, 2, 3] { void first; }'), ['T0001']);
+    });
+
+    it('rejects a match arm Pair pattern against a non-Pair subject (T0029)', () => {
+      assert.deepEqual(
+        errorCodes('fix x = 5; match x { Pair{ first, second } -> 1, other -> 0 };'),
+        ['T0029'],
+      );
+    });
+
+    it('still rejects an unknown field inside the pattern (T0023)', () => {
+      assert.deepEqual(errorCodes('fix p = Pair{ first: 1, second: 2 }; fix Pair{ first, third } = p;'), ['T0023']);
     });
   });
 

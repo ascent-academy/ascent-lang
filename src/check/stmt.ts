@@ -183,6 +183,12 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
       const all = ['Success', 'Failure'];
       return { label: typeToString(type), all, missing: all.filter(tag => !coveredTags.has(tag)) };
     }
+    // Pair/Entry (prelude.md) are a *one*-case union — always the single shape
+    // — so, like a user single-variant record (the Named case above), one arm
+    // ('Pair{ … } -> …') exhausts it on its own with no 'else' needed.
+    if (type.kind === 'Pair' || type.kind === 'Entry') {
+      return { label: typeToString(type), all: [type.kind], missing: coveredTags.has(type.kind) ? [] : [type.kind] };
+    }
     return null;
   };
 
@@ -244,6 +250,43 @@ export const inferMatch = (expr: Match, env: TypeEnv, diagnostics: Diagnostics):
         diagnostics.error({
           code: 'T0029', span: pat.span,
           data: { expected: typeToString(subjectType), actual: `a Result ('${pat.tag}')` },
+          related: [{ key: 'subject', span: expr.subject.span }],
+        });
+      }
+    } else if (pat.kind === 'variantPattern' && (pat.tag === 'Pair' || pat.tag === 'Entry')) {
+      // 'Pair'/'Entry' (prelude.md) are generic, so — unlike an ordinary
+      // variant pattern below — there is no registry entry to resolve their
+      // fields from; the subject's own (already-known) type supplies
+      // 'first'/'second' or 'key'/'value' directly, the same "read the
+      // subject's own components" approach Success/Failure take above, just
+      // with two fields instead of one.
+      armEnv = env.child();
+      key = `variant:${pat.tag}`;
+      let fieldA: RecordField;
+      let fieldB: RecordField;
+      let matches: boolean;
+      if (pat.tag === 'Pair' && subjectType.kind === 'Pair') {
+        fieldA = { name: 'first', type: subjectType.first, span: pat.tagSpan };
+        fieldB = { name: 'second', type: subjectType.second, span: pat.tagSpan };
+        matches = true;
+      } else if (pat.tag === 'Entry' && subjectType.kind === 'Entry') {
+        fieldA = { name: 'key', type: subjectType.key, span: pat.tagSpan };
+        fieldB = { name: 'value', type: subjectType.value, span: pat.tagSpan };
+        matches = true;
+      } else {
+        const [nameA, nameB] = pat.tag === 'Pair' ? ['first', 'second'] as const : ['key', 'value'] as const;
+        fieldA = { name: nameA, type: INVALID_TYPE, span: pat.tagSpan };
+        fieldB = { name: nameB, type: INVALID_TYPE, span: pat.tagSpan };
+        matches = false;
+      }
+      bindPatternFields(pat.fields, { tag: pat.tag, fields: [fieldA, fieldB] }, armEnv, 'fix', pat.tag, diagnostics);
+      if (matches) {
+        patternType = subjectType;
+      } else if (!isInvalidType(subjectType)) {
+        patternType = null;
+        diagnostics.error({
+          code: 'T0029', span: pat.span,
+          data: { expected: typeToString(subjectType), actual: `a ${pat.tag}` },
           related: [{ key: 'subject', span: expr.subject.span }],
         });
       }
@@ -496,6 +539,51 @@ const resolveRecordTarget = (
   return { recordType, typedFields };
 };
 
+// Resolve a 'Pair'/'Entry' destructuring pattern (a fix/mut target, or a
+// for-loop variable) against `sourceType` — the *already-known* type of the
+// value being destructured (the init's synthesized type, or a for-loop's
+// element type). Unlike resolveRecordTarget above, which resolves an ordinary
+// tag's field types purely from the type registry, Pair/Entry carry no type
+// arguments in the pattern itself (they're generic, whitepaper §7 — there is
+// no 'fix Pair<Int, String>{ … }' syntax), so there is nothing to resolve
+// until the source value's own type reveals A/B — the caller must synthesize
+// (or already know) that type *before* calling this, the reverse of
+// resolveRecordTarget's tag-first order. Unlike Success/Failure (rejected
+// above as refutable), a Pair/Entry is always the one shape, so this never
+// rejects the pattern itself — only a source whose type isn't a matching
+// Pair/Entry (T0001, the same code an ordinary record destructuring mismatch
+// gets from inferRecordBinding's check() call below).
+const resolveTwoFieldTarget = (
+  target: Extract<BindTarget, { kind: 'record' }>,
+  tag: 'Pair' | 'Entry',
+  sourceType: AscentType,
+  env: TypeEnv,
+  origin: 'fix' | 'mut',
+  diagnostics: Diagnostics,
+): { recordType: AscentType; typedFields: TypedFieldPattern[] } => {
+  let fieldA: RecordField;
+  let fieldB: RecordField;
+  let recordType: AscentType = INVALID_TYPE;
+  if (tag === 'Pair' && sourceType.kind === 'Pair') {
+    fieldA = { name: 'first', type: sourceType.first, span: target.typeNameSpan };
+    fieldB = { name: 'second', type: sourceType.second, span: target.typeNameSpan };
+    recordType = sourceType;
+  } else if (tag === 'Entry' && sourceType.kind === 'Entry') {
+    fieldA = { name: 'key', type: sourceType.key, span: target.typeNameSpan };
+    fieldB = { name: 'value', type: sourceType.value, span: target.typeNameSpan };
+    recordType = sourceType;
+  } else {
+    const [nameA, nameB] = tag === 'Pair' ? ['first', 'second'] as const : ['key', 'value'] as const;
+    fieldA = { name: nameA, type: INVALID_TYPE, span: target.typeNameSpan };
+    fieldB = { name: nameB, type: INVALID_TYPE, span: target.typeNameSpan };
+    if (!isInvalidType(sourceType)) {
+      diagnostics.error({ code: 'T0001', span: target.typeNameSpan, data: { expected: tag, actual: typeToString(sourceType) } });
+    }
+  }
+  const typedFields = bindPatternFields(target.fields, { tag, fields: [fieldA, fieldB] }, env, origin, tag, diagnostics);
+  return { recordType, typedFields };
+};
+
 // A 'fix'/'mut' whose target is a record destructuring pattern — the init must
 // have the pattern's record type (whitepaper §5).
 const inferRecordBinding = (
@@ -504,6 +592,23 @@ const inferRecordBinding = (
   env: TypeEnv,
   diagnostics: Diagnostics,
 ): TypedStatement => {
+  // 'Pair'/'Entry' (prelude.md) are generic, so their pattern carries no type
+  // arguments — the init has to be synthesized *first* so its own type can
+  // reveal A/B, the reverse of every other tag's "resolve from the registry,
+  // then check the init against it" order below.
+  if (target.typeName === 'Pair' || target.typeName === 'Entry') {
+    const typedInit = synth(stmt.init, env, diagnostics);
+    const { recordType, typedFields } = resolveTwoFieldTarget(target, target.typeName, typedInit.type, env, stmt.kind, diagnostics);
+    return {
+      kind: stmt.kind,
+      target: { kind: 'record', typeName: target.typeName, fields: typedFields },
+      typeAnnotation: null,
+      slotType: recordType,
+      init: typedInit,
+      span: stmt.span,
+    };
+  }
+
   const { recordType, typedFields } = resolveRecordTarget(target, env, stmt.kind, diagnostics);
 
   // Check the init against the pattern's record type. On an error path
@@ -768,7 +873,15 @@ export const inferStmt = (stmt: Statement, env: TypeEnv, diagnostics: Diagnostic
       // its own child under this, so the binding is visible throughout it.
       const inner = env.child();
       let target: TypedBindTarget;
-      if (stmt.target.kind === 'record') {
+      if (stmt.target.kind === 'record' && (stmt.target.typeName === 'Pair' || stmt.target.typeName === 'Entry')) {
+        // 'for Pair{ first, second } in pairs' — the element type is already
+        // known (elemType, above), so resolveTwoFieldTarget reads A/B straight
+        // from it; no separate mismatch check needed afterward (unlike the
+        // ordinary-tag branch below), since a non-matching elemType is already
+        // reported inside it.
+        const { typedFields } = resolveTwoFieldTarget(stmt.target, stmt.target.typeName, elemType, inner, 'fix', diagnostics);
+        target = { kind: 'record', typeName: stmt.target.typeName, fields: typedFields };
+      } else if (stmt.target.kind === 'record') {
         // A destructuring loop: each element is pulled apart as the pattern's
         // (single-variant) record. The element type must be that record — a
         // 'for Car{ … } in people' where the elements are Person is T0001, the
